@@ -48,12 +48,12 @@ function saveState() {
 }
 
 const sampleIssues = [
-  { id: 101, title: "Design login page mockup", desc: "Create wireframes for the new login flow", type: "story", priority: "high", assignee: "Alice", status: "todo" },
-  { id: 102, title: "Fix auth token refresh bug", desc: "Tokens expire too early on mobile", type: "bug", priority: "high", assignee: "Bob", status: "inprogress" },
-  { id: 103, title: "Set up CI/CD pipeline", desc: "GitHub Actions for staging and prod", type: "task", priority: "medium", assignee: "Charlie", status: "todo" },
-  { id: 104, title: "Write API documentation", desc: "OpenAPI spec for all endpoints", type: "story", priority: "medium", assignee: "Alice", status: "review" },
-  { id: 105, title: "Update dependencies", desc: "Bump all npm packages to latest", type: "task", priority: "low", assignee: "Bob", status: "done" },
-  { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo" },
+  { id: 101, title: "Design login page mockup", desc: "Create wireframes for the new login flow", type: "story", priority: "high", assignee: "Alice", status: "todo", dueDate: "2026-05-15" },
+  { id: 102, title: "Fix auth token refresh bug", desc: "Tokens expire too early on mobile", type: "bug", priority: "high", assignee: "Bob", status: "inprogress", dueDate: "2026-05-01" },
+  { id: 103, title: "Set up CI/CD pipeline", desc: "GitHub Actions for staging and prod", type: "task", priority: "medium", assignee: "Charlie", status: "todo", dueDate: "2026-06-01" },
+  { id: 104, title: "Write API documentation", desc: "OpenAPI spec for all endpoints", type: "story", priority: "medium", assignee: "Alice", status: "review", dueDate: null },
+  { id: 105, title: "Update dependencies", desc: "Bump all npm packages to latest", type: "task", priority: "low", assignee: "Bob", status: "done", dueDate: "2026-04-20" },
+  { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null },
 ];
 
 // ===== Type Icons =====
@@ -82,6 +82,7 @@ function createCard(issue) {
 
   card.innerHTML = `
     <div class="issue-card-header">
+      <input type="checkbox" class="issue-checkbox" data-id="${issue.id}" onclick="event.stopPropagation()">
       <span class="issue-key">PROJ-${issue.id}</span>
       <span class="issue-type-icon">${typeIcons[issue.type] || '📄'}</span>
     </div>
@@ -89,6 +90,7 @@ function createCard(issue) {
     ${issue.desc ? `<div class="issue-desc">${escapeHtml(issue.desc)}</div>` : ''}
     <div class="issue-card-footer">
       <span class="issue-priority priority-${issue.priority}">${issue.priority}</span>
+      ${issue.dueDate ? `<span class="issue-due-date ${isOverdue(issue.dueDate, issue.status) ? 'overdue' : ''}">📅 ${formatDate(issue.dueDate)}</span>` : ''}
       <div style="display:flex;align-items:center;gap:8px;">
         ${commentCount > 0 ? `<span class="issue-comments-badge">💬 ${commentCount}</span>` : ''}
         ${issue.assignee ? `<div class="issue-assignee" title="${escapeHtml(issue.assignee)}">${issue.assignee.charAt(0).toUpperCase()}</div>` : ''}
@@ -98,6 +100,14 @@ function createCard(issue) {
 
   // Click to open detail panel
   card.addEventListener('click', () => openDetailPanel(issue.id));
+
+  // Checkbox for bulk actions
+  const checkbox = card.querySelector('.issue-checkbox');
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) selectedIds.add(issue.id);
+    else selectedIds.delete(issue.id);
+    updateBulkBar();
+  });
 
   // Drag events
   card.addEventListener('dragstart', e => {
@@ -116,6 +126,24 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function isOverdue(dueDate, status) {
+  if (!dueDate || status === 'done') return false;
+  return new Date(dueDate) < new Date(new Date().toDateString());
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function updateCounts() {
   ['todo', 'inprogress', 'review', 'done'].forEach(status => {
     const countEl = document.querySelector(`[data-count-for="${status}"]`);
@@ -123,6 +151,122 @@ function updateCounts() {
       countEl.textContent = issues.filter(i => i.status === status).length;
     }
   });
+  updateNotifications();
+}
+
+// ===== Notifications =====
+function updateNotifications() {
+  const bell = document.getElementById('notification-bell');
+  const countEl = document.getElementById('notification-count');
+  if (!bell || !countEl) return;
+  const overdue = issues.filter(i => isOverdue(i.dueDate, i.status));
+  if (overdue.length > 0) {
+    countEl.textContent = overdue.length;
+    countEl.style.display = 'flex';
+    bell.title = `${overdue.length} overdue issue${overdue.length > 1 ? 's' : ''}: ${overdue.map(i => i.title).join(', ')}`;
+  } else {
+    countEl.style.display = 'none';
+    bell.title = 'No notifications';
+  }
+}
+
+// ===== Bulk Actions =====
+let selectedIds = new Set();
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  if (selectedIds.size === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  document.getElementById('bulk-count').textContent = `${selectedIds.size} selected`;
+}
+
+function handleBulkStatusChange(e) {
+  const status = e.target.value;
+  if (!status) return;
+  issues.forEach(i => {
+    if (selectedIds.has(i.id)) i.status = status;
+  });
+  selectedIds.clear();
+  saveState();
+  renderBoard();
+  updateCounts();
+  updateBulkBar();
+}
+
+function handleBulkDelete() {
+  if (!confirm(`Delete ${selectedIds.size} issues?`)) return;
+  const titles = [];
+  issues = issues.filter(i => {
+    if (selectedIds.has(i.id)) {
+      titles.push(i.title);
+      delete comments[i.id];
+      return false;
+    }
+    return true;
+  });
+  selectedIds.clear();
+  saveState();
+  addActivity(`Deleted ${titles.length} issues`);
+  renderBoard();
+  updateCounts();
+  updateBulkBar();
+}
+
+function handleBulkClear() {
+  selectedIds.clear();
+  document.querySelectorAll('.issue-checkbox').forEach(cb => cb.checked = false);
+  updateBulkBar();
+}
+
+// ===== Export / Import =====
+function exportData() {
+  const data = {
+    issues: issues,
+    comments: comments,
+    projects: projects,
+    currentProject: currentProject,
+    savedFilters: savedFilters,
+    activityLog: activityLog.map(a => ({ ...a, time: a.time.toISOString() })),
+    issueCounter: issueCounter,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `jira-clone-export-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  addActivity('📥', 'Exported board data');
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.issues || !data.comments) throw new Error('Invalid format');
+      issues = data.issues;
+      comments = data.comments;
+      projects = data.projects || { default: { name: 'Project Alpha', icon: '📋', issues } };
+      currentProject = data.currentProject || 'default';
+      savedFilters = data.savedFilters || [];
+      activityLog = (data.activityLog || []).map(a => ({ ...a, time: new Date(a.time) }));
+      issueCounter = data.issueCounter || 106;
+      saveState();
+      renderBoard();
+      renderSidebar();
+      populateAssigneeFilter();
+      updateCounts();
+      addActivity('📤', 'Imported board data');
+      alert('Import successful!');
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ===== Filter =====
@@ -256,6 +400,23 @@ function openDetailPanel(issueId) {
   });
 
   panel.classList.add('open');
+
+  // Delete button
+  document.getElementById('delete-issue-btn').addEventListener('click', () => deleteIssue(issueId));
+}
+
+function deleteIssue(issueId) {
+  if (!confirm('Delete this issue? This cannot be undone.')) return;
+  const idx = issues.findIndex(i => i.id === issueId);
+  if (idx === -1) return;
+  const title = issues[idx].title;
+  issues.splice(idx, 1);
+  delete comments[issueId];
+  saveState();
+  addActivity(`Deleted issue: ${title}`);
+  closeDetailPanel();
+  renderBoard();
+  updateCounts();
 }
 
 function closeDetailPanel() {
@@ -343,6 +504,26 @@ document.addEventListener('DOMContentLoaded', () => {
   initDragDrop();
   populateAssigneeFilter();
 
+  // Bulk action listeners
+  document.getElementById('bulk-status').addEventListener('change', handleBulkStatusChange);
+  document.getElementById('bulk-delete').addEventListener('click', handleBulkDelete);
+  document.getElementById('bulk-clear').addEventListener('click', handleBulkClear);
+
+  // Export / Import
+  document.getElementById('export-btn').addEventListener('click', exportData);
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.accept = '.json';
+  importInput.style.display = 'none';
+  document.body.appendChild(importInput);
+  document.getElementById('import-btn').addEventListener('click', () => importInput.click());
+  importInput.addEventListener('change', e => {
+    if (e.target.files[0]) {
+      importData(e.target.files[0]);
+      e.target.value = '';
+    }
+  });
+
   // Sidebar toggle
   document.getElementById('toggle-sidebar').addEventListener('click', () => {
     document.querySelector('.app-layout').classList.toggle('sidebar-collapsed');
@@ -399,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
       priority: document.getElementById('issue-priority').value,
       assignee: document.getElementById('issue-assignee').value.trim(),
       status: 'todo',
+      dueDate: document.getElementById('issue-due-date').value || null,
     };
     issues.push(newIssue);
     saveState();
@@ -420,6 +602,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-type').addEventListener('change', applyFilters);
   document.getElementById('filter-priority').addEventListener('change', applyFilters);
   document.getElementById('filter-assignee').addEventListener('change', applyFilters);
+
+  // Global keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const panel = document.getElementById('detail-panel');
+      if (panel.classList.contains('open')) { closeDetailPanel(); return; }
+      const modal = document.getElementById('modal-overlay');
+      if (modal.style.display === 'flex') { closeModal(); return; }
+      const projectModal = document.getElementById('project-modal-overlay');
+      if (projectModal.style.display === 'flex') { projectModal.style.display = 'none'; return; }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      openModal();
+    }
+  });
 });
 
 function populateAssigneeFilter() {
