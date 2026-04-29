@@ -138,7 +138,7 @@ test('search input exists', async ({ page }) => {
 
 // ===== Nav Tests =====
 test('top nav displays project name', async ({ page }) => {
-  await expect(page.locator('.project-name')).toHaveText('Project Alpha');
+  await expect(page.locator('.topnav .project-name')).toHaveText('Project Alpha');
 });
 
 test('avatar is visible', async ({ page }) => {

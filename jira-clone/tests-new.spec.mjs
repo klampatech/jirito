@@ -172,10 +172,6 @@ test('clearing filters shows all issues', async ({ page }) => {
 
 // ===== localStorage Tests =====
 test('created issues persist after reload', async ({ page }) => {
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForTimeout(300);
-
   await page.locator('#add-issue-btn').click();
   await page.locator('#issue-title').fill('Persisted issue');
   await page.locator('#issue-desc').fill('Should survive reload');
@@ -185,6 +181,12 @@ test('created issues persist after reload', async ({ page }) => {
   await page.locator('#issue-form').evaluate(form => form.requestSubmit());
 
   await expect(page.locator('.issue-card')).toHaveCount(7);
+
+  // Reset filters before reload
+  await page.locator('#filter-type').selectOption('all');
+  await page.locator('#filter-priority').selectOption('all');
+  await page.locator('#filter-assignee').selectOption('all');
+  await page.locator('#search-input').fill('');
 
   // Reload and verify
   await page.reload();

@@ -3,10 +3,25 @@ let issues = [];
 let issueCounter = 100;
 let currentDetailIssue = null;
 let comments = {}; // { issueId: [{ author, text, date }] }
+let currentProject = 'default';
+let currentView = 'board'; // 'board' | 'list'
+let projects = {}; // { key: { name, icon, issues } }
+let savedFilters = []; // [{ name, type, priority, assignee }]
+let activityLog = []; // [{ icon, text, time }]
+
+function addActivity(icon, text) {
+  activityLog.unshift({ icon, text, time: new Date() });
+  if (activityLog.length > 50) activityLog.pop();
+  renderActivity();
+}
 
 function loadState() {
   const saved = localStorage.getItem('jira-clone-issues');
   const savedComments = localStorage.getItem('jira-clone-comments');
+  const savedProjects = localStorage.getItem('jira-clone-projects');
+  const savedCurrentProject = localStorage.getItem('jira-clone-currentProject');
+  const savedFiltersRaw = localStorage.getItem('jira-clone-savedFilters');
+  const savedActivity = localStorage.getItem('jira-clone-activity');
   if (saved) {
     issues = JSON.parse(saved);
     issueCounter = Math.max(...issues.map(i => i.id), 100);
@@ -15,11 +30,21 @@ function loadState() {
     issueCounter = 106;
   }
   if (savedComments) comments = JSON.parse(savedComments);
+  if (savedProjects) projects = JSON.parse(savedProjects);
+  if (savedCurrentProject && projects[savedCurrentProject]) currentProject = savedCurrentProject;
+  if (savedFiltersRaw) savedFilters = JSON.parse(savedFiltersRaw);
+  if (savedActivity) {
+    activityLog = JSON.parse(savedActivity).map(a => ({ ...a, time: new Date(a.time) }));
+  }
 }
 
 function saveState() {
   localStorage.setItem('jira-clone-issues', JSON.stringify(issues));
   localStorage.setItem('jira-clone-comments', JSON.stringify(comments));
+  localStorage.setItem('jira-clone-projects', JSON.stringify(projects));
+  localStorage.setItem('jira-clone-currentProject', currentProject);
+  localStorage.setItem('jira-clone-savedFilters', JSON.stringify(savedFilters));
+  localStorage.setItem('jira-clone-activity', JSON.stringify(activityLog.map(a => ({ ...a, time: a.time.toISOString() }))));
 }
 
 const sampleIssues = [
@@ -294,9 +319,67 @@ function closeModal() {
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
+
+  // Ensure default project exists
+  if (!projects['default']) {
+    projects['default'] = { name: 'Project Alpha', icon: '📋', issues: issues.length > 0 ? issues : [...sampleIssues] };
+  }
+  // Migrate existing issues into default project
+  if (issues.length > 0 && !projects['default'].issues.length) {
+    projects['default'].issues = issues;
+  }
+  // Ensure current project has issues
+  if (projects[currentProject] && !projects[currentProject].issues.length) {
+    projects[currentProject].issues = issues.length > 0 ? issues : [...sampleIssues];
+  }
+  // Sync global issues with current project
+  if (issues.length === 0 && projects[currentProject].issues.length > 0) {
+    issues = projects[currentProject].issues;
+  }
+  issues = projects[currentProject].issues;
+
+  renderSidebar();
   renderBoard();
   initDragDrop();
   populateAssigneeFilter();
+
+  // Sidebar toggle
+  document.getElementById('toggle-sidebar').addEventListener('click', () => {
+    document.querySelector('.app-layout').classList.toggle('sidebar-collapsed');
+  });
+
+  // New project button
+  document.getElementById('add-project-btn').addEventListener('click', () => {
+    document.getElementById('project-modal-overlay').style.display = 'flex';
+    document.getElementById('project-name').focus();
+  });
+  document.getElementById('project-modal-close').addEventListener('click', () => {
+    document.getElementById('project-modal-overlay').style.display = 'none';
+    document.getElementById('project-form').reset();
+  });
+  document.getElementById('project-cancel').addEventListener('click', () => {
+    document.getElementById('project-modal-overlay').style.display = 'none';
+    document.getElementById('project-form').reset();
+  });
+  document.getElementById('project-modal-overlay').addEventListener('click', e => {
+    if (!e.target.closest('.modal')) {
+      document.getElementById('project-modal-overlay').style.display = 'none';
+      document.getElementById('project-form').reset();
+    }
+  });
+  document.getElementById('project-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = document.getElementById('project-name').value.trim();
+    const key = document.getElementById('project-key').value.trim().toUpperCase();
+    if (!name || !key) return;
+    if (projects[key]) { alert('Project key already exists!'); return; }
+    createProject(name, key);
+    document.getElementById('project-modal-overlay').style.display = 'none';
+    document.getElementById('project-form').reset();
+  });
+
+  // Save filter button
+  document.getElementById('save-filter-btn').addEventListener('click', saveCurrentFilter);
 
   document.getElementById('add-issue-btn').addEventListener('click', openModal);
   document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -321,13 +404,12 @@ document.addEventListener('DOMContentLoaded', () => {
     saveState();
     renderBoard();
     closeModal();
+    addActivity('➕', `Created <strong>PROJ-${newIssue.id}</strong>`);
   });
 
   // Add card buttons
   document.querySelectorAll('.btn-add-card').forEach(btn => {
-    btn.addEventListener('click', () => {
-      openModal();
-    });
+    btn.addEventListener('click', () => openModal());
   });
 
   // Detail panel close
@@ -343,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function populateAssigneeFilter() {
   const assignees = [...new Set(issues.map(i => i.assignee).filter(Boolean))];
   const select = document.getElementById('filter-assignee');
+  select.innerHTML = '<option value="all">All Assignees</option>';
   assignees.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a;
@@ -350,3 +433,226 @@ function populateAssigneeFilter() {
     select.appendChild(opt);
   });
 }
+
+// ===== Sidebar =====
+function renderSidebar() {
+  renderProjects();
+  renderViews();
+  renderSavedFilters();
+  renderActivity();
+}
+
+function renderProjects() {
+  const list = document.getElementById('project-list');
+  list.innerHTML = '';
+  Object.entries(projects).forEach(([key, proj]) => {
+    const item = document.createElement('div');
+    item.className = `project-item${key === currentProject ? ' active' : ''}`;
+    item.innerHTML = `
+      <span class="project-icon">${proj.icon}</span>
+      <span class="project-key">${key.toUpperCase()}</span>
+      <span class="project-name">${escapeHtml(proj.name)}</span>
+      <button class="project-delete" data-key="${key}" title="Delete project">✕</button>
+    `;
+    item.querySelector('.project-name').addEventListener('click', () => switchProject(key));
+    item.querySelector('.project-icon').addEventListener('click', () => switchProject(key));
+    item.querySelector('.project-key').addEventListener('click', () => switchProject(key));
+    item.querySelector('.project-delete').addEventListener('click', e => {
+      e.stopPropagation();
+      deleteProject(key);
+    });
+    list.appendChild(item);
+  });
+}
+
+function renderViews() {
+  const list = document.getElementById('view-list');
+  list.innerHTML = '';
+  const views = [
+    { id: 'board', icon: '📋', label: 'Board' },
+    { id: 'list', icon: '📝', label: 'List' },
+  ];
+  views.forEach(v => {
+    const item = document.createElement('div');
+    item.className = `view-item${v.id === currentView ? ' active' : ''}`;
+    item.innerHTML = `<span class="view-icon">${v.icon}</span><span>${v.label}</span>`;
+    item.addEventListener('click', () => switchView(v.id));
+    list.appendChild(item);
+  });
+}
+
+function renderSavedFilters() {
+  const list = document.getElementById('saved-filters');
+  list.innerHTML = '';
+  savedFilters.forEach((f, idx) => {
+    const item = document.createElement('div');
+    item.className = 'saved-filter-item';
+    item.innerHTML = `
+      <span class="filter-name">${escapeHtml(f.name)}</span>
+      <button class="filter-delete" data-idx="${idx}" title="Delete filter">✕</button>
+    `;
+    item.querySelector('.filter-name').addEventListener('click', () => applySavedFilter(idx));
+    item.querySelector('.filter-delete').addEventListener('click', e => {
+      e.stopPropagation();
+      savedFilters.splice(idx, 1);
+      saveState();
+      renderSavedFilters();
+    });
+    list.appendChild(item);
+  });
+}
+
+function renderActivity() {
+  const feed = document.getElementById('activity-feed');
+  feed.innerHTML = '';
+  activityLog.slice(0, 15).forEach(a => {
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    const ago = timeAgo(a.time);
+    item.innerHTML = `
+      <span class="activity-icon">${a.icon}</span>
+      <span class="activity-text">${a.text}</span>
+      <span class="activity-time">${ago}</span>
+    `;
+    feed.appendChild(item);
+  });
+}
+
+function timeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function switchProject(key) {
+  currentProject = key;
+  issues = projects[key].issues;
+  renderSidebar();
+  renderBoard();
+  populateAssigneeFilter();
+  document.getElementById('board-title').textContent = `${projects[key].icon} ${projects[key].name} — Board`;
+}
+
+function switchView(view) {
+  currentView = view;
+  renderViews();
+  const board = document.getElementById('board');
+  if (view === 'list') {
+    board.style.display = 'none';
+    let listView = document.getElementById('list-view');
+    if (!listView) {
+      listView = document.createElement('div');
+      listView.id = 'list-view';
+      listView.className = 'list-view';
+      board.after(listView);
+    }
+    renderListView();
+  } else {
+    const lv = document.getElementById('list-view');
+    if (lv) lv.style.display = 'none';
+    board.style.display = 'flex';
+  }
+}
+
+function renderListView() {
+  const container = document.getElementById('list-view');
+  const filtered = getFilteredIssues();
+  container.innerHTML = `
+    <table class="issue-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Key</th>
+          <th>Summary</th>
+          <th>Priority</th>
+          <th>Assignee</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(i => `
+          <tr data-id="${i.id}" class="list-row">
+            <td>${typeIcons[i.type] || '📄'} ${i.type}</td>
+            <td class="issue-key">PROJ-${i.id}</td>
+            <td>${escapeHtml(i.title)}</td>
+            <td><span class="issue-priority priority-${i.priority}">${i.priority}</span></td>
+            <td>${i.assignee || '—'}</td>
+            <td>${i.status}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.querySelectorAll('.list-row').forEach(row => {
+    row.addEventListener('click', () => openDetailPanel(parseInt(row.dataset.id)));
+  });
+}
+
+function getFilteredIssues() {
+  const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+  const typeFilter = document.getElementById('filter-type')?.value || 'all';
+  const priorityFilter = document.getElementById('filter-priority')?.value || 'all';
+  const assigneeFilter = document.getElementById('filter-assignee')?.value || 'all';
+  return issues.filter(i => {
+    if (typeFilter !== 'all' && i.type !== typeFilter) return false;
+    if (priorityFilter !== 'all' && i.priority !== priorityFilter) return false;
+    if (assigneeFilter !== 'all' && i.assignee !== assigneeFilter) return false;
+    if (search && !i.title.toLowerCase().includes(search) && !i.desc.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+function applySavedFilter(idx) {
+  const f = savedFilters[idx];
+  if (!f) return;
+  document.getElementById('filter-type').value = f.type || 'all';
+  document.getElementById('filter-priority').value = f.priority || 'all';
+  if (f.assignee) document.getElementById('filter-assignee').value = f.assignee;
+  else document.getElementById('filter-assignee').value = 'all';
+  applyFilters();
+}
+
+function saveCurrentFilter() {
+  const name = prompt('Name this filter:') || 'Untitled';
+  const f = {
+    name,
+    type: document.getElementById('filter-type').value,
+    priority: document.getElementById('filter-priority').value,
+    assignee: document.getElementById('filter-assignee').value,
+  };
+  if (f.type === 'all' && f.priority === 'all' && f.assignee === 'all') {
+    alert('Save a meaningful filter!');
+    return;
+  }
+  savedFilters.push(f);
+  saveState();
+  renderSavedFilters();
+}
+
+function deleteProject(key) {
+  if (Object.keys(projects).length <= 1) {
+    alert('You must have at least one project.');
+    return;
+  }
+  if (!confirm(`Delete project "${projects[key].name}" and all its issues?`)) return;
+  delete projects[key];
+  const remaining = Object.keys(projects)[0];
+  switchProject(remaining);
+  saveState();
+}
+
+function createProject(name, key) {
+  const icons = ['🚀', '🎯', '⚡', '🔥', '💡', '🌟', '🎨', '🔧'];
+  const icon = icons[Math.floor(Math.random() * icons.length)];
+  projects[key] = { name, icon, issues: [] };
+  switchProject(key);
+  saveState();
+  addActivity('🆕', `<strong>${name}</strong> project created`);
+}
+
+// ===== Init =====
