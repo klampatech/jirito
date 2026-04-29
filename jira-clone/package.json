@@ -1,0 +1,7 @@
+{
+  "name": "jira-clone",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  }
+}

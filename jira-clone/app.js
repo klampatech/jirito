@@ -526,7 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sidebar toggle
   document.getElementById('toggle-sidebar').addEventListener('click', () => {
-    document.querySelector('.app-layout').classList.toggle('sidebar-collapsed');
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('collapsed');
   });
 
   // New project button
@@ -592,6 +593,79 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add card buttons
   document.querySelectorAll('.btn-add-card').forEach(btn => {
     btn.addEventListener('click', () => openModal());
+  });
+
+  // Column "..." menu buttons
+  document.querySelectorAll('.column-header .btn-icon').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const column = btn.closest('.column');
+      const status = column.dataset.status;
+      const labels = { todo: 'To Do', inprogress: 'In Progress', review: 'In Review', done: 'Done' };
+      const menu = document.createElement('div');
+      menu.className = 'column-menu';
+      menu.style.cssText = `position:absolute;top:36px;right:8px;background:#fff;border:1px solid #DFE1E6;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:60;min-width:180px;padding:4px 0;`;
+      menu.innerHTML = `
+        <button class="column-menu-item" data-action="rename" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:#172B4D;cursor:pointer;">
+          ✏️ Rename column
+        </button>
+        <button class="column-menu-item" data-action="add-card" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:#172B4D;cursor:pointer;">
+          ➕ Add card
+        </button>
+        <button class="column-menu-item" data-action="clear-status" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:#BF2600;cursor:pointer;">
+          🗑 Clear all cards
+        </button>
+        <hr style="border:none;border-top:1px solid #EBECF0;margin:4px 0;">
+        <button class="column-menu-item" data-action="close" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:#6B778C;cursor:pointer;">
+          ✕ Close
+        </button>
+      `;
+      // Position relative to column-header
+      const header = btn.closest('.column-header');
+      header.style.position = 'relative';
+      header.appendChild(menu);
+
+      // Close on outside click
+      const closeMenu = (ev) => {
+        if (!header.contains(ev.target)) {
+          menu.remove();
+          document.removeEventListener('click', closeMenu);
+        }
+      };
+      document.addEventListener('click', closeMenu);
+
+      // Handle menu actions
+      menu.querySelectorAll('.column-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const action = item.dataset.action;
+          if (action === 'close' || action === 'rename' || action === 'add-card' || action === 'clear-status') {
+            menu.remove();
+          }
+          if (action === 'rename') {
+            const newName = prompt('Rename column:', labels[status]);
+            if (newName && newName.trim()) {
+              const titleSpan = column.querySelector('.column-title span:nth-child(2)');
+              titleSpan.textContent = newName.trim();
+              addActivity('✏️', `Renamed column to <strong>${escapeHtml(newName.trim())}</strong>`);
+            }
+          }
+          if (action === 'add-card') {
+            openModal();
+          }
+          if (action === 'clear-status') {
+            const count = issues.filter(i => i.status === status).length;
+            if (count === 0) return;
+            if (confirm(`Delete all ${count} cards in this column?`)) {
+              issues = issues.filter(i => i.status !== status);
+              saveState();
+              renderBoard();
+              updateCounts();
+              addActivity('🗑', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
+            }
+          }
+        });
+      });
+    });
   });
 
   // Detail panel close

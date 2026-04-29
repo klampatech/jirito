@@ -53,28 +53,6 @@
     </div>
   </div>
 
-  <!-- Sidebar -->
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-section">
-      <h3 class="sidebar-title">Projects</h3>
-      <div class="project-list" id="project-list"></div>
-      <button class="btn btn-secondary btn-sm btn-full" id="add-project-btn">+ New Project</button>
-    </div>
-    <div class="sidebar-section">
-      <h3 class="sidebar-title">Views</h3>
-      <div class="view-list" id="view-list"></div>
-    </div>
-    <div class="sidebar-section">
-      <h3 class="sidebar-title">Saved Filters</h3>
-      <div class="saved-filters" id="saved-filters"></div>
-      <button class="btn btn-secondary btn-sm btn-full" id="save-filter-btn">💾 Save Current Filter</button>
-    </div>
-    <div class="sidebar-section">
-      <h3 class="sidebar-title">Activity</h3>
-      <div class="activity-feed" id="activity-feed"></div>
-    </div>
-  </div>
-
   <!-- Bulk action bar -->
   <div class="bulk-action-bar" id="bulk-bar" style="display:none;">
     <span id="bulk-count">0 selected</span>
@@ -92,6 +70,29 @@
 
   <!-- Kanban Board -->
   <div class="app-layout" id="app-layout">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Projects</h3>
+        <div class="project-list" id="project-list"></div>
+        <button class="btn btn-secondary btn-sm btn-full" id="add-project-btn">+ New Project</button>
+      </div>
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Views</h3>
+        <div class="view-list" id="view-list"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Saved Filters</h3>
+        <div class="saved-filters" id="saved-filters"></div>
+        <button class="btn btn-secondary btn-sm btn-full" id="save-filter-btn">💾 Save Current Filter</button>
+      </div>
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Activity</h3>
+        <div class="activity-feed" id="activity-feed"></div>
+      </div>
+    </div>
+
+    <!-- Board Columns -->
     <div class="board" id="board">
     <!-- To Do Column -->
     <div class="column" data-status="todo">
@@ -156,7 +157,7 @@
         <button class="btn-add-card" data-status="done">+ Add card</button>
       </div>
     </div>
-  </div>
+    </div>
   </div>
 
   <!-- Issue Detail Panel -->

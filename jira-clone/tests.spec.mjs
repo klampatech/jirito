@@ -125,9 +125,12 @@ test('dragging a card to In Progress updates its status', async ({ page }) => {
 test('dragging a card to Done updates its status', async ({ page }) => {
   const card = page.locator('[data-status="todo"] .issue-card').first();
   const target = page.locator('[data-status="done"] .column-body');
-  await card.dragTo(target);
+  await target.scrollIntoViewIfNeeded();
+  await card.dragTo(target, { timeout: 10000 });
+  await page.waitForTimeout(200);
 
-  await expect(page.locator('[data-status="done"] .issue-card')).toHaveCount(2);
+  const doneCards = page.locator('[data-status="done"] .issue-card');
+  await expect(doneCards).toHaveCount(2);
 });
 
 // ===== Search Tests =====
@@ -143,4 +146,74 @@ test('top nav displays project name', async ({ page }) => {
 
 test('avatar is visible', async ({ page }) => {
   await expect(page.locator('.avatar')).toHaveText('K');
+});
+
+// ===== Sidebar Layout Tests =====
+test('sidebar is visible and positioned beside the board', async ({ page }) => {
+  const sidebar = page.locator('#sidebar');
+  await expect(sidebar).toBeVisible();
+  const sidebarBox = await sidebar.boundingBox();
+  const board = page.locator('#board');
+  const boardBox = await board.boundingBox();
+  // Sidebar should be to the left of the board (smaller x)
+  expect(sidebarBox.x).toBeLessThanOrEqual(boardBox.x);
+});
+
+test('sidebar toggle button hides the sidebar', async ({ page }) => {
+  const sidebar = page.locator('#sidebar');
+  const toggleBtn = page.locator('#toggle-sidebar');
+  await expect(sidebar).toBeVisible();
+  await toggleBtn.click();
+  await page.waitForTimeout(300);
+  await expect(sidebar).not.toBeVisible();
+});
+
+test('sidebar toggle button shows the sidebar again', async ({ page }) => {
+  const sidebar = page.locator('#sidebar');
+  const toggleBtn = page.locator('#toggle-sidebar');
+  await toggleBtn.click();
+  await page.waitForTimeout(300);
+  await expect(sidebar).not.toBeVisible();
+  await toggleBtn.click();
+  await page.waitForTimeout(300);
+  await expect(sidebar).toBeVisible();
+});
+
+// ===== Column Menu Tests =====
+test('column header has a menu button', async ({ page }) => {
+  const menuButtons = page.locator('.column-header .btn-icon');
+  await expect(menuButtons).toHaveCount(4);
+});
+
+test('clicking column menu button opens menu', async ({ page }) => {
+  const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
+  await menuBtn.click();
+  const menu = page.locator('.column-menu');
+  await expect(menu).toBeVisible();
+});
+
+test('column menu has rename option', async ({ page }) => {
+  const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
+  await menuBtn.click();
+  await expect(page.locator('.column-menu-item').first()).toContainText('Rename column');
+});
+
+test('column menu has add card option', async ({ page }) => {
+  const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
+  await menuBtn.click();
+  await expect(page.locator('.column-menu-item').nth(1)).toContainText('Add card');
+});
+
+test('column menu has clear all cards option', async ({ page }) => {
+  const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
+  await menuBtn.click();
+  await expect(page.locator('.column-menu-item').nth(2)).toContainText('Clear all cards');
+});
+
+test('clicking outside column menu closes it', async ({ page }) => {
+  const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
+  await menuBtn.click();
+  await expect(page.locator('.column-menu')).toBeVisible();
+  await page.mouse.click(10, 10);
+  await expect(page.locator('.column-menu')).not.toBeVisible();
 });

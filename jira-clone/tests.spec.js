@@ -128,6 +128,7 @@ test('dragging a card to In Progress updates its status', async ({ page }) => {
 test('dragging a card to Done updates its status', async ({ page }) => {
   const card = page.locator('[data-status="todo"] .issue-card').first();
   const target = page.locator('[data-status="done"] .column-body');
+  await target.scrollIntoViewIfNeeded();
   await card.dragTo(target);
 
   await expect(page.locator('[data-status="done"] .issue-card')).toHaveCount(2);
