@@ -937,7 +937,7 @@ test('import validation rejects malformed projects', async ({ page }) => {
 test('switchProject with invalid key is a no-op', async ({ page }) => {
   // The function should silently return if key doesn't exist
   // This is tested indirectly by verifying no crash occurs
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + process.cwd() + '/../index.html');
   const result = await page.evaluate(() => {
     // Call switchProject with a non-existent key
     switchProject('nonexistent-key');
@@ -948,7 +948,7 @@ test('switchProject with invalid key is a no-op', async ({ page }) => {
 
 // Task 4.2: Test aria-live attributes exist on dynamic regions
 test('aria-live attributes exist on dynamic regions', async ({ page }) => {
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + process.cwd() + '/../index.html');
   await expect(page.locator('#board')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#activity-feed')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#notification-dropdown-body')).toHaveAttribute('aria-live', 'polite');
@@ -957,7 +957,7 @@ test('aria-live attributes exist on dynamic regions', async ({ page }) => {
 
 // Task 4.2: Test column bodies have ARIA labels
 test('column bodies have ARIA labels for drag targets', async ({ page }) => {
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + process.cwd() + '/../index.html');
   const todoCol = page.locator('[data-status="todo"] .column-body');
   await expect(todoCol).toHaveAttribute('role', 'list');
   await expect(todoCol).toHaveAttribute('aria-label', 'To Do column');
