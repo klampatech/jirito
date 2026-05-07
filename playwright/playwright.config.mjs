@@ -2,9 +2,9 @@ import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'url';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 export default defineConfig({
-  testDir: '.',
-  testMatch: '**/tests.spec.mjs',
-  testIgnore: ['**/node_modules/**', '**/*.test.ts', '**/*.test.js', '**/*.config.js', '**/playwright-global-setup.mjs', '**/screenshot*.mjs', '**/playwright*.js', '**/playwright*.mjs', 'pw.config.mjs'],
+  testDir: '../tests',
+  testMatch: '**/*.spec.mjs',
+  testIgnore: ['**/*.test.ts', '**/*.test.js'],
   globalSetup: './playwright-global-setup.mjs',
   reporter: 'list',
   forbidOnly: false,

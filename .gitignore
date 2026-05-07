@@ -1,2 +1,27 @@
+# Dependencies
 node_modules/
+
+# Test output
 test-results/
+
+# Temporary / scratch scripts (not part of the project)
+dark-mode-check*.mjs
+screenshot-automation.mjs
+screenshot-before*.mjs
+screenshot-features.png
+screenshot-readme*.png
+screenshot-sidebar-*.mjs
+screenshot-theme*.mjs
+screenshot-after-fix.png
+screenshot-before-fix.png
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local
