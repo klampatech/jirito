@@ -1,99 +1,99 @@
 /* ===== CSS Custom Properties (Light Theme) ===== */
 :root {
-  /* Brand Foundation */
-  --primary: #C44A2A;
-  --primary-hover: #A83D24;
-  --secondary: #2BB5A8;
-  --accent: #F5C842;
+  /* Brand Foundation (derived from Jirito logo palette) */
+  --primary: #DB8C61;
+  --primary-hover: #C87A50;
+  --secondary: #79C5BB;
+  --accent: #F0C8A0;
 
-  /* Neutrals */
-  --bg-page: #FAF8F5;
+  /* Neutrals (warm palette matching logo) */
+  --bg-page: #FFF8F3;
   --bg-card: #FFFFFF;
-  --bg-sidebar: #F3F1EE;
-  --bg-nav: #091E42;
-  --bg-nav-dark: #161B22;
-  --text: #2C2A28;
-  --text-muted: #5F5A52;
-  --text-secondary: #5F5A52;
-  --text-light: #5F5A52;
-  --border: #E8E4DF;
-  --border-light: #EBE7E2;
-  --border-strong: #D8D3CC;
+  --bg-sidebar: #FFF0E8;
+  --bg-nav: #1A0F0A;
+  --bg-nav-dark: #2A1E18;
+  --text: #2C2018;
+  --text-muted: #8A7568;
+  --text-secondary: #8A7568;
+  --text-light: #A89080;
+  --border: #F0E0D4;
+  --border-light: #F5E8DC;
+  --border-strong: #E0D0C0;
   --shadow: rgba(0,0,0,0.08);
   --shadow-lg: rgba(0,0,0,0.2);
 
-  /* Semantic */
-  --success: #34A853;
-  --success-bg: rgba(52,168,83,0.15);
-  --warning: #F5C842;
-  --warning-bg: rgba(245,200,66,0.15);
-  --danger: #E53935;
-  --danger-bg: rgba(229,57,53,0.15);
-  --info: #2BB5A8;
-  --info-bg: rgba(43,181,168,0.15);
-  --link: #2BB5A8;
+  /* Semantic (warm palette) */
+  --success: #79C5BB;
+  --success-bg: rgba(121,197,187,0.15);
+  --warning: #D49B00;
+  --warning-bg: rgba(212,155,0,0.12);
+  --danger: #C85028;
+  --danger-bg: rgba(200,80,40,0.12);
+  --info: #79C5BB;
+  --info-bg: rgba(121,197,187,0.10);
+  --link: #DB8C61;
 
-  /* Status colors */
-  --status-todo: #9E9E9E;
-  --status-inprogress: #D14A2A;
+  /* Status colors (warm palette) */
+  --status-todo: #A89080;
+  --status-inprogress: #C85028;
   --status-review: #D49B00;
-  --status-done: #34A853;
+  --status-done: #79C5BB;
 
-  /* Priority colors */
-  --priority-high-bg: rgba(229,57,53,0.15);
-  --priority-high-text: #E53935;
-  --priority-medium-bg: rgba(245,200,66,0.15);
+  /* Priority colors (warm palette) */
+  --priority-high-bg: rgba(200,80,40,0.12);
+  --priority-high-text: #C85028;
+  --priority-medium-bg: rgba(212,155,0,0.12);
   --priority-medium-text: #B8860B;
-  --priority-low-bg: rgba(52,168,83,0.15);
-  --priority-low-text: #34A853;
+  --priority-low-bg: rgba(121,197,187,0.12);
+  --priority-low-text: #5A968C;
 
   /* Interactive */
-  --active-bg: #F3F1EE;
-  --hover-bg: #EBE7E2;
-  --label-bg: #F3F1EE;
-  --label-text: #5F5A52;
-  --avatar-bg: #E85D3B;
+  --active-bg: #FFF0E8;
+  --hover-bg: #F5E8DC;
+  --label-bg: #FFF0E8;
+  --label-text: #8A7568;
+  --avatar-bg: #C87A50;
 }
 
-/* ===== Dark Theme ===== */
+/* ===== Dark Theme (warm palette) ===== */
 [data-theme="dark"] {
-  --bg-page: #1B1F24;
-  --bg-card: #292E34;
-  --bg-sidebar: #24292F;
-  --bg-nav: #0D1117;
-  --text: #E6EDF3;
-  --text-muted: #8B949E;
-  --text-light: #C9D1D9;
-  --border: #30363D;
-  --border-light: #3D444D;
-  --primary: #58A6FF;
-  --primary-hover: #79B8FF;
-  --danger: #F85149;
-  --danger-bg: #3D1F28;
-  --success: #3FB950;
-  --warning: #D29922;
+  --bg-page: #1A1210;
+  --bg-card: #2A1E18;
+  --bg-sidebar: #221812;
+  --bg-nav: #0F0A08;
+  --text: #E8D5C4;
+  --text-muted: #A89080;
+  --text-light: #C4B0A0;
+  --border: #3D2A1E;
+  --border-light: #4D3A2E;
+  --primary: #DB8C61;
+  --primary-hover: #E8A078;
+  --danger: #D46A42;
+  --danger-bg: #3D1F18;
+  --success: #79C5BB;
+  --warning: #D49B00;
   --warning-bg: #3D2E00;
-  --info: #58A6FF;
-  --link: #58A6FF;
+  --info: #79C5BB;
+  --link: #DB8C61;
   --shadow: rgba(0,0,0,0.4);
   --shadow-lg: rgba(0,0,0,0.6);
-  --active-bg: #1f3a5f;
-  --hover-bg: #30363D;
-  --label-bg: #3B2E6B;
-  --label-text: #C4B5E0;
-  --priority-high-bg: #4D1F28;
-  --priority-high-text: #F85149;
-  --priority-medium-bg: #4D2E00;
-  --priority-medium-text: #D29922;
+  --active-bg: #2A1E18;
+  --hover-bg: #3D2A1E;
+  --label-bg: #3D2A1E;
+  --label-text: #C4B0A0;
+  --priority-high-bg: #3D1F18;
+  --priority-high-text: #D46A42;
+  --priority-medium-bg: #3D2E00;
+  --priority-medium-text: #D49B00;
   --priority-low-bg: #1A3D2E;
-  --priority-low-text: #3FB950;
-  --status-todo: #6B778C;
-  --status-inprogress: #58A6FF;
-  --status-review: #D29922;
-  --status-done: #3FB950;
-  --avatar-bg: #1f6fbb;
-  --success-bg: rgba(63,185,80,0.15);
-  --info-bg: rgba(88,166,255,0.15);
+  --priority-low-text: #79C5BB;
+  --status-todo: #A89080;
+  --status-inprogress: #D46A42;
+  --status-review: #D49B00;
+  --status-done: #79C5BB;
+  --avatar-bg: #C87A50;
+  --success-bg: rgba(121,197,187,0.15);
+  --info-bg: rgba(121,197,187,0.10);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -597,16 +597,16 @@ body {
   box-shadow: 0 1px 2px var(--shadow);
   transition: box-shadow 0.15s, transform 0.15s, background 0.3s, border-color 0.3s;
 }
-/* Type-based left border accent */
-.issue-card[data-type="story"] { border-left: 3px solid #2BB5A8; }
-.issue-card[data-type="bug"] { border-left: 3px solid #E53935; }
-.issue-card[data-type="task"] { border-left: 3px solid #34A853; }
-.issue-card[data-type="epic"] { border-left: 3px solid #F5C842; }
+/* Type-based left border accent (warm palette) */
+.issue-card[data-type="story"] { border-left: 3px solid #79C5BB; }
+.issue-card[data-type="bug"] { border-left: 3px solid #C85028; }
+.issue-card[data-type="task"] { border-left: 3px solid #5A968C; }
+.issue-card[data-type="epic"] { border-left: 3px solid #D49B00; }
 /* Dark mode type borders */
-[data-theme="dark"] .issue-card[data-type="story"] { border-left-color: #58A6FF; }
-[data-theme="dark"] .issue-card[data-type="bug"] { border-left-color: #F85149; }
-[data-theme="dark"] .issue-card[data-type="task"] { border-left-color: #3FB950; }
-[data-theme="dark"] .issue-card[data-type="epic"] { border-left-color: #D29922; }
+[data-theme="dark"] .issue-card[data-type="story"] { border-left-color: #79C5BB; }
+[data-theme="dark"] .issue-card[data-type="bug"] { border-left-color: #D46A42; }
+[data-theme="dark"] .issue-card[data-type="task"] { border-left-color: #79C5BB; }
+[data-theme="dark"] .issue-card[data-type="epic"] { border-left-color: #D49B00; }
 .issue-card:hover { box-shadow: 0 2px 8px var(--shadow); }
 .issue-card.dragging { opacity: 0.5; transform: rotate(2deg); }
 .issue-card-header {
@@ -870,7 +870,7 @@ body {
 [data-theme="dark"] .priority-low { background: var(--priority-low-bg); color: var(--priority-low-text); }
 [data-theme="dark"] .list-row:hover { background: var(--hover-bg); }
 [data-theme="dark"] .project-item.active { background: var(--active-bg); color: var(--primary); }
-[data-theme="dark"] .project-item.active .project-key { background: var(--primary); color: #0D1117; } /* keep dark-mode override */
+[data-theme="dark"] .project-item.active .project-key { background: var(--primary); color: #1A1210; }
 [data-theme="dark"] .view-item.active { background: var(--active-bg); color: var(--primary); }
 [data-theme="dark"] .view-item.active .view-icon { color: var(--primary); }
 [data-theme="dark"] .theme-toggle { color: #E6EDF3; }
@@ -998,7 +998,7 @@ body {
 }
 [data-theme="dark"] .toast-undo button {
   background: var(--primary) !important;
-  color: #0D1117 !important;
+  color: #1A1210 !important;
 }
 
 /* Modal overlay in dark mode */
