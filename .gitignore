@@ -18,6 +18,10 @@ screenshot-before-fix.png
 # OS
 .DS_Store
 
+# Internal docs
+.docs/
+.plan/
+
 # IDE
 .vscode/
 .idea/
