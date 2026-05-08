@@ -5,6 +5,7 @@ import { join, dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCREENSHOT_DIR = join(__dirname, '..', 'screenshots');
+const APP_PATH = join(__dirname, '..', 'index.html');
 
 // Helper to clear localStorage safely
 async function clearStorage(page) {
@@ -18,7 +19,7 @@ async function clearStorage(page) {
 // Helper to navigate to the app
 async function navigate(page) {
   await clearStorage(page);
-  await page.goto('file:///Users/kylelampa/Development/jirito/index.html');
+  await page.goto('file://' + APP_PATH);
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {
