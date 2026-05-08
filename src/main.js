@@ -11,7 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
   populateAssigneeFilter();
   updateSprintBar();
   populateSprintSelect();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Show sprint bar if active sprint exists
+  const activeSprint = getActiveSprint();
+  if (activeSprint) {
+    const sprintBar = document.getElementById('sprint-bar');
+    if (sprintBar) {
+      sprintBar.style.display = 'block';
+      document.getElementById('sprint-bar-name').textContent = activeSprint.name;
+      updateSprintProgressBar(activeSprint);
+    }
+  }
   // Update nav project name to match current project
   const navName = document.getElementById('nav-project-name');
   if (navName && LJ.projects[LJ.currentProject]) {
@@ -191,6 +200,16 @@ document.addEventListener('DOMContentLoaded', () => {
     populateSprintFilter();
     populateSprintSelect();
     updateSprintBar();
+    // Show sprint bar if active sprint now exists
+    const newActive = getActiveSprint();
+    if (newActive) {
+      const sprintBar = document.getElementById('sprint-bar');
+      if (sprintBar) {
+        sprintBar.style.display = 'block';
+        document.getElementById('sprint-bar-name').textContent = newActive.name;
+        updateSprintProgressBar(newActive);
+      }
+    }
     showToast('Sprint created', 'success');
   });
 
@@ -232,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveState();
     renderBoard();
     closeModal();
-    addActivity('plus-circle', `Created <strong>${generateIssueKey(getProjectKey(), newIssue.id)}</strong>`);
+    addActivity('PlusCircle', `Created <strong>${generateIssueKey(getProjectKey(), newIssue.id)}</strong>`);
     showUndoToast(`Created ${generateIssueKey(getProjectKey(), newIssue.id)}`, () => {
       const idx = LJ.issues.findIndex(i => i.id === newIssue.id);
       if (idx !== -1) {
@@ -285,17 +304,17 @@ document.addEventListener('DOMContentLoaded', () => {
       menu.style.cssText = `position:absolute;top:36px;right:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:60;min-width:180px;padding:4px 0;`;
       menu.innerHTML = `
         <button class="column-menu-item" data-action="rename" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--text);cursor:pointer;">
-          ${lucideIcon('pencil', {class:'icon-sm'})} Rename column
+          ${lucideIcon('Pencil', {class:'icon-sm'})} Rename column
         </button>
         <button class="column-menu-item" data-action="add-card" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--text);cursor:pointer;">
-          ${lucideIcon('plus', {class:'icon-sm'})} Add card
+          ${lucideIcon('Plus', {class:'icon-sm'})} Add card
         </button>
         ${isCustom ? '' : `<button class="column-menu-item" data-action="clear-status" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--danger);cursor:pointer;">
-          ${lucideIcon('trash-2', {class:'icon-sm'})} Clear all cards
+          ${lucideIcon('Trash', {class:'icon-sm'})} Clear all cards
         </button>`}
         ${isCustom ? '' : `<hr style="border:none;border-top:1px solid var(--border-light);margin:4px 0;">`}
         <button class="column-menu-item" data-action="close" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--text-muted);cursor:pointer;">
-          ${lucideIcon('x', {class:'icon-sm'})} Close
+          ${lucideIcon('X', {class:'icon-sm'})} Close
         </button>
       `;
       const header = btn.closest('.column-header');
@@ -324,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (colDef) {
                 updateCustomColumn(colId, { name: newName.trim() });
               }
-              addActivity('pencil', `Renamed column to <strong>${escapeHtml(newName.trim())}</strong>`);
+              addActivity('Pencil', `Renamed column to <strong>${escapeHtml(newName.trim())}</strong>`);
             }
           }
           if (action === 'add-card') {
@@ -339,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
               saveState();
               renderBoard();
               updateCounts();
-              addActivity('trash-2', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
+              addActivity('Trash', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
               showUndoToast(`${count} cards cleared`, () => {
                 clearedIssues.forEach(i => LJ.issues.push(i));
                 saveState();
@@ -357,6 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Detail panel close
   document.getElementById('detail-close').addEventListener('click', closeDetailPanel);
+  // Detail panel backdrop close
+  document.getElementById('detail-backdrop').addEventListener('click', closeDetailPanel);
 
   // Filter controls
   // Task 2.3: Debounce search input
@@ -430,6 +451,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         updateNotificationDropdown();
         dropdown.style.display = 'block';
+        // Position dropdown under the bell icon using fixed positioning
+        const bellRect = bell.getBoundingClientRect();
+        dropdown.style.top = (bellRect.bottom + 4) + 'px';
+        dropdown.style.right = (window.innerWidth - bellRect.right) + 'px';
+        dropdown.style.left = 'auto';
       }
     });
   }
@@ -453,18 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('jirito-theme');
   if (savedTheme) {
     document.documentElement.setAttribute('data-theme', savedTheme);
-    themeToggle.innerHTML = savedTheme === 'dark' ? lucideIcon('sun', {class:'icon'}) : lucideIcon('moon', {class:'icon'});
+    themeToggle.innerHTML = savedTheme === 'dark' ? lucideIcon('Sun', {class:'icon'}) : lucideIcon('Moon', {class:'icon'});
   } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
     document.documentElement.setAttribute('data-theme', 'dark');
-    themeToggle.innerHTML = lucideIcon('sun', {class:'icon'});
+    themeToggle.innerHTML = lucideIcon('Sun', {class:'icon'});
   }
   themeToggle.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('jirito-theme', next);
-    themeToggle.innerHTML = next === 'dark' ? lucideIcon('sun', {class:'icon'}) : lucideIcon('moon', {class:'icon'});
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    themeToggle.innerHTML = next === 'dark' ? lucideIcon('Sun', {class:'icon'}) : lucideIcon('Moon', {class:'icon'});
   });
 });
 

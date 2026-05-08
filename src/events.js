@@ -42,7 +42,7 @@ function openDetailPanel(issueId) {
   body.innerHTML = `
     <div class="detail-field">
       <label>Type</label>
-      <div class="value">${lucideIcon(typeIcons[issue.type] || 'file', {class:'icon'})} ${escapeHtml(issue.type.charAt(0).toUpperCase() + issue.type.slice(1))}</div>
+      <div class="value">${lucideIcon(typeIcons[issue.type] || 'File', {class:'icon'})} ${escapeHtml(issue.type.charAt(0).toUpperCase() + issue.type.slice(1))}</div>
     </div>
     <div class="detail-field">
       <label>Summary</label>
@@ -58,10 +58,10 @@ function openDetailPanel(issueId) {
           <button class="btn btn-sm btn-format" data-format="code" title="Inline code">&lt;&gt;</button>
           <button class="btn btn-sm btn-format" data-format="codeblock" title="Code block">▤</button>
           <button class="btn btn-sm btn-markdown-toggle" data-target="detail-desc" data-issue-id="${issue.id}" title="Toggle markdown preview">
-            ${lucideIcon('eye', {class:'icon-sm'})} Preview
+            ${lucideIcon('Eye', {class:'icon-sm'})} Preview
           </button>
           <button class="btn btn-sm btn-markdown-help" title="Markdown syntax help">
-            ${lucideIcon('help-circle', {class:'icon-sm'})}
+            ${lucideIcon('Question', {class:'icon-sm'})}
           </button>
         </div>
         <textarea id="detail-desc" class="markdown-textarea">${escapeHtml(issue.desc || '')}</textarea>
@@ -105,7 +105,7 @@ function openDetailPanel(issueId) {
         ${(issue.dependencies || []).map(d => {
           const target = LJ.issues.find(i => i.id === d.targetId);
           const targetKey = target ? generateIssueKey(getProjectKey(), target.id) : 'Unknown';
-          const typeIcon = d.type === 'blocks' ? 'triangle-alert' : 'link';
+          const typeIcon = d.type === 'blocks' ? 'TriangleAlert' : 'Link';
           return `<div class="dep-entry">
             ${lucideIcon(typeIcon, {class:'icon-sm'})}
             <span class="dep-key">${targetKey}</span>
@@ -146,7 +146,7 @@ function openDetailPanel(issueId) {
         <textarea id="comment-input" class="comment-textarea" placeholder="Add a comment... (supports Markdown)" rows="2"></textarea>
         <div class="comment-form-toolbar">
           <button class="btn btn-sm btn-markdown-toggle" data-target="comment-input" data-issue-id="${issue.id}" title="Toggle markdown preview">
-            ${lucideIcon('eye', {class:'icon-sm'})} Preview
+            ${lucideIcon('Eye', {class:'icon-sm'})} Preview
           </button>
         </div>
         <div id="comment-input-preview" class="markdown-preview comment-preview" style="display:none;"></div>
@@ -423,8 +423,16 @@ function openDetailPanel(issueId) {
 
   panel.classList.add('open');
 
-  // Render Lucide icons in the detail panel
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Show backdrop
+  const backdrop = document.getElementById('detail-backdrop');
+  if (backdrop) {
+    backdrop.style.display = 'block';
+    // Force reflow for transition
+    backdrop.offsetHeight;
+    backdrop.classList.add('visible');
+  }
+
+  // Render Phosphor icons in the detail panel
 
   // Initialize markdown toggles
   initMarkdownToggles();
@@ -455,7 +463,7 @@ function deleteIssue(issueId) {
   delete LJ.comments[issueId];
   // Move to trash instead of deleting
   moveToTrash(issue);
-  addActivity(`trash-2`, `Deleted issue: ${title}`);
+  addActivity(`Trash`, `Deleted issue: ${title}`);
   closeDetailPanel();
   renderBoard();
   updateCounts();
@@ -475,6 +483,8 @@ function deleteIssue(issueId) {
 
 function closeDetailPanel() {
   document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('detail-backdrop').classList.remove('visible');
+  document.getElementById('detail-backdrop').style.display = 'none';
   LJ.currentDetailIssue = null;
 }
 
@@ -555,11 +565,11 @@ function initMarkdownToggles() {
         preview.innerHTML = renderMarkdown(textarea.value);
         preview.style.display = 'block';
         textarea.style.display = 'none';
-        btn.innerHTML = lucideIcon('edit-3', {class:'icon-sm'}) + ' Edit';
+        btn.innerHTML = lucideIcon('Pencil', {class:'icon-sm'}) + ' Edit';
       } else {
         preview.style.display = 'none';
         textarea.style.display = 'block';
-        btn.innerHTML = lucideIcon('eye', {class:'icon-sm'}) + ' Preview';
+        btn.innerHTML = lucideIcon('Eye', {class:'icon-sm'}) + ' Preview';
       }
     });
   });
@@ -889,7 +899,7 @@ function handleBulkDelete() {
   issues = LJ.issues;
   selectedIds.clear();
   saveState();
-  addActivity(`trash-2`, `Deleted ${titles.length} issues`);
+  addActivity(`Trash`, `Deleted ${titles.length} issues`);
   renderBoard();
   updateCounts();
   updateBulkBar();
@@ -1068,6 +1078,16 @@ function renderSprintList() {
       getSprints()[id].active = true;
       saveSprints();
       renderSprintList();
+      // Update sprint bar
+      const newActive = getActiveSprint();
+      if (newActive) {
+        const sprintBar = document.getElementById('sprint-bar');
+        if (sprintBar) {
+          sprintBar.style.display = 'block';
+          document.getElementById('sprint-bar-name').textContent = newActive.name;
+          updateSprintProgressBar(newActive);
+        }
+      }
       showToast('Sprint activated', 'success');
     });
   });

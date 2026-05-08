@@ -15,18 +15,29 @@
     </div>
     <div class="topnav-right">
       <input type="text" class="search-input" id="search-input" placeholder="Search...">
-      <button class="btn btn-primary" id="add-issue-btn"><i data-lucide="plus" class="icon"></i> Create</button>
+      <button class="btn btn-primary" id="add-issue-btn"><i class="ph ph-plus icon"></i> Create</button>
       <div class="notification-bell" id="notification-bell" title="Notifications">
-        <i data-lucide="bell" class="icon"></i><span class="notification-count" id="notification-count" style="display:none;">0</span>
+        <i class="ph ph-bell icon"></i><span class="notification-count" id="notification-count" style="display:none;">0</span>
         <div class="notification-dropdown" id="notification-dropdown" style="display:none;">
           <div class="notification-dropdown-header">Overdue Issues</div>
           <div class="notification-dropdown-body" id="notification-dropdown-body" aria-live="polite"></div>
         </div>
       </div>
       <div class="avatar">K</div>
-      <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><i data-lucide="moon" class="icon"></i></button>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><i class="ph ph-moon icon"></i></button>
     </div>
   </nav>
+
+  <!-- Sprint Bar -->
+  <div class="sprint-bar" id="sprint-bar" style="display:none;">
+    <div class="sprint-bar-inner">
+      <span class="sprint-label"><i class="ph ph-lightning icon-sm"></i> <span id="sprint-bar-name">Sprint</span></span>
+      <div class="sprint-progress">
+        <div class="sprint-progress-bar"><div class="sprint-progress-fill" id="sprint-progress-fill" style="width:0%"></div></div>
+        <span class="sprint-progress-text" id="sprint-progress-text">0/0</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Board Header (filters + sprint management) -->
   <div class="board-header">
@@ -56,14 +67,15 @@
         <select class="filter-select" id="sprint-filter">
           <option value="all">All Sprints</option>
         </select>
-        <button class="btn btn-secondary btn-sm" id="manage-sprints-btn"><i data-lucide="zap" class="icon"></i> Sprints</button>
+
       </div>
 
       <div class="export-import-group">
-        <button class="btn btn-secondary btn-sm" id="export-btn"><i data-lucide="download" class="icon"></i> Export</button>
-        <button class="btn btn-secondary btn-sm" id="import-btn"><i data-lucide="upload" class="icon"></i> Import</button>
-        <button class="btn btn-secondary btn-sm" id="column-config-btn"><i data-lucide="settings" class="icon"></i> Columns</button>
+        <button class="btn btn-secondary btn-sm" id="export-btn"><i class="ph ph-download icon"></i> Export</button>
+        <button class="btn btn-secondary btn-sm" id="import-btn"><i class="ph ph-upload icon"></i> Import</button>
+        <button class="btn btn-secondary btn-sm" id="column-config-btn"><i class="ph ph-gear icon"></i> Columns</button>
       </div>
+      <button class="btn btn-secondary btn-sm" id="manage-sprints-btn"><i class="ph ph-lightning icon"></i> Manage Sprints</button>
     </div>
   </div>
 
@@ -95,7 +107,7 @@
   <div class="app-layout" id="app-layout">
     <!-- Sidebar -->
     <div class="sidebar-wrapper" id="sidebar-wrapper">
-      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar"><i data-lucide="panel-left" class="icon"></i></button>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar"><i class="ph ph-sidebar icon"></i></button>
       <div class="sidebar" id="sidebar">
       <div class="sidebar-section">
         <h3 class="sidebar-title">Projects</h3>
@@ -123,7 +135,7 @@
       <div class="sidebar-section">
         <h3 class="sidebar-title">Saved Filters</h3>
         <div class="saved-filters" id="saved-filters"></div>
-        <button class="btn btn-secondary btn-sm btn-full" id="save-filter-btn"><i data-lucide="save" class="icon"></i> Save Current Filter</button>
+        <button class="btn btn-secondary btn-sm btn-full" id="save-filter-btn"><i class="ph ph-floppy-disk icon"></i> Save Current Filter</button>
       </div>
       <div class="sidebar-section">
         <h3 class="sidebar-title">Activity</h3>
@@ -204,13 +216,16 @@
     </div>
   </div>
 
+  <!-- Detail Panel Backdrop -->
+  <div class="detail-backdrop" id="detail-backdrop" style="display:none;"></div>
+
   <!-- Issue Detail Panel -->
   <div class="detail-panel" id="detail-panel">
     <div class="detail-panel-header">
       <h2 id="detail-title">Issue Details</h2>
       <div class="detail-header-actions">
-        <button class="btn btn-secondary btn-sm" id="clone-issue-btn" style="display:none;"><i data-lucide="copy" class="icon"></i> Clone</button>
-        <button class="btn btn-danger btn-sm" id="delete-issue-btn"><i data-lucide="trash-2" class="icon"></i> Delete</button>
+        <button class="btn btn-secondary btn-sm" id="clone-issue-btn" style="display:none;"><i class="ph ph-copy icon"></i> Clone</button>
+        <button class="btn btn-danger btn-sm" id="delete-issue-btn"><i class="ph ph-trash icon"></i> Delete</button>
         <button class="btn-close" id="detail-close">&times;</button>
       </div>
     </div>
@@ -224,7 +239,7 @@
 
   <!-- Create Issue Modal -->
   <div class="modal-overlay" id="modal-overlay" style="display:none">
-    <div class="modal">
+    <div class="modal modal-scrollable">
       <div class="modal-header">
         <h2>Create Issue</h2>
         <button class="btn-close" id="modal-close">&times;</button>
@@ -285,7 +300,7 @@
 
   <!-- New Project Modal -->
   <div class="modal-overlay" id="project-modal-overlay" style="display:none">
-    <div class="modal">
+    <div class="modal modal-scrollable">
       <div class="modal-header">
         <h2>New Project</h2>
         <button class="btn-close" id="project-modal-close">&times;</button>
@@ -309,7 +324,7 @@
 
   <!-- Column Configuration Modal -->
   <div class="modal-overlay" id="column-config-overlay" style="display:none">
-    <div class="modal" style="width:640px">
+    <div class="modal modal-scrollable" style="width:640px">
       <div class="modal-header">
         <h2>Configure Columns</h2>
         <button class="btn-close" id="column-config-close">&times;</button>
@@ -326,11 +341,11 @@
             <option value="review">In Review</option>
             <option value="done">Done</option>
           </select>
-          <button class="btn btn-primary btn-sm" id="add-column-btn"><i data-lucide="plus" class="icon"></i> Add</button>
+          <button class="btn btn-primary btn-sm" id="add-column-btn"><i class="ph ph-plus icon"></i> Add</button>
         </div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Drag columns to reorder. Custom columns (no status) won't receive cards from the board.</p>
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button class="btn btn-secondary btn-sm" id="reset-columns-btn"><i data-lucide="rotate-ccw" class="icon-sm"></i> Reset to Defaults</button>
+          <button class="btn btn-secondary btn-sm" id="reset-columns-btn"><i class="ph ph-arrow-arc-left icon-sm"></i> Reset to Defaults</button>
         </div>
       </div>
     </div>
@@ -338,7 +353,7 @@
 
   <!-- Sprint Management Modal -->
   <div class="modal-overlay" id="sprint-modal-overlay" style="display:none">
-    <div class="modal" style="width:640px">
+    <div class="modal modal-scrollable" style="width:640px">
       <div class="modal-header">
         <h2>Manage Sprints</h2>
         <button class="btn-close" id="sprint-modal-close">&times;</button>
@@ -360,7 +375,7 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button type="submit" class="btn btn-primary"><i data-lucide="plus" class="icon"></i> Add Sprint</button>
+            <button type="submit" class="btn btn-primary"><i class="ph ph-plus icon"></i> Add Sprint</button>
           </div>
         </form>
         <div id="sprint-list"></div>
@@ -400,15 +415,15 @@
     </div>
   </div>
 
-  <!-- Lucide Icons (MIT) -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <!-- Phosphor Icons Web (CSS-only, font-based) -->
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 
   <!-- Module scripts -->
-  <script src="utils.js"></script>
-  <script src="state.js"></script>
-  <script src="render.js"></script>
-  <script src="data.js"></script>
-  <script src="events.js"></script>
-  <script src="main.js"></script>
+  <script src="src/utils.js"></script>
+  <script src="src/state.js"></script>
+  <script src="src/render.js"></script>
+  <script src="src/data.js"></script>
+  <script src="src/events.js"></script>
+  <script src="src/main.js"></script>
 </body>
 </html>

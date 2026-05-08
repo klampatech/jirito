@@ -79,7 +79,6 @@ function renderBoard() {
 
   updateCounts();
   updateSprintProgress();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function createCard(issue) {
@@ -109,24 +108,24 @@ function createCard(issue) {
     const sprints = getSprints();
     const sprint = sprints[issue.sprint];
     if (sprint) {
-      sprintBadge = `<span class="issue-sprint-badge" title="${escapeHtml(sprint.name)}">${lucideIcon('zap', {class:'icon-sm'})} ${escapeHtml(sprint.name)}</span>`;
+      sprintBadge = `<span class="issue-sprint-badge" title="${escapeHtml(sprint.name)}">${lucideIcon('Lightning', {class:'icon-sm'})} ${escapeHtml(sprint.name)}</span>`;
     }
   }
 
   // Dependency indicators
   let depIndicators = '';
   if (dependents.length > 0) {
-    depIndicators = `<span class="issue-dep-badge" title="${dependents.length} issue(s) depend on this">${lucideIcon('link-2', {class:'icon-sm'})} ${dependents.length}</span>`;
+    depIndicators = `<span class="issue-dep-badge" title="${dependents.length} issue(s) depend on this">${lucideIcon('Link', {class:'icon-sm'})} ${dependents.length}</span>`;
   }
   if (deps.length > 0) {
-    depIndicators += `<span class="issue-dep-badge" title="${deps.length} dependency">${lucideIcon('link-2', {class:'icon-sm'})} ${deps.length}</span>`;
+    depIndicators += `<span class="issue-dep-badge" title="${deps.length} dependency">${lucideIcon('Link', {class:'icon-sm'})} ${deps.length}</span>`;
   }
 
   card.innerHTML = `
     <div class="issue-card-header">
       <input type="checkbox" class="issue-checkbox" data-id="${issue.id}" onclick="event.stopPropagation()">
       <span class="issue-key">${key}</span>
-      <span class="issue-type-icon">${lucideIcon(typeIcons[issue.type] || 'file', {class:'icon'})}</span>
+      <span class="issue-type-icon">${lucideIcon(typeIcons[issue.type] || 'File', {class:'icon'})}</span>
       ${depIndicators ? `<span class="issue-dep-indicators">${depIndicators}</span>` : ''}
     </div>
     ${labelsHtml}
@@ -135,10 +134,10 @@ function createCard(issue) {
     ${issue.desc ? `<div class="issue-desc">${escapeHtml(issue.desc)}</div>` : ''}
     <div class="issue-card-footer">
       <span class="issue-priority priority-${escapeHtml(issue.priority)}">${escapeHtml(issue.priority)}</span>
-      ${issue.storyPoints ? `<span class="issue-sp-badge" title="Story Points">${lucideIcon('target', {class:'icon-sm'})} ${issue.storyPoints}</span>` : ''}
-      ${issue.dueDate ? `<span class="issue-due-date ${isOverdue(issue.dueDate, issue.status) ? 'overdue' : ''}">${lucideIcon('calendar', {class:'icon-sm'})} ${formatDate(issue.dueDate)}</span>` : ''}
+      ${issue.storyPoints ? `<span class="issue-sp-badge" title="Story Points">${lucideIcon('Target', {class:'icon-sm'})} ${issue.storyPoints}</span>` : ''}
+      ${issue.dueDate ? `<span class="issue-due-date ${isOverdue(issue.dueDate, issue.status) ? 'overdue' : ''}">${lucideIcon('Calendar', {class:'icon-sm'})} ${formatDate(issue.dueDate)}</span>` : ''}
       <div style="display:flex;align-items:center;gap:8px;">
-        ${commentCount > 0 ? `<span class="issue-comments-badge">${lucideIcon('message-square', {class:'icon-sm'})} ${commentCount}</span>` : ''}
+        ${commentCount > 0 ? `<span class="issue-comments-badge">${lucideIcon('Chat', {class:'icon-sm'})} ${commentCount}</span>` : ''}
         ${issue.assignee ? `<div class="issue-assignee" title="${escapeHtml(issue.assignee)}">${issue.assignee.charAt(0).toUpperCase()}</div>` : ''}
       </div>
     </div>
@@ -214,7 +213,6 @@ function renderSidebar() {
   renderViews();
   renderSavedFilters();
   renderActivity();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ===== Inline Project Rename =====
@@ -241,7 +239,7 @@ function startInlineRename(key, itemEl) {
     if (newName && newName !== currentName) {
       proj.name = newName;
       saveState();
-      addActivity('pencil', `Renamed project to <strong>${escapeHtml(newName)}</strong>`);
+      addActivity('Pencil', `Renamed project to <strong>${escapeHtml(newName)}</strong>`);
       showToast('Project renamed', 'success');
     }
     // Re-render to restore the name span
@@ -301,10 +299,10 @@ function renderViews() {
   const list = document.getElementById('view-list');
   list.innerHTML = '';
   const views = [
-    { id: 'board', icon: 'layout', label: 'Board' },
-    { id: 'list', icon: 'list', label: 'List' },
-    { id: 'calendar', icon: 'calendar', label: 'Calendar' },
-    { id: 'dashboard', icon: 'bar-chart-3', label: 'Dashboard' },
+    { id: 'board', icon: 'Layout', label: 'Board' },
+    { id: 'list', icon: 'List', label: 'List' },
+    { id: 'calendar', icon: 'Calendar', label: 'Calendar' },
+    { id: 'dashboard', icon: 'ChartBar', label: 'Dashboard' },
   ];
   views.forEach(v => {
     const item = document.createElement('div');
@@ -313,8 +311,7 @@ function renderViews() {
     item.addEventListener('click', () => switchView(v.id));
     list.appendChild(item);
   });
-  // Re-render Lucide icons in the view list
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Re-render Phosphor icons in the view list
 }
 
 // ===== Column Configuration =====
@@ -511,7 +508,6 @@ function renderCalendarView() {
     day.style.cursor = 'pointer';
   });
 
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function renderCalendar() {
@@ -659,7 +655,6 @@ function renderDashboardView() {
 
   container.innerHTML = '<div class="dashboard-stats"><div class="dashboard-stat-card"><div class="dashboard-stat-value">' + total + '</div><div class="dashboard-stat-label">Total Issues</div></div><div class="dashboard-stat-card"><div class="dashboard-stat-value" style="color:var(--success)">' + completionRate + '%</div><div class="dashboard-stat-label">Completion Rate</div></div><div class="dashboard-stat-card"><div class="dashboard-stat-value" style="color:var(--danger)">' + overdueCount + '</div><div class="dashboard-stat-label">Overdue</div></div><div class="dashboard-stat-card"><div class="dashboard-stat-value" style="color:var(--warning)">' + highPriority + '</div><div class="dashboard-stat-label">High Priority</div></div><div class="dashboard-stat-card"><div class="dashboard-stat-value" style="color:var(--info)">' + dueThisWeek + '</div><div class="dashboard-stat-label">Due This Week</div></div><div class="dashboard-stat-card"><div class="dashboard-stat-value" style="color:var(--text-muted)">' + unassigned + '</div><div class="dashboard-stat-label">Unassigned</div></div></div><div class="dashboard-charts"><div class="dashboard-chart"><h4 class="dashboard-chart-title">Issues by Status</h4><div class="dashboard-pie" style="background:conic-gradient(' + pieConic + ');"></div><div class="dashboard-legend">' + Object.entries(byStatus).filter(([,v]) => v > 0).map(([status, count]) => '<div class="dashboard-legend-item"><span class="dashboard-legend-dot" style="background:' + statusColors[status] + '"></span><span>' + statusLabels[status] + '</span><span class="dashboard-legend-count">' + count + '</span></div>').join('') + '</div></div><div class="dashboard-chart"><h4 class="dashboard-chart-title">Issues by Assignee</h4><div class="dashboard-bar-chart">' + assignees.map(([name, data], idx) => '<div class="dashboard-bar-row"><span class="dashboard-bar-label">' + escapeHtml(name) + '</span><div class="dashboard-bar-track"><div class="dashboard-bar-fill" style="width:' + (data.total / maxAssigneeTotal) * 100 + '%;background:' + barColors[idx % barColors.length] + '"></div></div><span class="dashboard-bar-value">' + data.total + '</span></div>').join('') + '</div></div><div class="dashboard-chart"><h4 class="dashboard-chart-title">By Type</h4><div class="dashboard-priority-bars">' + Object.entries(byType).map(([type, count]) => { const pct = total > 0 ? (count / total) * 100 : 0; const color = { story: '#2BB5A8', bug: '#E53935', task: '#34A853', epic: '#F5C842' }[type]; return '<div class="dashboard-bar-row"><span class="dashboard-bar-label">' + type.charAt(0).toUpperCase() + type.slice(1) + '</span><div class="dashboard-bar-track"><div class="dashboard-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div><span class="dashboard-bar-value">' + count + '</span></div>'; }).join('') + '</div></div>' + sprintProgressHtml + '<div class="dashboard-chart"><h4 class="dashboard-chart-title">By Priority</h4><div class="dashboard-priority-bars">' + Object.entries(byPriority).map(([priority, count]) => { const pct = total > 0 ? (count / total) * 100 : 0; const color = { high: '#E53935', medium: '#F5C842', low: '#34A853' }[priority]; return '<div class="dashboard-bar-row"><span class="dashboard-bar-label">' + priority.charAt(0).toUpperCase() + priority.slice(1) + '</span><div class="dashboard-bar-track"><div class="dashboard-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div><span class="dashboard-bar-value">' + count + '</span></div>'; }).join('') + '</div></div>';
 
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function renderSavedFilters() {
@@ -690,7 +685,7 @@ function renderActivity() {
     const item = document.createElement('div');
     item.className = 'activity-item';
     const ago = timeAgo(a.time);
-    // Skip emoji/non-Lucide icon names to avoid console warnings
+    // Skip emoji/non-Phosphor icon names to avoid console warnings
     const iconHtml = /^[a-z0-9-]+$/.test(a.icon)
       ? lucideIcon(a.icon, {class:'icon-sm'})
       : '';
@@ -725,8 +720,7 @@ function switchView(view) {
   LJ.currentView = view;
   currentView = LJ.currentView;
   renderViews();
-  // Re-render Lucide icons after view changes so sidebar icons are visible
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Re-render Phosphor icons after view changes so sidebar icons are visible
   const board = document.getElementById('board');
   const calendarSection = document.getElementById('calendar-section');
   const dashboardSection = document.getElementById('dashboard-section');
@@ -793,7 +787,6 @@ function switchView(view) {
     board.style.display = 'flex';
     if (boardHeader) boardHeader.style.display = 'flex';
     if (bulkBar) bulkBar.style.display = 'none';
-    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 }
 
@@ -816,25 +809,30 @@ function renderListView() {
     return (a.rank ?? 0) - (b.rank ?? 0);
   });
   const projectKey = getProjectKey();
+  // Read current sort state
+  let sortCol = localStorage.getItem('listview-sort') || 'key';
+  let sortDir = localStorage.getItem('listview-dir') || 'asc';
+  const sortArrow = (col) => col === sortCol ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
   container.innerHTML = `
     <table class="issue-table">
       <thead>
         <tr>
-          <th>Type</th>
-          <th>Key</th>
-          <th>Summary</th>
-          <th>SP</th>
-          <th>Priority</th>
-          <th>Assignee</th>
-          <th>Sprint</th>
-          <th>Status</th>
+          <th class="sortable" data-sort="type">Type${sortArrow('type')}</th>
+          <th class="sortable" data-sort="key">Key${sortArrow('key')}</th>
+          <th class="sortable" data-sort="summary">Summary${sortArrow('summary')}</th>
+          <th class="sortable" data-sort="sp">SP${sortArrow('sp')}</th>
+          <th class="sortable" data-sort="priority">Priority${sortArrow('priority')}</th>
+          <th class="sortable" data-sort="assignee">Assignee${sortArrow('assignee')}</th>
+          <th class="sortable" data-sort="sprint">Sprint${sortArrow('sprint')}</th>
+          <th class="sortable" data-sort="status">Status${sortArrow('status')}</th>
         </tr>
       </thead>
       <tbody>
         ${filtered.map(i => {
           const sprintName = i.sprint ? (getSprints()[i.sprint]?.name || '') : '';
           return `<tr data-id="${i.id}" class="list-row">
-            <td>${lucideIcon(typeIcons[i.type] || 'file', {class:'icon'})} ${escapeHtml(i.type)}</td>
+            <td>${lucideIcon(typeIcons[i.type] || 'File', {class:'icon'})} ${escapeHtml(i.type)}</td>
             <td class="issue-key">${generateIssueKey(projectKey, i.id)}</td>
             <td>${escapeHtml(i.title)}</td>
             <td>${i.storyPoints || '—'}</td>
@@ -850,7 +848,22 @@ function renderListView() {
   container.querySelectorAll('.list-row').forEach(row => {
     row.addEventListener('click', () => openDetailPanel(parseInt(row.dataset.id)));
   });
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Sortable column headers
+  container.querySelectorAll('.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortCol = col;
+        sortDir = 'asc';
+      }
+      localStorage.setItem('listview-sort', sortCol);
+      localStorage.setItem('listview-dir', sortDir);
+      renderListView();
+    });
+  });
 }
 
 function applySavedFilter(idx) {

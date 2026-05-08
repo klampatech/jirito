@@ -91,15 +91,19 @@ function getMonthName(month) {
   return new Date(2000, month, 1).toLocaleString('en-US', { month: 'long' });
 }
 
-// ===== Icon Helper (Lucide) =====
+// ===== Icon Helper (Phosphor Icons) =====
 
 function lucideIcon(name, attrs = {}) {
-  const parts = ['<i data-lucide="' + name + '"'];
-  for (const [k, v] of Object.entries(attrs)) {
-    parts.push(' ' + k + '="' + v + '"');
-  }
-  parts.push('></i>');
-  return parts.join('');
+  // Convert PascalCase icon name to kebab-case CSS class (e.g. "Plus" -> "plus", "FileText" -> "file-text")
+  const kebabName = name
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase();
+  const className = 'ph ph-' + kebabName;
+  const iconAttrs = Object.entries(attrs)
+    .map(([k, v]) => k + '="' + v + '"')
+    .join(' ');
+  return '<i class="' + className + '" ' + iconAttrs + '></i>';
 }
 
 function escapeHtml(str) {
@@ -201,22 +205,47 @@ function populateSprintSelect() {
 function updateSprintBar() {
   const sprintFilter = document.getElementById('sprint-filter');
   const manageBtn = document.getElementById('manage-sprints-btn');
+  const sprintBar = document.getElementById('sprint-bar');
   if (!sprintFilter || !manageBtn) return;
   const sprints = getSprints();
   const sprintCount = Object.keys(sprints).length;
+  // Always show the manage button (users need to create sprints)
+  manageBtn.style.display = 'inline-flex';
   if (sprintCount > 0) {
     sprintFilter.style.display = 'inline-block';
-    manageBtn.style.display = 'inline-flex';
     populateSprintFilter();
+    // Show sprint bar if a sprint is active
+    const activeSprint = getActiveSprint();
+    if (activeSprint) {
+      sprintBar.style.display = 'block';
+      document.getElementById('sprint-bar-name').textContent = activeSprint.name;
+      updateSprintProgressBar(activeSprint);
+    } else {
+      sprintBar.style.display = 'none';
+    }
   } else {
     sprintFilter.style.display = 'none';
-    manageBtn.style.display = 'none';
+    sprintBar.style.display = 'none';
   }
 }
 
+function updateSprintProgressBar(activeSprint) {
+  const fill = document.getElementById('sprint-progress-fill');
+  const text = document.getElementById('sprint-progress-text');
+  if (!fill || !text) return;
+  const sprintIssues = LJ.issues.filter(i => i.sprint === activeSprint.id);
+  const totalSP = sprintIssues.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
+  const doneSP = sprintIssues.filter(i => i.status === 'done').reduce((sum, i) => sum + (i.storyPoints || 0), 0);
+  const pct = totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0;
+  fill.style.width = pct + '%';
+  text.textContent = doneSP + '/' + totalSP + ' points';
+}
+
 function updateSprintProgress() {
-  // Sprint progress is now shown in the sprint management modal and dashboard
-  // No longer displayed inline in the header bar
+  const activeSprint = getActiveSprint();
+  if (activeSprint) {
+    updateSprintProgressBar(activeSprint);
+  }
 }
 
 // ===== Undo helpers =====

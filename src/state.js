@@ -273,7 +273,7 @@ const sampleIssues = [
   { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null, labels: ["feature"], storyPoints: 3, rank: 5 },
 ];
 
-const typeIcons = { story: "file-text", bug: "bug", task: "check-square", epic: "mountain" };
+const typeIcons = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
 
 // ===== Duplicate Detection =====
 function findDuplicateIssues(title) {

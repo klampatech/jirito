@@ -55,12 +55,12 @@ test('issue cards show correct keys', async ({ page }) => {
 
 test('issue cards show type icons', async ({ page }) => {
   const todoCards = page.locator('[data-status="todo"] .issue-card');
-  // Type icons are now Lucide icons (data-lucide attributes)
-  const todoIcon = await todoCards.nth(0).locator('.issue-type-icon [data-lucide]').getAttribute('data-lucide');
-  expect(todoIcon).toBe('file-text'); // story type
+  // Type icons are now Phosphor icons (data-phosphor-icon attributes)
+  const todoIcon = await todoCards.nth(0).locator('.issue-type-icon [data-phosphor-icon]').getAttribute('data-phosphor-icon');
+  expect(todoIcon).toBe('FileText'); // story type
   const inProgressCards = page.locator('[data-status="inprogress"] .issue-card');
-  const inProgressIcon = await inProgressCards.nth(0).locator('.issue-type-icon [data-lucide]').getAttribute('data-lucide');
-  expect(inProgressIcon).toBe('bug'); // bug type
+  const inProgressIcon = await inProgressCards.nth(0).locator('.issue-type-icon [data-phosphor-icon]').getAttribute('data-phosphor-icon');
+  expect(inProgressIcon).toBe('Bug'); // bug type
 });
 
 test('issue cards show priority badges', async ({ page }) => {
@@ -937,7 +937,7 @@ test('import validation rejects malformed projects', async ({ page }) => {
 test('switchProject with invalid key is a no-op', async ({ page }) => {
   // The function should silently return if key doesn't exist
   // This is tested indirectly by verifying no crash occurs
-  await page.goto('file://' + process.cwd() + '/../index.html');
+  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
   const result = await page.evaluate(() => {
     // Call switchProject with a non-existent key
     switchProject('nonexistent-key');
@@ -948,7 +948,7 @@ test('switchProject with invalid key is a no-op', async ({ page }) => {
 
 // Task 4.2: Test aria-live attributes exist on dynamic regions
 test('aria-live attributes exist on dynamic regions', async ({ page }) => {
-  await page.goto('file://' + process.cwd() + '/../index.html');
+  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
   await expect(page.locator('#board')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#activity-feed')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#notification-dropdown-body')).toHaveAttribute('aria-live', 'polite');
@@ -957,7 +957,7 @@ test('aria-live attributes exist on dynamic regions', async ({ page }) => {
 
 // Task 4.2: Test column bodies have ARIA labels
 test('column bodies have ARIA labels for drag targets', async ({ page }) => {
-  await page.goto('file://' + process.cwd() + '/../index.html');
+  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
   const todoCol = page.locator('[data-status="todo"] .column-body');
   await expect(todoCol).toHaveAttribute('role', 'list');
   await expect(todoCol).toHaveAttribute('aria-label', 'To Do column');
@@ -968,12 +968,15 @@ test('column bodies have ARIA labels for drag targets', async ({ page }) => {
 
 // ===== Sprint Creation Tests =====
 
-test('sprint bar is visible and has a Manage button', async ({ page }) => {
+test('sprint bar element exists', async ({ page }) => {
   const sprintBar = page.locator('#sprint-bar');
-  await expect(sprintBar).toBeVisible();
+  await expect(sprintBar).toHaveCount(1);
+});
+
+test('manage sprints button is always visible', async ({ page }) => {
   const manageBtn = page.locator('#manage-sprints-btn');
   await expect(manageBtn).toBeVisible();
-  await expect(manageBtn).toContainText('Manage');
+  await expect(manageBtn).toContainText('Manage Sprints');
 });
 
 test('clicking Manage Sprints opens the sprint modal', async ({ page }) => {
@@ -1025,7 +1028,11 @@ test('assigning a sprint to an issue works', async ({ page }) => {
   await page.locator('#sprint-modal-close').click();
   const card = page.locator('[data-status="todo"] .issue-card').first();
   await card.click();
-  await page.locator('#detail-sprint').selectOption('sprint-');
+  // Wait for the detail panel to have sprint options
+  const sprintOptionValue = await page.locator('#detail-sprint option').nth(1).getAttribute('value');
+  expect(sprintOptionValue).toBeTruthy();
+  expect(sprintOptionValue.startsWith('sprint-')).toBeTruthy();
+  await page.locator('#detail-sprint').selectOption({ value: sprintOptionValue });
   await page.locator('#detail-sprint').press('Tab');
   const sprintId = await page.locator('#detail-sprint').inputValue();
   const savedSprint = await page.evaluate((id) => {
@@ -1072,7 +1079,9 @@ test('sprint can be activated from the manage modal', async ({ page }) => {
   // Click the button that says "Activate" (not "Active")
   const activateBtn = page.locator('.sprint-activate-btn').filter({ hasText: 'Activate' }).first();
   await activateBtn.click();
-  await expect(activateBtn).toContainText('Active');
+  // After activation, re-query the button — the DOM was re-rendered
+  await expect(page.locator('.sprint-activate-btn').first()).not.toContainText('Activate');
+  await expect(page.locator('.sprint-activate-btn').first()).toContainText('Active');
 });
 
 // ===== Dependency Search Tests =====
@@ -1318,9 +1327,9 @@ test('sidebar view icons are rendered after switching to calendar', async ({ pag
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a lucide icon (data-lucide attribute)
+  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-lucide]').count();
+  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 
@@ -1330,9 +1339,9 @@ test('sidebar view icons are rendered after switching to dashboard', async ({ pa
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a lucide icon (data-lucide attribute)
+  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-lucide]').count();
+  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 
@@ -1342,9 +1351,9 @@ test('sidebar view icons are rendered after switching to list', async ({ page })
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a lucide icon (data-lucide attribute)
+  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-lucide]').count();
+  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 

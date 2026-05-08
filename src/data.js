@@ -19,7 +19,7 @@ function exportData() {
   a.download = `jirito-export-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  addActivity('download', 'Exported board data');
+  addActivity('Download', 'Exported board data');
 }
 
 function importData(file) {
@@ -87,7 +87,7 @@ function importData(file) {
       renderSidebar();
       populateAssigneeFilter();
       updateCounts();
-      addActivity('upload', 'Imported board data');
+      addActivity('Upload', 'Imported board data');
       showToast('Import successful!', 'success');
     } catch (err) {
       showToast('Import failed: ' + err.message, 'error');
@@ -102,7 +102,7 @@ function createProject(name, key) {
   LJ.projects[key] = { name, icon, key: key.toUpperCase(), issues: [] };
   saveState();
   switchProject(key);
-  addActivity('sparkles', `<strong>${escapeHtml(name)}</strong> project created`);
+  addActivity('Sparkles', `<strong>${escapeHtml(name)}</strong> project created`);
 }
 
 function deleteProject(key) {
