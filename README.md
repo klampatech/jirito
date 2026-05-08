@@ -28,77 +28,93 @@
 ## 📸 Screenshots
 
 ### Board View
-![Light Board View](screenshots/01-light-board.png)
-*Classic Kanban board with drag-and-drop columns*
-
-### Detail Panel
-![Light Detail Panel](screenshots/02-light-detail-panel.png)
-*Rich issue detail panel with comments and activity feed*
-
-### Create Issue Modal
-![Create Issue](screenshots/03-light-create-modal.png)
-*Create new issues with custom fields and metadata*
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Board](screenshots/01-light-board.png) | ![Dark Board](screenshots/17-dark-board.png) |
+| *Classic Kanban board with drag-and-drop columns* | *GitHub-dark inspired theme* |
 
 ### List View
-![Light List View](screenshots/04-light-list-view.png)
-*Table-style listing with sorting and filtering*
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light List](screenshots/04-light-list-view.png) | ![Dark List](screenshots/20-dark-list-view.png) |
+| *Table-style listing with sorting and filtering* | *Dark mode list view* |
+
+### Calendar View
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Calendar](screenshots/10-light-calendar.png) | ![Dark Calendar](screenshots/26-dark-calendar.png) |
+| *Visual calendar for issue due dates* | *Dark mode calendar* |
+
+### Dashboard View
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Dashboard](screenshots/11-light-dashboard.png) | ![Dark Dashboard](screenshots/27-dark-dashboard.png) |
+| *Overdue issues, stats, and project overview* | *Dark mode dashboard* |
+
+### Detail Panel
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Detail](screenshots/02-light-detail-panel.png) | ![Dark Detail](screenshots/18-dark-detail-panel.png) |
+| *Rich issue detail with comments and activity feed* | *Dark mode detail panel* |
+
+### Create Issue Modal
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Create](screenshots/03-light-create-modal.png) | ![Dark Create](screenshots/19-dark-create-modal.png) |
+| *Create new issues with custom fields and metadata* | *Dark mode create modal* |
 
 ### Filters
-![Filters](screenshots/05-light-filters.png)
-*Advanced filters by assignee, status, priority, and more*
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Filters](screenshots/05-light-filters.png) | ![Dark Filters](screenshots/21-dark-filters.png) |
+| *Advanced filters by assignee, status, priority* | *Dark mode filters* |
 
 ### Search
-![Search Results](screenshots/06-light-search.png)
-*Full-text search across all issues*
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Search](screenshots/06-light-search.png) | ![Dark Search](screenshots/22-dark-search.png) |
+| *Full-text search across all issues* | *Dark mode search* |
 
 ### Sidebar Navigation
-| Expanded | Collapsed |
-|----------|-----------|
-| ![Sidebar Open](screenshots/07-light-sidebar-collapsed.png) | ![Sidebar Closed](screenshots/13-dark-sidebar-collapsed.png) |
-| *Collapsible sidebar navigation* | *Compact mode for more screen space* |
+| Light (Open) | Light (Collapsed) | Dark (Open) | Dark (Collapsed) |
+|--------------|-------------------|-------------|------------------|
+| ![Sidebar Open](screenshots/07-light-sidebar-open.png) | ![Sidebar Collapsed](screenshots/08-light-sidebar-collapsed.png) | ![Dark Open](screenshots/23-dark-sidebar-open.png) | ![Dark Collapsed](screenshots/24-dark-sidebar-collapsed.png) |
 
 ### Notifications
-| Light | Dark |
-|-------|------|
-| ![Light Notifications](screenshots/08-light-notifications.png) | ![Dark Activity Feed](screenshots/18-dark-activity-feed.png) |
-| *Notification dropdown* | *Activity feed (dark mode)* |
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Notifications](screenshots/09-light-notifications.png) | ![Dark Notifications](screenshots/25-dark-notifications.png) |
+| *Overdue issues notification dropdown* | *Dark mode notifications* |
 
-### Dark Mode
-| Light | Dark |
-|-------|------|
-| ![Light Board](screenshots/01-light-board.png) | ![Dark Board](screenshots/09-dark-board.png) |
-| *Warm beige light theme* | *GitHub-dark inspired* |
+### Activity Feed
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Activity](screenshots/13-light-activity-feed.png) | ![Dark Activity](screenshots/29-dark-activity-feed.png) |
+| *Issue activity feed (light)* | *Issue activity feed (dark)* |
 
-### Mobile
-| Light | Dark |
-|-------|------|
-| ![Light Mobile](screenshots/19-light-mobile.png) | ![Dark Mobile](screenshots/20-dark-mobile.png) |
-| *Responsive on mobile* | *Dark mode on mobile* |
+### Bulk Actions
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Bulk](screenshots/12-light-drag-preview.png) | ![Dark Bulk](screenshots/28-dark-bulk-action.png) |
+| *Multi-issue selection and bulk operations* | *Dark mode bulk actions* |
 
-### Additional Views
-| Feature | Preview |
-|---------|---------|
-| Detail Panel (Dark) | ![Dark Detail](screenshots/10-dark-detail-panel.png) |
-| Create Modal (Dark) | ![Dark Create](screenshots/11-dark-create-modal.png) |
-| List View (Dark) | ![Dark List](screenshots/12-dark-list-view.png) |
-| Collapsed Sidebar | ![Collapsed](screenshots/13-dark-sidebar-collapsed.png) |
-| Bulk Actions | ![Bulk Actions](screenshots/14-dark-bulk-action.png) |
-| Column Menu | ![Column Menu](screenshots/15-dark-column-menu.png) |
-| Drag Preview | ![Drag Preview](screenshots/16-light-drag-preview.png) |
-| Activity Feed (Light) | ![Activity Feed](screenshots/17-light-activity-feed.png) |
-| Activity Feed (Dark) | ![Activity Feed Dark](screenshots/18-dark-activity-feed.png) |
-| New Project Modal (Light) | ![New Project Light](screenshots/21-light-new-project-modal.png) |
-| New Project Modal (Dark) | ![New Project Dark](screenshots/22-dark-new-project-modal.png) |
-| Overdue Detail (Light) | ![Overdue Light](screenshots/23-light-overdue-detail.png) |
-| Overdue Detail (Dark) | ![Overdue Dark](screenshots/24-dark-overdue-detail.png) |
+### New Project Modal
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light New Project](screenshots/14-light-new-project.png) | ![Dark New Project](screenshots/30-dark-new-project.png) |
+| *Create new project (light)* | *Create new project (dark)* |
 
-### Sidebar Views
-| View | Light Preview | Dark Preview |
-|------|-------------|-------------|
-| Board | ![Board](screenshots/sidebar-views/01-board-view.png) | ![Dark Board](screenshots/sidebar-views/dark-board-view.png) |
-| List | ![List](screenshots/sidebar-views/03-list-view.png) | ![Dark List](screenshots/sidebar-views/dark-list-view.png) |
-| Calendar | ![Calendar](screenshots/sidebar-views/04-calendar-view.png) | ![Dark Calendar](screenshots/sidebar-views/dark-calendar-view.png) |
-| Dashboard | ![Dashboard](screenshots/sidebar-views/05-dashboard-view.png) | ![Dark Dashboard](screenshots/sidebar-views/dark-dashboard-view.png) |
+### Overdue Detail
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Overdue](screenshots/15-light-overdue-detail.png) | ![Dark Overdue](screenshots/31-dark-overdue-detail.png) |
+| *Overdue issue detail (light)* | *Overdue issue detail (dark)* |
+
+### Mobile Responsive
+| Light Mode | Dark Mode |
+|------------|-----------|
+| ![Light Mobile](screenshots/16-light-mobile.png) | ![Dark Mobile](screenshots/32-dark-mobile.png) |
+| *Responsive layout on mobile (light)* | *Responsive layout on mobile (dark)* |
 
 ## 🛠️ Tech Stack
 
