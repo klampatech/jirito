@@ -1,4 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const indexPath = path.resolve(__dirname, '..', 'index.html');
 
 // Helper to clear localStorage safely (file:// protocol may block it)
 async function clearStorage(page) {
@@ -11,7 +17,7 @@ async function clearStorage(page) {
 
 test.beforeEach(async ({ page }) => {
   await clearStorage(page);
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {
@@ -55,12 +61,12 @@ test('issue cards show correct keys', async ({ page }) => {
 
 test('issue cards show type icons', async ({ page }) => {
   const todoCards = page.locator('[data-status="todo"] .issue-card');
-  // Type icons are now Phosphor icons (data-phosphor-icon attributes)
-  const todoIcon = await todoCards.nth(0).locator('.issue-type-icon [data-phosphor-icon]').getAttribute('data-phosphor-icon');
-  expect(todoIcon).toBe('FileText'); // story type
+  // Type icons are rendered as Phosphor icons with class="ph ph-{kebab-case}"
+  const todoIcon = await todoCards.nth(0).locator('.issue-type-icon i.ph').getAttribute('class');
+  expect(todoIcon).toContain('ph-file-text'); // story type
   const inProgressCards = page.locator('[data-status="inprogress"] .issue-card');
-  const inProgressIcon = await inProgressCards.nth(0).locator('.issue-type-icon [data-phosphor-icon]').getAttribute('data-phosphor-icon');
-  expect(inProgressIcon).toBe('Bug'); // bug type
+  const inProgressIcon = await inProgressCards.nth(0).locator('.issue-type-icon i.ph').getAttribute('class');
+  expect(inProgressIcon).toContain('ph-bug'); // bug type
 });
 
 test('issue cards show priority badges', async ({ page }) => {
@@ -793,7 +799,7 @@ test('bulk status change moves selected cards', async ({ page }) => {
 test('onboarding shows on first load', async ({ page }) => {
   // Clear localStorage to simulate first load
   await clearStorage(page);
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   await expect(page.locator('#onboarding-overlay')).toBeVisible();
 });
 
@@ -806,7 +812,7 @@ test('onboarding does not show after dismissal', async ({ page }) => {
   } catch {
     // file:// protocol may block localStorage
   }
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   await expect(page.locator('#onboarding-overlay')).not.toBeVisible();
 });
 
@@ -937,7 +943,7 @@ test('import validation rejects malformed projects', async ({ page }) => {
 test('switchProject with invalid key is a no-op', async ({ page }) => {
   // The function should silently return if key doesn't exist
   // This is tested indirectly by verifying no crash occurs
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   const result = await page.evaluate(() => {
     // Call switchProject with a non-existent key
     switchProject('nonexistent-key');
@@ -948,7 +954,7 @@ test('switchProject with invalid key is a no-op', async ({ page }) => {
 
 // Task 4.2: Test aria-live attributes exist on dynamic regions
 test('aria-live attributes exist on dynamic regions', async ({ page }) => {
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   await expect(page.locator('#board')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#activity-feed')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#notification-dropdown-body')).toHaveAttribute('aria-live', 'polite');
@@ -957,7 +963,7 @@ test('aria-live attributes exist on dynamic regions', async ({ page }) => {
 
 // Task 4.2: Test column bodies have ARIA labels
 test('column bodies have ARIA labels for drag targets', async ({ page }) => {
-  await page.goto('file:///Users/kylelampa/Development/little-coder/jira-clone/index.html');
+  await page.goto('file://' + indexPath);
   const todoCol = page.locator('[data-status="todo"] .column-body');
   await expect(todoCol).toHaveAttribute('role', 'list');
   await expect(todoCol).toHaveAttribute('aria-label', 'To Do column');
@@ -1327,9 +1333,9 @@ test('sidebar view icons are rendered after switching to calendar', async ({ pag
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
+  // The active view item should have a Phosphor icon (class="ph ph-*")
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
+  const hasIcon = await activeView.locator('i.ph').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 
@@ -1339,9 +1345,9 @@ test('sidebar view icons are rendered after switching to dashboard', async ({ pa
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
+  // The active view item should have a Phosphor icon (class="ph ph-*")
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
+  const hasIcon = await activeView.locator('i.ph').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 
@@ -1351,9 +1357,9 @@ test('sidebar view icons are rendered after switching to list', async ({ page })
   // The sidebar should still show the view list with icons
   const viewItems = page.locator('#view-list .view-item');
   await expect(viewItems).toHaveCount(4);
-  // The active view item should have a Phosphor icon (data-phosphor-icon attribute)
+  // The active view item should have a Phosphor icon (class="ph ph-*")
   const activeView = page.locator('#view-list .view-item.active');
-  const hasIcon = await activeView.locator('[data-phosphor-icon]').count();
+  const hasIcon = await activeView.locator('i.ph').count();
   expect(hasIcon).toBeGreaterThan(0);
 });
 
