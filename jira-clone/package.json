@@ -1,7 +1,0 @@
-{
-  "name": "jirito",
-  "type": "module",
-  "scripts": {
-    "test": "playwright test"
-  }
-}
