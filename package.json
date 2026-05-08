@@ -1,0 +1,11 @@
+{
+  "name": "jirito",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --config=playwright/playwright.config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "playwright": "^1.59.1"
+  }
+}
