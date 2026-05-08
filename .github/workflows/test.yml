@@ -16,7 +16,7 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --timeout=15000
+      - run: npx playwright test --config=playwright/playwright.config.mjs --timeout=15000
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
