@@ -124,9 +124,10 @@
 | **Language** | JavaScript (ES Modules) |
 | **Styling** | CSS (light + dark themes) |
 | **Icons** | Lucide (CDN) |
-| **Storage** | `localStorage` (8 keys) |
+| **Storage** | `localStorage` (9 keys) |
 | **Testing** | Playwright (~150 E2E tests) |
 | **Formatting** | ESLint + Prettier |
+| **CI** | GitHub Actions (`test.yml`) |
 
 ## 🚀 Getting Started
 
@@ -157,41 +158,49 @@ npm test
 ## 📁 Project Structure
 
 ```
-jira-clone/
+jirito/
 ├── index.html              # Single-page application entry
 ├── styles.css              # All styles (light + dark themes)
 ├── public/
 │   └── jirito_logo.png     # Project logo
 ├── src/
-│   ├── state.js            # State management (LJ namespace)
+│   ├── state.js            # State management (LJ namespace) + localStorage sync
 │   ├── render.js           # DOM rendering functions
 │   ├── events.js           # Event handlers
-│   ├── data.js             # Data layer / localStorage sync
+│   ├── data.js             # Import/export data operations
 │   ├── utils.js            # Utility functions
 │   └── main.js             # Application bootstrap
 ├── tests/                  # Playwright E2E tests (~150 tests)
 ├── screenshots/            # Application screenshots
 ├── docs/
 │   └── PROJECT.md          # Project study document
-├── playwright/             # Playwright config
+├── playwright/
+│   ├── playwright.config.mjs
+│   └── playwright-global-setup.mjs
+├── .github/
+│   └── workflows/
+│       └── test.yml        # GitHub Actions CI
 ├── .eslintrc.json          # ESLint configuration
 ├── .prettierrc             # Prettier configuration
-└── package.json
+├── package.json
+└── package-lock.json
 ```
 
 ## 🗄️ Data Model
 
-Jirito stores data in `localStorage` under 8 keys:
+Jirito stores data in `localStorage` under 9 keys:
 
 | Key | Content |
 |-----|---------|
 | `jirito-issues` | Issue objects (title, status, assignee, priority, due date, etc.) |
-| `jirito-projects` | Project definitions |
 | `jirito-comments` | Issue comments |
+| `jirito-projects` | Project definitions |
+| `jirito-currentProject` | Currently selected project |
+| `jirito-savedFilters` | Saved filter configurations |
+| `jirito-activity` | Activity log |
+| `jirito-trash` | Soft-deleted issues |
 | `jirito-sprints` | Sprint data |
-| `jirito-custom-columns` | Custom column configurations |
-| `jirito-settings` | User preferences (theme, sidebar state, etc.) |
-| `jirito-...` | Additional configuration keys |
+| `jirito-customColumns` | Custom column configurations |
 
 > ⚠️ **No schema validation or transactions** — data is stored as plain JSON.
 
@@ -206,7 +215,7 @@ Jirito stores data in `localStorage` under 8 keys:
 
 | Metric | Value |
 |--------|-------|
-| Total Lines | ~5,200 |
+| Total Lines | ~5,600 |
 | Source Files | 7 (index.html, styles.css, 6 JS modules) |
 | E2E Tests | ~150 |
 | Unit Tests | None |
@@ -215,16 +224,16 @@ Jirito stores data in `localStorage` under 8 keys:
 ## 🧭 Roadmap
 
 ### High Priority
-- [ ] Add ESLint + Prettier (lock in formatting) ✅
-- [ ] Add lock file (`package-lock.json`)
-- [ ] Fix markdown XSS (block `javascript:` URLs)
-- [ ] Add `saveState()` debouncing for bulk operations
+- [x] Add ESLint + Prettier (lock in formatting) ✅
+- [x] Add lock file (`package-lock.json`) ✅
+- [x] Fix markdown XSS (block `javascript:` URLs) ✅
+- [x] Add `saveState()` debouncing for bulk operations ✅
 
 ### Medium Priority
 - [ ] TypeScript migration for type safety
 - [ ] Replace `LJ` global with proper state management
 - [ ] Add virtual scrolling for 100+ issues
-- [ ] Add GitHub Actions CI for test automation
+- [x] Add GitHub Actions CI for test automation ✅
 
 ### Low Priority
 - [ ] Extract duplicated `renderDashboard` code
