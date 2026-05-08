@@ -1,7 +1,11 @@
 import { chromium } from 'playwright';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
-const URL = 'file:///Users/kylelampa/Development/little-coder/jira-clone/index.html';
-const SCREENSHOT_DIR = '/Users/kylelampa/Development/little-coder/jira-clone/test-results/screenshots';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const indexPath = path.resolve(__dirname, '..', 'index.html');
+const URL = 'file://' + indexPath;
+const SCREENSHOT_DIR = path.join(__dirname, '..', 'test-results', 'screenshots');
 
 async function screenshot(page, name) {
   await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png`, fullPage: false });
