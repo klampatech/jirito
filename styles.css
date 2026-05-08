@@ -113,7 +113,7 @@ body {
 .topnav-left { display: flex; align-items: center; gap: 12px; }
 .logo { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
 .logo-img {
-  height: 24px;
+  height: 32px;
   width: auto;
   border-radius: 6px;
 }
@@ -384,8 +384,8 @@ body {
   padding: 16px 24px; background: var(--bg-card); border-bottom: 1px solid var(--border);
 }
 .board-header h1 { font-size: 20px; font-weight: 600; }
-.board-actions { display: flex; gap: 8px; align-items: center; }
-.filter-group { display: flex; gap: 8px; align-items: center; }
+.board-actions { display: flex; gap: 16px; align-items: center; }
+.filter-group { display: flex; gap: 12px; align-items: center; }
 .filter-select {
   padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
   font-size: 13px; background: var(--bg-card); color: var(--text-light); cursor: pointer;
@@ -680,7 +680,7 @@ body {
 .bulk-action-bar select { min-width: 140px; }
 
 .export-import-group {
-  display: flex; gap: 4px;
+  display: flex; gap: 8px;
 }
 .detail-panel-header {
   display: flex; align-items: center; justify-content: space-between;

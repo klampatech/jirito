@@ -158,10 +158,6 @@ test('search input exists', async ({ page }) => {
 });
 
 // ===== Nav Tests =====
-test('top nav displays project name', async ({ page }) => {
-  await expect(page.locator('.topnav .project-name')).toHaveText('Project Alpha');
-});
-
 test('avatar is visible', async ({ page }) => {
   await expect(page.locator('.avatar')).toHaveText('K');
 });
@@ -819,9 +815,7 @@ test('creating a new project switches to it', async ({ page }) => {
   // Verify the new project is active in sidebar
   const activeProject = page.locator('.project-item.active');
   await expect(activeProject).toContainText('Test Project');
-  // Verify nav shows the new project name
-  await expect(page.locator('#nav-project-name')).toContainText('Test Project');
-  // Verify board title updated
+  // Verify board title updated (project name now shown in board header)
   await expect(page.locator('#board-title')).toContainText('Test Project');
 });
 
@@ -837,11 +831,11 @@ test('switching between projects updates the board', async ({ page }) => {
   await page.locator('#issue-form').evaluate(form => form.requestSubmit());
   // Switch back to default project
   await page.locator('.project-item:has-text("Project Alpha")').click();
-  // Verify we're back on the default project
-  await expect(page.locator('#nav-project-name')).toContainText('Project Alpha');
+  // Verify we're back on the default project (name shown in board title)
+  await expect(page.locator('#board-title')).toContainText('Project Alpha');
   // Switch to second project again
   await page.locator('.project-item:has-text("Second Project")').click();
-  await expect(page.locator('#nav-project-name')).toContainText('Second Project');
+  await expect(page.locator('#board-title')).toContainText('Second Project');
 });
 
 test('deleting a project switches to remaining project', async ({ page }) => {

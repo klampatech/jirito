@@ -1,0 +1,408 @@
+import { test, expect } from '@playwright/test';
+import { mkdirSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SCREENSHOT_DIR = join(__dirname, '..', 'screenshots');
+
+// Helper to clear localStorage safely
+async function clearStorage(page) {
+  try {
+    await page.evaluate(() => localStorage.clear());
+  } catch {
+    // file:// protocol may block localStorage access
+  }
+}
+
+// Helper to navigate to the app
+async function navigate(page) {
+  await clearStorage(page);
+  await page.goto('file:///Users/kylelampa/Development/jirito/index.html');
+  // Dismiss onboarding if it appears
+  const onboarding = page.locator('#onboarding-overlay');
+  if (await onboarding.isVisible()) {
+    await page.locator('#onboarding-skip').click();
+  }
+}
+
+// Helper to set theme and wait
+async function setTheme(page, theme) {
+  if (theme === 'dark') {
+    const current = await page.evaluate(() => localStorage.getItem('jirito-theme'));
+    if (current !== 'dark') {
+      await page.locator('#theme-toggle').click();
+      await page.waitForTimeout(500);
+    }
+  } else {
+    const current = await page.evaluate(() => localStorage.getItem('jirito-theme'));
+    if (current === 'dark') {
+      await page.locator('#theme-toggle').click();
+      await page.waitForTimeout(500);
+    }
+  }
+}
+
+// Helper to take screenshot
+async function capture(page, name, viewport) {
+  const dir = join(SCREENSHOT_DIR, 'automation');
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, name), fullPage: false });
+  console.log(`  ✓ Captured: ${name}`);
+}
+
+// Set viewport
+test.use({ viewport: { width: 1440, height: 900 } });
+
+// ===== LIGHT MODE SCREENSHOTS =====
+
+test('01 - Light Board View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  await page.waitForTimeout(300);
+  await capture(page, '01-light-board.png');
+});
+
+test('02 - Light Detail Panel', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Click the first issue card to open detail panel
+  const firstCard = page.locator('[data-status="todo"] .issue-card').first();
+  await firstCard.click();
+  await page.waitForTimeout(500);
+  await capture(page, '02-light-detail-panel.png');
+});
+
+test('03 - Light Create Modal', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  await page.locator('#add-issue-btn').click();
+  await page.waitForTimeout(500);
+  await capture(page, '03-light-create-modal.png');
+});
+
+test('04 - Light List View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Click list view in sidebar
+  const listViewBtn = page.locator('[data-view="list"]').first();
+  if (await listViewBtn.isVisible()) {
+    await listViewBtn.click();
+  } else {
+    // Try alternative selector
+    await page.locator('#view-list').click();
+  }
+  await page.waitForTimeout(500);
+  await capture(page, '04-light-list-view.png');
+});
+
+test('05 - Light Filters', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Filters are always visible on the board header
+  await page.waitForSelector('.filter-group', { state: 'visible' });
+  await page.waitForTimeout(500);
+  await capture(page, '05-light-filters.png');
+});
+
+test('06 - Light Search', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  await page.locator('#search-input').fill('PROJ');
+  await page.waitForTimeout(500);
+  await capture(page, '06-light-search.png');
+});
+
+test('07 - Light Sidebar Open', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Make sure sidebar is open
+  const sidebar = page.locator('#sidebar');
+  const state = await sidebar.evaluate(el => el.classList.contains('collapsed'));
+  if (state) {
+    await page.locator('#sidebar-toggle').click();
+    await page.waitForTimeout(300);
+  }
+  await capture(page, '07-light-sidebar-open.png');
+});
+
+test('08 - Light Sidebar Collapsed', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Collapse sidebar
+  const sidebar = page.locator('#sidebar');
+  const state = await sidebar.evaluate(el => el.classList.contains('collapsed'));
+  if (!state) {
+    await page.locator('#sidebar-toggle').click();
+    await page.waitForTimeout(300);
+  }
+  await capture(page, '08-light-sidebar-collapsed.png');
+});
+
+test('09 - Light Notifications', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  await page.locator('#notification-bell').click();
+  await page.waitForTimeout(500);
+  await capture(page, '09-light-notifications.png');
+});
+
+test('10 - Light Calendar View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Click the calendar view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('Calendar')) {
+      await viewItems.nth(i).click();
+      break;
+    }
+  }
+  await page.waitForTimeout(500);
+  await capture(page, '10-light-calendar.png');
+});
+
+test('11 - Light Dashboard View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Click the dashboard view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('Dashboard')) {
+      await viewItems.nth(i).click();
+      break;
+    }
+  }
+  await page.waitForTimeout(500);
+  await capture(page, '11-light-dashboard.png');
+});
+
+test('12 - Light Drag Preview', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  const card = page.locator('[data-status="todo"] .issue-card').first();
+  await card.hover();
+  await page.waitForTimeout(300);
+  await capture(page, '12-light-drag-preview.png');
+});
+
+test('13 - Light Activity Feed', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  const firstCard = page.locator('[data-status="todo"] .issue-card').first();
+  await firstCard.click();
+  await page.waitForTimeout(500);
+  await capture(page, '13-light-activity-feed.png');
+});
+
+test('14 - Light New Project Modal', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Open new project modal via sidebar button
+  await page.locator('#add-project-btn').click();
+  await page.waitForTimeout(500);
+  await capture(page, '14-light-new-project.png');
+});
+
+test('15 - Light Overdue Detail', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'light');
+  // Click notification bell then click first overdue item
+  const bell = page.locator('#notification-bell');
+  if (await bell.isVisible()) {
+    await bell.click();
+    await page.waitForTimeout(300);
+    const firstOverdue = page.locator('.notification-item').first();
+    if (await firstOverdue.isVisible()) {
+      await firstOverdue.click();
+      await page.waitForTimeout(500);
+    }
+  }
+  await capture(page, '15-light-overdue-detail.png');
+});
+
+test('16 - Light Mobile View', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await navigate(page);
+  await setTheme(page, 'light');
+  await page.waitForTimeout(300);
+  await capture(page, '16-light-mobile.png');
+});
+
+// ===== DARK MODE SCREENSHOTS =====
+
+test('17 - Dark Board View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.waitForTimeout(500);
+  await capture(page, '17-dark-board.png');
+});
+
+test('18 - Dark Detail Panel', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  const firstCard = page.locator('[data-status="todo"] .issue-card').first();
+  await firstCard.click();
+  await page.waitForTimeout(500);
+  await capture(page, '18-dark-detail-panel.png');
+});
+
+test('19 - Dark Create Modal', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.locator('#add-issue-btn').click();
+  await page.waitForTimeout(500);
+  await capture(page, '19-dark-create-modal.png');
+});
+
+test('20 - Dark List View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.locator('#view-list').click();
+  await page.waitForTimeout(500);
+  await capture(page, '20-dark-list-view.png');
+});
+
+test('21 - Dark Filters', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.waitForSelector('.filter-group', { state: 'visible' });
+  await page.waitForTimeout(500);
+  await capture(page, '21-dark-filters.png');
+});
+
+test('22 - Dark Search', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.locator('#search-input').fill('PROJ');
+  await page.waitForTimeout(500);
+  await capture(page, '22-dark-search.png');
+});
+
+test('23 - Dark Sidebar Open', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  const sidebar = page.locator('#sidebar');
+  const state = await sidebar.evaluate(el => el.classList.contains('collapsed'));
+  if (state) {
+    await page.locator('#sidebar-toggle').click();
+    await page.waitForTimeout(300);
+  }
+  await capture(page, '23-dark-sidebar-open.png');
+});
+
+test('24 - Dark Sidebar Collapsed', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  const sidebar = page.locator('#sidebar');
+  const state = await sidebar.evaluate(el => el.classList.contains('collapsed'));
+  if (!state) {
+    await page.locator('#sidebar-toggle').click();
+    await page.waitForTimeout(300);
+  }
+  await capture(page, '24-dark-sidebar-collapsed.png');
+});
+
+test('25 - Dark Notifications', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.locator('#notification-bell').click();
+  await page.waitForTimeout(500);
+  await capture(page, '25-dark-notifications.png');
+});
+
+test('26 - Dark Calendar View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  // Click the calendar view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('Calendar')) {
+      await viewItems.nth(i).click();
+      break;
+    }
+  }
+  await page.waitForTimeout(500);
+  await capture(page, '26-dark-calendar.png');
+});
+
+test('27 - Dark Dashboard View', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  // Click the dashboard view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('Dashboard')) {
+      await viewItems.nth(i).click();
+      break;
+    }
+  }
+  await page.waitForTimeout(500);
+  await capture(page, '27-dark-dashboard.png');
+});
+
+test('28 - Dark Bulk Action', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  // Select multiple issues via bulk action
+  const checkboxes = page.locator('.issue-checkbox').first();
+  if (await checkboxes.isVisible()) {
+    await checkboxes.click();
+    await page.waitForTimeout(300);
+    const checkboxes2 = page.locator('.issue-checkbox').nth(1);
+    if (await checkboxes2.isVisible()) {
+      await checkboxes2.click();
+      await page.waitForTimeout(300);
+    }
+  }
+  await capture(page, '28-dark-bulk-action.png');
+});
+
+test('29 - Dark Activity Feed', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  const firstCard = page.locator('[data-status="todo"] .issue-card').first();
+  await firstCard.click();
+  await page.waitForTimeout(500);
+  await capture(page, '29-dark-activity-feed.png');
+});
+
+test('30 - Dark New Project Modal', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.locator('#add-project-btn').click();
+  await page.waitForTimeout(500);
+  await capture(page, '30-dark-new-project.png');
+});
+
+test('31 - Dark Overdue Detail', async ({ page }) => {
+  await navigate(page);
+  await setTheme(page, 'dark');
+  const bell = page.locator('#notification-bell');
+  if (await bell.isVisible()) {
+    await bell.click();
+    await page.waitForTimeout(300);
+    const firstOverdue = page.locator('.notification-item').first();
+    if (await firstOverdue.isVisible()) {
+      await firstOverdue.click();
+      await page.waitForTimeout(500);
+    }
+  }
+  await capture(page, '31-dark-overdue-detail.png');
+});
+
+test('32 - Dark Mobile View', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await navigate(page);
+  await setTheme(page, 'dark');
+  await page.waitForTimeout(300);
+  await capture(page, '32-dark-mobile.png');
+});
