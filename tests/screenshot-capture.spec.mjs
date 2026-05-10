@@ -85,13 +85,15 @@ test('03 - Light Create Modal', async ({ page }) => {
 test('04 - Light List View', async ({ page }) => {
   await navigate(page);
   await setTheme(page, 'light');
-  // Click list view in sidebar
-  const listViewBtn = page.locator('[data-view="list"]').first();
-  if (await listViewBtn.isVisible()) {
-    await listViewBtn.click();
-  } else {
-    // Try alternative selector
-    await page.locator('#view-list').click();
+  // Click 'List' view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('List')) {
+      await viewItems.nth(i).click();
+      break;
+    }
   }
   await page.waitForTimeout(500);
   await capture(page, '04-light-list-view.png');
@@ -263,7 +265,16 @@ test('19 - Dark Create Modal', async ({ page }) => {
 test('20 - Dark List View', async ({ page }) => {
   await navigate(page);
   await setTheme(page, 'dark');
-  await page.locator('#view-list').click();
+  // Click 'List' view item in sidebar
+  const viewItems = page.locator('.view-item');
+  const count = await viewItems.count();
+  for (let i = 0; i < count; i++) {
+    const text = await viewItems.nth(i).textContent();
+    if (text && text.includes('List')) {
+      await viewItems.nth(i).click();
+      break;
+    }
+  }
   await page.waitForTimeout(500);
   await capture(page, '20-dark-list-view.png');
 });
