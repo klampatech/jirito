@@ -2,10 +2,13 @@
   "name": "jirito",
   "type": "module",
   "scripts": {
-    "test": "playwright test --config=playwright/playwright.config.mjs"
+    "test": "playwright test --config=playwright/playwright.config.mjs",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "playwright": "^1.59.1"
+    "jsdom": "^29.1.1",
+    "playwright": "^1.59.1",
+    "vitest": "^4.1.6"
   }
 }

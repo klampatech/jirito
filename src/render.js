@@ -79,6 +79,8 @@ function renderBoard() {
 
   updateCounts();
   updateSprintProgress();
+  // Re-init drag drop so column-body listeners work on freshly rendered cards
+  initDragDrop();
 }
 
 function createCard(issue) {
@@ -163,14 +165,6 @@ function createCard(issue) {
     else getSelectedIds().delete(issue.id);
     updateBulkBar();
   });
-
-  // Drag events
-  card.addEventListener('dragstart', e => {
-    card.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', String(issue.id));
-    e.dataTransfer.effectAllowed = 'move';
-  });
-  card.addEventListener('dragend', () => card.classList.remove('dragging'));
 
   return card;
 }
@@ -441,35 +435,13 @@ function renderCalendarView() {
   const container = document.getElementById('calendar-container');
   if (!container) return;
 
-  const days = getCalendarDays(calendarYear, calendarMonth);
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // Navigation HTML
+  const navHtml = '<div class="calendar-nav"><button class="btn btn-sm btn-calendar-prev" id="calendar-prev">◀</button><span class="calendar-month-label">' + getMonthName(calendarMonth) + ' ' + calendarYear + '</span><button class="btn btn-sm btn-calendar-next" id="calendar-next">▶</button></div>';
 
-  let html = '<div class="calendar-nav"><button class="btn btn-sm btn-calendar-prev" id="calendar-prev">◀</button><span class="calendar-month-label">' + getMonthName(calendarMonth) + ' ' + calendarYear + '</span><button class="btn btn-sm btn-calendar-next" id="calendar-next">▶</button></div>';
-  html += '<div class="calendar-grid"><div class="calendar-header"><div class="calendar-day-name">Sun</div><div class="calendar-day-name">Mon</div><div class="calendar-day-name">Tue</div><div class="calendar-day-name">Wed</div><div class="calendar-day-name">Thu</div><div class="calendar-day-name">Fri</div><div class="calendar-day-name">Sat</div></div><div class="calendar-body">';
+  // Shared grid HTML (P3: deduplicated)
+  const gridHtml = renderCalendarGrid(calendarYear, calendarMonth);
 
-  days.forEach(day => {
-    const isToday = day.isCurrentMonth && day.date.toDateString() === new Date().toDateString();
-    const cls = day.isCurrentMonth ? 'calendar-day current-month' : 'calendar-day other-month';
-    const overdue = day.dueIssues.filter(i => isOverdue(i.dueDate, i.status));
-    const hasOverdue = overdue.length > 0;
-    const hasDue = day.dueIssues.length > 0;
-
-    html += '<div class="' + cls + (isToday ? ' today' : '') + (hasOverdue ? ' overdue' : '') + '" data-date="' + (day.dateStr || '') + '">';
-    html += '<span class="calendar-day-num">' + day.date.getDate() + '</span>';
-    if (hasDue) {
-      day.dueIssues.slice(0, 3).forEach(i => {
-        const color = { todo: '#9E9E9E', inprogress: '#D14A2A', review: '#D49B00' }[i.status] || '#9E9E9E';
-        html += '<div class="calendar-issue-dot" style="background:' + color + '" title="' + escapeHtml(i.title) + '"></div>';
-      });
-      if (day.dueIssues.length > 3) {
-        html += '<span class="calendar-more">+' + (day.dueIssues.length - 3) + '</span>';
-      }
-    }
-    html += '</div>';
-  });
-
-  html += '</div></div>';
-  container.innerHTML = html;
+  container.innerHTML = navHtml + gridHtml;
 
   // Re-bind navigation
   container.querySelector('#calendar-prev')?.addEventListener('click', () => {
@@ -510,8 +482,38 @@ function renderCalendarView() {
 
 }
 
-// ===== renderCalendar (sidebar version) is deprecated — only renderCalendarView (board version) is used =====
-// Kept temporarily for reference. Remove after confirming no callers.
+// ===== Calendar Grid Rendering (shared) =====
+// P3: Deduplicated — extracted shared grid logic from renderCalendarView
+function renderCalendarGrid(year, month) {
+  const days = getCalendarDays(year, month);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  let html = '<div class="calendar-grid"><div class="calendar-header"><div class="calendar-day-name">Sun</div><div class="calendar-day-name">Mon</div><div class="calendar-day-name">Tue</div><div class="calendar-day-name">Wed</div><div class="calendar-day-name">Thu</div><div class="calendar-day-name">Fri</div><div class="calendar-day-name">Sat</div></div><div class="calendar-body">';
+
+  days.forEach(day => {
+    const isToday = day.isCurrentMonth && day.date.toDateString() === new Date().toDateString();
+    const cls = day.isCurrentMonth ? 'calendar-day current-month' : 'calendar-day other-month';
+    const overdue = day.dueIssues.filter(i => isOverdue(i.dueDate, i.status));
+    const hasOverdue = overdue.length > 0;
+    const hasDue = day.dueIssues.length > 0;
+
+    html += '<div class="' + cls + (isToday ? ' today' : '') + (hasOverdue ? ' overdue' : '') + '" data-date="' + (day.dateStr || '') + '">';
+    html += '<span class="calendar-day-num">' + day.date.getDate() + '</span>';
+    if (hasDue) {
+      day.dueIssues.slice(0, 3).forEach(i => {
+        const color = { todo: '#9E9E9E', inprogress: '#D14A2A', review: '#D49B00' }[i.status] || '#9E9E9E';
+        html += '<div class="calendar-issue-dot" style="background:' + color + '" title="' + escapeHtml(i.title) + '"></div>';
+      });
+      if (day.dueIssues.length > 3) {
+        html += '<span class="calendar-more">+' + (day.dueIssues.length - 3) + '</span>';
+      }
+    }
+    html += '</div>';
+  });
+
+  html += '</div></div>';
+  return html;
+}
 
 // ===== Dashboard View =====
 function renderDashboardView() {
@@ -723,12 +725,20 @@ function switchView(view) {
 function renderListView() {
   const container = document.getElementById('list-view');
   if (!container) return;
-  // Apply sprint filter in list view
+  // Apply all filters (mirrors applyFilters() logic)
+  const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+  const typeFilter = document.getElementById('filter-type')?.value || 'all';
+  const priorityFilter = document.getElementById('filter-priority')?.value || 'all';
+  const assigneeFilter = document.getElementById('filter-assignee')?.value || 'all';
   const sprintFilter = document.getElementById('sprint-filter')?.value || 'all';
-  let filtered = getFilteredIssues();
-  if (sprintFilter !== 'all') {
-    filtered = filtered.filter(i => i.sprint === sprintFilter);
-  }
+  let filtered = getIssues().filter(i => {
+    if (typeFilter !== 'all' && i.type !== typeFilter) return false;
+    if (priorityFilter !== 'all' && i.priority !== priorityFilter) return false;
+    if (assigneeFilter !== 'all' && i.assignee !== assigneeFilter) return false;
+    if (sprintFilter !== 'all' && i.sprint !== sprintFilter) return false;
+    if (search && !i.title.toLowerCase().includes(search) && !(i.desc || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
   const columns = getEffectiveColumns();
   const statusOrder = {};
   columns.forEach((c, i) => { if (c.status) statusOrder[c.status] = i; });
