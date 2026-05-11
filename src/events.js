@@ -720,17 +720,53 @@ function initDragDrop() {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       col.classList.add('drag-over');
-      // Highlight drop target card
-      const card = e.target.closest('.issue-card');
-      document.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-      if (card && !card.classList.contains('dragging')) {
+      // Remove previous indicator
+      col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+      // Find the nearest card based on mouse Y position for the entire column-body
+      const cards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
+      let targetCard = null;
+      let insertBefore = false;
+      const colRect = col.getBoundingClientRect();
+      const mouseY = e.clientY - colRect.top + col.scrollTop;
+
+      for (let i = 0; i < cards.length; i++) {
+        const cardRect = cards[i].getBoundingClientRect();
+        const cardTop = cardRect.top - colRect.top + col.scrollTop;
+        const cardMid = cardTop + cardRect.height / 2;
+        if (mouseY < cardMid) {
+          targetCard = cards[i];
+          insertBefore = true;
+          break;
+        }
+      }
+
+      if (targetCard) {
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
         indicator.style.cssText = 'height:3px;background:var(--primary);border-radius:2px;margin:2px 0;';
-        const rect = card.getBoundingClientRect();
-        const colRect = col.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2 - colRect.top + col.scrollTop;
-        indicator.style.top = (e.clientY - colRect.top + col.scrollTop - 1.5) + 'px';
+        const cardRect = targetCard.getBoundingClientRect();
+        const topPos = cardRect.top - colRect.top + col.scrollTop - 1.5;
+        indicator.style.top = topPos + 'px';
+        indicator.style.left = '8px';
+        indicator.style.right = '8px';
+        indicator.style.position = 'absolute';
+        indicator.style.zIndex = '10';
+        col.style.position = 'relative';
+        col.appendChild(indicator);
+      } else {
+        // No card found — drop at bottom
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = 'height:3px;background:var(--primary);border-radius:2px;margin:2px 0;';
+        // Position at bottom of all cards
+        if (cards.length > 0) {
+          const lastCard = cards[cards.length - 1];
+          const lastRect = lastCard.getBoundingClientRect();
+          const bottomPos = lastRect.bottom - colRect.top + col.scrollTop - 1.5;
+          indicator.style.top = bottomPos + 'px';
+        } else {
+          indicator.style.top = '0px';
+        }
         indicator.style.left = '8px';
         indicator.style.right = '8px';
         indicator.style.position = 'absolute';
@@ -756,7 +792,6 @@ function initDragDrop() {
       const issue = getIssues().find(i => i.id === id);
       if (!issue) return;
 
-      const droppedOnCard = e.target.closest('.issue-card');
       const colId = col.dataset.colId;
       const colDef = getEffectiveColumns().find(c => c.id === colId);
       const newStatus = colDef?.status || col.dataset.status;
@@ -765,28 +800,46 @@ function initDragDrop() {
       // Check if dropped in same column (reorder) or different column (move)
       const sameColumn = colDef && colDef.status && issue.status === newStatus;
 
+      // Find target card and insert position using mouse Y position (like Jira)
+      const cards = [...col.querySelectorAll('.issue-card:not([data-drag-id="' + id + '"])')];
+      const colRect = col.getBoundingClientRect();
+      const mouseY = e.clientY - colRect.top + col.scrollTop;
+      let targetIssue = null;
+      let insertBefore = false;
+
+      for (let i = 0; i < cards.length; i++) {
+        const cardRect = cards[i].getBoundingClientRect();
+        const cardTop = cardRect.top - colRect.top + col.scrollTop;
+        const cardMid = cardTop + cardRect.height / 2;
+        if (mouseY < cardMid) {
+          const tid = parseInt(cards[i].dataset.id);
+          targetIssue = getIssues().find(i => i.id === tid);
+          insertBefore = true;
+          break;
+        }
+      }
+
       if (sameColumn) {
         // Reorder within same column
         const oldRank = issue.rank;
-        if (droppedOnCard) {
-          const targetId = parseInt(droppedOnCard.dataset.id);
-          const targetIssue = getIssues().find(i => i.id === targetId);
-          if (targetIssue && targetIssue.status === newStatus && targetIssue.id !== issue.id) {
-            const siblings = getIssues().filter(i => i.status === newStatus && i.id !== issue.id);
-            const targetRank = targetIssue.rank;
-            const beforeRank = siblings.filter(i => i.rank < targetRank).length > 0
-              ? Math.max(...siblings.filter(i => i.rank < targetRank).map(i => i.rank))
-              : -1;
-            const afterRank = siblings.filter(i => i.rank > targetRank).length > 0
-              ? Math.min(...siblings.filter(i => i.rank > targetRank).map(i => i.rank))
-              : targetRank + 1;
-            const dropAbove = e.clientY < droppedOnCard.getBoundingClientRect().top + droppedOnCard.getBoundingClientRect().height / 2;
-            issue.rank = dropAbove ? beforeRank : targetRank;
-          } else {
-            issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
-          }
+        if (targetIssue && targetIssue.id !== issue.id) {
+          // Find ranks of cards before and after the target
+          const beforeIssue = [...cards].slice(0, cards.indexOf(targetIssue) + (insertBefore ? 0 : 1))
+            .reverse().find(c => parseInt(c.dataset.id) !== issue.id);
+          const afterIssue = [...cards].slice(cards.indexOf(targetIssue) + (insertBefore ? 1 : 0))
+            .find(c => parseInt(c.dataset.id) !== issue.id);
+
+          const beforeIssueData = beforeIssue ? getIssues().find(i => i.id === parseInt(beforeIssue.dataset.id)) : null;
+          const afterIssueData = afterIssue ? getIssues().find(i => i.id === parseInt(afterIssue.dataset.id)) : null;
+          const beforeRank = beforeIssueData?.rank ?? -1;
+          const afterRank = afterIssueData?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
+
+          // Use midpoint for smooth insertion (floating point ranks)
+          issue.rank = (beforeRank + afterRank) / 2;
         } else {
-          issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+          // Dropping in empty area or on self — append to bottom
+          const maxRank = getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1);
+          issue.rank = maxRank + 1;
         }
         saveState();
         renderBoard();
@@ -802,25 +855,22 @@ function initDragDrop() {
       } else {
         // Move to different column
         const oldRank = issue.rank;
-        // Calculate new rank based on drop position
-        if (droppedOnCard) {
-          const targetId = parseInt(droppedOnCard.dataset.id);
-          const targetIssue = getIssues().find(i => i.id === targetId);
-          if (targetIssue && targetIssue.status === newStatus) {
-            const siblings = getIssues().filter(i => i.status === newStatus && i.id !== issue.id);
-            const targetRank = targetIssue.rank;
-            const beforeRank = siblings.filter(i => i.rank < targetRank).length > 0
-              ? Math.max(...siblings.filter(i => i.rank < targetRank).map(i => i.rank))
-              : -1;
-            const afterRank = siblings.filter(i => i.rank > targetRank).length > 0
-              ? Math.min(...siblings.filter(i => i.rank > targetRank).map(i => i.rank))
-              : targetRank + 1;
-            issue.rank = (beforeRank + targetRank) / 2;
-          } else {
-            issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
-          }
+        if (targetIssue && targetIssue.status === newStatus) {
+          const beforeCards = [...cards].slice(0, cards.indexOf(targetIssue) + (insertBefore ? 0 : 1))
+            .filter(c => parseInt(c.dataset.id) !== issue.id);
+          const afterCards = [...cards].slice(cards.indexOf(targetIssue) + (insertBefore ? 1 : 0))
+            .filter(c => parseInt(c.dataset.id) !== issue.id);
+
+          const beforeIssue = beforeCards.length > 0 ? getIssues().find(i => i.id === parseInt(beforeCards[beforeCards.length - 1].dataset.id)) : null;
+          const afterIssue = afterCards.length > 0 ? getIssues().find(i => i.id === parseInt(afterCards[0].dataset.id)) : null;
+
+          const beforeRank = beforeIssue?.rank ?? -1;
+          const afterRank = afterIssue?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
+
+          issue.rank = (beforeRank + afterRank) / 2;
         } else {
-          issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+          const maxRank = getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1);
+          issue.rank = maxRank + 1;
         }
         issue.status = newStatus;
         trackHistory(issue, 'status', oldStatus, newStatus);
