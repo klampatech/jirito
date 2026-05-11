@@ -23,13 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // Update nav project name to match current project
   const navName = document.getElementById('nav-project-name');
-  if (navName && LJ.projects[LJ.currentProject]) {
-    navName.textContent = LJ.projects[LJ.currentProject].name;
+  if (navName && getProjects()[getCurrentProject()]) {
+    navName.textContent = getProjects()[getCurrentProject()].name;
   }
   // Update board title to show project name
   const boardTitle = document.getElementById('board-title');
-  if (boardTitle && LJ.projects[LJ.currentProject]) {
-    boardTitle.textContent = `${LJ.projects[LJ.currentProject].icon} ${LJ.projects[LJ.currentProject].name} — Board`;
+  if (boardTitle && getProjects()[getCurrentProject()]) {
+    boardTitle.textContent = `${getProjects()[getCurrentProject()].icon} ${getProjects()[getCurrentProject()].name} — Board`;
   }
 
   // Bulk action listeners
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('bulk-priority').addEventListener('change', e => {
     const priority = e.target.value;
     if (!priority) return;
-    LJ.issues.forEach(i => {
+    getIssues().forEach(i => {
       if (selectedIds.has(i.id)) {
         trackHistory(i, 'priority', i.priority, priority);
         i.priority = priority;
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('bulk-assignee').addEventListener('change', e => {
     const assignee = e.target.value;
     if (!assignee) return;
-    LJ.issues.forEach(i => {
+    getIssues().forEach(i => {
       if (selectedIds.has(i.id)) {
         trackHistory(i, 'assignee', i.assignee || '', assignee);
         i.assignee = assignee;
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = document.getElementById('project-name').value.trim();
     const key = document.getElementById('project-key').value.trim().toUpperCase();
     if (!name || !key) return;
-    if (LJ.projects[key]) { showToast('Project key already exists!', 'error'); return; }
+    if (getProjects()[key]) { showToast('Project key already exists!', 'error'); return; }
     createProject(name, key);
     document.getElementById('project-modal-overlay').style.display = 'none';
     document.getElementById('project-form').reset();
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Reset columns to defaults
   document.getElementById('reset-columns-btn').addEventListener('click', () => {
     if (confirm('Reset columns to defaults? Custom columns will be removed.')) {
-      delete LJ.customColumns[LJ.currentProject];
+      delete getCustomColumns()[getCurrentProject()];
       saveState();
       renderColumnConfig();
       renderBoard();
@@ -231,9 +231,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
     }
-    LJ.issueCounter++;
+    setIssueCounter(getIssueCounter() + 1);
     const newIssue = {
-      id: LJ.issueCounter,
+      id: getIssueCounter(),
       title: title,
       desc: document.getElementById('issue-desc').value.trim(),
       type: document.getElementById('issue-type').value,
@@ -244,19 +244,19 @@ document.addEventListener('DOMContentLoaded', () => {
       labels: [],
       storyPoints: document.getElementById('issue-story-points').value ? parseInt(document.getElementById('issue-story-points').value) : null,
       sprint: document.getElementById('issue-sprint').value || null,
-      rank: LJ.issues.length,
+      rank: getIssues().length,
       history: [],
     };
-    LJ.issues.push(newIssue);
+    getIssues().push(newIssue);
     saveState();
     renderBoard();
     closeModal();
     addActivity('PlusCircle', `Created <strong>${generateIssueKey(getProjectKey(), newIssue.id)}</strong>`);
     showUndoToast(`Created ${generateIssueKey(getProjectKey(), newIssue.id)}`, () => {
-      const idx = LJ.issues.findIndex(i => i.id === newIssue.id);
+      const idx = getIssues().findIndex(i => i.id === newIssue.id);
       if (idx !== -1) {
-        LJ.issues.splice(idx, 1);
-        delete LJ.comments[newIssue.id];
+        getIssues().splice(idx, 1);
+        delete getComments()[newIssue.id];
         saveState();
         renderBoard();
         updateCounts();
@@ -350,17 +350,17 @@ document.addEventListener('DOMContentLoaded', () => {
             openModal();
           }
           if (action === 'clear-status' && status) {
-            const count = LJ.issues.filter(i => i.status === status).length;
+            const count = getIssues().filter(i => i.status === status).length;
             if (count === 0) return;
             if (confirm(`Delete all ${count} cards in this column?`)) {
-              const clearedIssues = LJ.issues.filter(i => i.status === status);
-              LJ.issues = LJ.issues.filter(i => i.status !== status);
+              const clearedIssues = getIssues().filter(i => i.status === status);
+              setIssues(getIssues().filter(i => i.status !== status));
               saveState();
               renderBoard();
               updateCounts();
               addActivity('Trash', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
               showUndoToast(`${count} cards cleared`, () => {
-                clearedIssues.forEach(i => LJ.issues.push(i));
+                clearedIssues.forEach(i => getIssues().push(i));
                 saveState();
                 renderBoard();
                 updateCounts();
@@ -497,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateNotificationDropdown() {
   const body = document.getElementById('notification-dropdown-body');
   if (!body) return;
-  const overdue = LJ.issues.filter(i => isOverdue(i.dueDate, i.status));
+  const overdue = getIssues().filter(i => isOverdue(i.dueDate, i.status));
   if (overdue.length === 0) {
     body.innerHTML = '<div class="notification-empty">No overdue issues</div>';
     return;
@@ -524,14 +524,14 @@ function renderTrash() {
   const count = document.getElementById('trash-count');
   if (!section || !list || !count) return;
 
-  if (LJ.trash.length === 0) {
+  if (getTrash().length === 0) {
     section.style.display = 'none';
     return;
   }
 
   section.style.display = 'block';
-  count.textContent = `(${LJ.trash.length})`;
-  list.innerHTML = LJ.trash.map((t, idx) => `
+  count.textContent = `(${getTrash().length})`;
+  list.innerHTML = getTrash().map((t, idx) => `
     <div class="trash-item">
       <span class="trash-item-title">${t.issues.map(i => escapeHtml(i.title)).join(', ')}</span>
       <button class="trash-restore" data-idx="${idx}">Restore</button>

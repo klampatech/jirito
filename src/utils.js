@@ -1,7 +1,8 @@
 // ===== Markdown Parser (lightweight) =====
 
-// Allowed URL schemes for markdown links — blocks javascript:, data:, vbscript:, etc.
-const ALLOWED_URL_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:'];
+// Constants loaded via <script src="src/constants.js"> in index.html
+const ALLOWED_URL_SCHEMES = LJ_CONSTANTS.ALLOWED_URL_SCHEMES;
+const CALENDAR_MAX_ROWS = LJ_CONSTANTS.CALENDAR_MAX_ROWS;
 
 function isSafeUrl(url) {
   // Strip leading whitespace and newlines
@@ -75,11 +76,11 @@ function getCalendarDays(year, month) {
   // Current month
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dueIssues = LJ.issues.filter(i => i.dueDate === dateStr && i.status !== 'done');
+    const dueIssues = getIssues().filter(i => i.dueDate === dateStr && i.status !== 'done');
     days.push({ date: new Date(year, month, d), isCurrentMonth: true, dateStr, dueIssues });
   }
   // Next month padding
-  const remaining = 42 - days.length;
+  const remaining = CALENDAR_MAX_ROWS * 7 - days.length;
   for (let d = 1; d <= remaining; d++) {
     const date = new Date(year, month + 1, d);
     days.push({ date, isCurrentMonth: false, dueIssues: [] });
@@ -148,7 +149,7 @@ function generateIssueKey(projectKey, id) {
 }
 
 function getProjectKey() {
-  return LJ.projects[LJ.currentProject]?.key || 'PROJ';
+  return getProjects()[getCurrentProject()]?.key || 'PROJ';
 }
 
 function getFilteredIssues() {
@@ -156,7 +157,7 @@ function getFilteredIssues() {
   const typeFilter = document.getElementById('filter-type')?.value || 'all';
   const priorityFilter = document.getElementById('filter-priority')?.value || 'all';
   const assigneeFilter = document.getElementById('filter-assignee')?.value || 'all';
-  return LJ.issues.filter(i => {
+  return getIssues().filter(i => {
     if (typeFilter !== 'all' && i.type !== typeFilter) return false;
     if (priorityFilter !== 'all' && i.priority !== priorityFilter) return false;
     if (assigneeFilter !== 'all' && i.assignee !== assigneeFilter) return false;
@@ -167,7 +168,7 @@ function getFilteredIssues() {
 
 function getAllLabels() {
   const labels = new Set();
-  LJ.issues.forEach(i => {
+  getIssues().forEach(i => {
     if (i.labels) i.labels.forEach(l => labels.add(l));
   });
   return [...labels].sort();
@@ -233,7 +234,7 @@ function updateSprintProgressBar(activeSprint) {
   const fill = document.getElementById('sprint-progress-fill');
   const text = document.getElementById('sprint-progress-text');
   if (!fill || !text) return;
-  const sprintIssues = LJ.issues.filter(i => i.sprint === activeSprint.id);
+  const sprintIssues = getIssues().filter(i => i.sprint === activeSprint.id);
   const totalSP = sprintIssues.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
   const doneSP = sprintIssues.filter(i => i.status === 'done').reduce((sum, i) => sum + (i.storyPoints || 0), 0);
   const pct = totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0;
@@ -248,24 +249,5 @@ function updateSprintProgress() {
   }
 }
 
-// ===== Undo helpers =====
-function undoDeleteIssue(issue) {
-  LJ.issues.push(issue);
-  saveState();
-  renderBoard();
-  updateCounts();
-  removeUndoToast();
-  showToast('Issue restored', 'success');
-}
-
-function undoMoveIssue(issueId, oldStatus) {
-  const issue = LJ.issues.find(i => i.id === issueId);
-  if (issue) {
-    issue.status = oldStatus;
-    saveState();
-    renderBoard();
-    updateCounts();
-    removeUndoToast();
-    showToast('Status restored', 'success');
-  }
-}
+// ===== Undo helpers (deprecated — undo logic is inlined in event handlers) =====
+// These functions are kept temporarily for reference. Remove after confirming no callers.

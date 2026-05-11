@@ -13,8 +13,8 @@
   --bg-nav: #1A0F0A;
   --bg-nav-dark: #2A1E18;
   --text: #2C2018;
-  --text-muted: #8A7568;
-  --text-secondary: #8A7568;
+  --text-muted: #6B6560;
+  --text-secondary: #6B6560;
   --text-light: #A89080;
   --border: #F0E0D4;
   --border-light: #F5E8DC;
@@ -51,7 +51,7 @@
   --active-bg: #FFF0E8;
   --hover-bg: #F5E8DC;
   --label-bg: #FFF0E8;
-  --label-text: #8A7568;
+  --label-text: #6B6560;
   --avatar-bg: #C87A50;
 }
 

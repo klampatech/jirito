@@ -941,7 +941,7 @@ test('switchProject with invalid key is a no-op', async ({ page }) => {
   const result = await page.evaluate(() => {
     // Call switchProject with a non-existent key
     switchProject('nonexistent-key');
-    return LJ.currentProject;
+    return getCurrentProject();
   });
   expect(result).toBe('default');
 });

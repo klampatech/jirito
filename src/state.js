@@ -1,44 +1,80 @@
 // ===== State Management =====
+// Module-scoped state with getter/setter accessors.
+// No bare-module aliases — all external code uses get/set functions.
 
-// LJ namespace: all shared state lives here to prevent global pollution
-const LJ = {
-  issues: [],
-  issueCounter: 100,
-  currentDetailIssue: null,
-  comments: {}, // { issueId: [{ author, text, date }] }
-  currentProject: 'default',
-  currentView: 'board', // 'board' | 'list'
-  projects: {}, // { key: { name, icon, key, issues } }
-  savedFilters: [], // [{ name, type, priority, assignee }]
-  activityLog: [], // [{ icon, text, time }]
-  // Intentionally not persisted — bulk selection is ephemeral across page reloads
-  selectedIds: new Set(),
-  trash: [], // { issues: [...], date: Date }
-  sprints: {}, // { id: { id, name, startDate, endDate, active, archived } }
-  // Custom column definitions (per project)
-  customColumns: {}, // { projectKey: [{ id, name, color, status, order }] }
-  // Markdown rendering cache
-  markdownCache: {},
-};
+const ACTIVITY_LOG_MAX = LJ_CONSTANTS.ACTIVITY_LOG_MAX;
+const TRASH_RETENTION_MS = LJ_CONSTANTS.TRASH_RETENTION_MS;
+const ISSUE_COUNTER_START = LJ_CONSTANTS.ISSUE_COUNTER_START;
+const DUPLICATE_WORD_OVERLAP = LJ_CONSTANTS.DUPLICATE_WORD_OVERLAP;
 
-// Backwards-compatible aliases for functions that still reference bare names
-let issues = LJ.issues;
-let issueCounter = LJ.issueCounter;
-let currentDetailIssue = LJ.currentDetailIssue;
-let comments = LJ.comments;
-let currentProject = LJ.currentProject;
-let currentView = LJ.currentView;
-let projects = LJ.projects;
-let savedFilters = LJ.savedFilters;
-let activityLog = LJ.activityLog;
-let selectedIds = LJ.selectedIds;
-let trash = LJ.trash;
+// Internal state storage
+let _issues = [];
+let _issueCounter = ISSUE_COUNTER_START;
+let _currentDetailIssue = null;
+let _comments = {};
+let _currentProject = 'default';
+let _currentView = 'board';
+let _projects = {};
+let _savedFilters = [];
+let _activityLog = [];
+let _selectedIds = new Set();
+let _trash = [];
+let _sprints = {};
+let _customColumns = {};
+let _markdownCache = {};
+
+// ===== Getter / Setter Accessors =====
+
+function getIssues() { return _issues; }
+function setIssues(v) { _issues = v; }
+
+function getIssueCounter() { return _issueCounter; }
+function setIssueCounter(v) { _issueCounter = v; }
+
+function getCurrentDetailIssue() { return _currentDetailIssue; }
+function setCurrentDetailIssue(v) { _currentDetailIssue = v; }
+
+function getComments() { return _comments; }
+
+function getCurrentProject() { return _currentProject; }
+function setCurrentProject(v) { _currentProject = v; }
+
+function getCurrentView() { return _currentView; }
+function setCurrentView(v) { _currentView = v; }
+
+function getProjects() { return _projects; }
+
+function getSavedFilters() { return _savedFilters; }
+function setSavedFilters(v) { _savedFilters = v; }
+
+function getActivityLog() { return _activityLog; }
+function setActivityLog(v) { _activityLog = v; }
+
+function getSelectedIds() { return _selectedIds; }
+
+function getTrash() { return _trash; }
+function setTrash(v) { _trash = v; }
+
+function getSprints() {
+  if (!_sprints) _sprints = {};
+  return _sprints;
+}
+function setSprints(v) { _sprints = v; }
+
+function getCustomColumns() { return _customColumns; }
+function setCustomColumns(v) { _customColumns = v; }
+
+function getMarkdownCache() { return _markdownCache; }
+
+// ===== Activity =====
 
 function addActivity(icon, text) {
-  LJ.activityLog.unshift({ icon, text, time: new Date() });
-  if (LJ.activityLog.length > 50) LJ.activityLog.pop();
+  _activityLog.unshift({ icon, text, time: new Date() });
+  if (_activityLog.length > ACTIVITY_LOG_MAX) _activityLog.pop();
   renderActivity();
 }
+
+// ===== State Load / Save =====
 
 function loadState() {
   const saved = localStorage.getItem('jirito-issues');
@@ -51,61 +87,49 @@ function loadState() {
   const savedSprints = localStorage.getItem('jirito-sprints');
   const savedCustomColumns = localStorage.getItem('jirito-customColumns');
   if (saved) {
-    LJ.issues = JSON.parse(saved);
-    LJ.issueCounter = Math.max(...LJ.issues.map(i => i.id), 100);
+    _issues = JSON.parse(saved);
+    _issueCounter = Math.max(..._issues.map(i => i.id), ISSUE_COUNTER_START);
   } else {
-    LJ.issues = [...sampleIssues];
-    LJ.issueCounter = 106;
+    _issues = [...sampleIssues];
+    _issueCounter = 106;
   }
-  if (savedComments) LJ.comments = JSON.parse(savedComments);
-  if (savedProjects) LJ.projects = JSON.parse(savedProjects);
+  if (savedComments) _comments = JSON.parse(savedComments);
+  if (savedProjects) _projects = JSON.parse(savedProjects);
   // Ensure default project exists before checking currentProject
-  if (!LJ.projects['default']) {
-    LJ.projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: LJ.issues.length > 0 ? LJ.issues : [...sampleIssues] };
+  if (!_projects['default']) {
+    _projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: _issues.length > 0 ? _issues : [...sampleIssues] };
   }
   // Validate currentProject exists in projects before restoring
-  if (savedCurrentProject && LJ.projects[savedCurrentProject]) {
-    LJ.currentProject = savedCurrentProject;
-  } else if (LJ.projects['default']) {
-    LJ.currentProject = 'default';
+  if (savedCurrentProject && _projects[savedCurrentProject]) {
+    _currentProject = savedCurrentProject;
+  } else if (_projects['default']) {
+    _currentProject = 'default';
   }
-  if (savedFiltersRaw) LJ.savedFilters = JSON.parse(savedFiltersRaw);
+  if (savedFiltersRaw) _savedFilters = JSON.parse(savedFiltersRaw);
   if (savedActivity) {
-    LJ.activityLog = JSON.parse(savedActivity).map(a => ({ ...a, time: new Date(a.time) }));
+    _activityLog = JSON.parse(savedActivity).map(a => ({ ...a, time: new Date(a.time) }));
   }
   if (savedTrash) {
-    LJ.trash = JSON.parse(savedTrash).map(t => ({ ...t, date: new Date(t.date) }));
+    _trash = JSON.parse(savedTrash).map(t => ({ ...t, date: new Date(t.date) }));
     purgeTrash();
   }
   if (savedSprints) {
-    LJ.sprints = JSON.parse(savedSprints);
+    _sprints = JSON.parse(savedSprints);
   }
   if (savedCustomColumns) {
-    LJ.customColumns = JSON.parse(savedCustomColumns);
+    _customColumns = JSON.parse(savedCustomColumns);
   }
-  // Sync aliases
-  issues = LJ.issues;
-  issueCounter = LJ.issueCounter;
-  currentDetailIssue = LJ.currentDetailIssue;
-  comments = LJ.comments;
-  currentProject = LJ.currentProject;
-  currentView = LJ.currentView;
-  projects = LJ.projects;
-  savedFilters = LJ.savedFilters;
-  activityLog = LJ.activityLog;
-  selectedIds = LJ.selectedIds;
-  trash = LJ.trash;
 }
 
 function saveState() {
-  localStorage.setItem('jirito-issues', JSON.stringify(LJ.issues));
-  localStorage.setItem('jirito-comments', JSON.stringify(LJ.comments));
-  localStorage.setItem('jirito-projects', JSON.stringify(LJ.projects));
-  localStorage.setItem('jirito-currentProject', LJ.currentProject);
-  localStorage.setItem('jirito-savedFilters', JSON.stringify(LJ.savedFilters));
-  localStorage.setItem('jirito-activity', JSON.stringify(LJ.activityLog.map(a => ({ ...a, time: a.time.toISOString() }))));
-  localStorage.setItem('jirito-trash', JSON.stringify(LJ.trash.map(t => ({ ...t, date: t.date.toISOString() }))));
-  localStorage.setItem('jirito-sprints', JSON.stringify(LJ.sprints));
+  localStorage.setItem('jirito-issues', JSON.stringify(_issues));
+  localStorage.setItem('jirito-comments', JSON.stringify(_comments));
+  localStorage.setItem('jirito-projects', JSON.stringify(_projects));
+  localStorage.setItem('jirito-currentProject', _currentProject);
+  localStorage.setItem('jirito-savedFilters', JSON.stringify(_savedFilters));
+  localStorage.setItem('jirito-activity', JSON.stringify(_activityLog.map(a => ({ ...a, time: a.time.toISOString() }))));
+  localStorage.setItem('jirito-trash', JSON.stringify(_trash.map(t => ({ ...t, date: t.date.toISOString() }))));
+  localStorage.setItem('jirito-sprints', JSON.stringify(_sprints));
 }
 
 // Debounced save: batches multiple rapid saveState() calls into one localStorage write.
@@ -118,7 +142,7 @@ function saveStateDebounced() {
   _saveStateTimer = setTimeout(() => {
     saveState();
     _saveStateTimer = null;
-  }, 300);
+  }, LJ_CONSTANTS.SAVE_STATE_DEBOUNCE_MS);
 }
 
 // Force immediate save (no debounce) — use for critical single operations
@@ -130,38 +154,36 @@ function saveStateImmediate() {
   saveState();
 }
 
+// ===== Trash =====
+
 function purgeTrash() {
   const now = new Date();
-  LJ.trash = LJ.trash.filter(t => (now - new Date(t.date)) < 7 * 24 * 60 * 60 * 1000);
+  _trash = _trash.filter(t => (now - new Date(t.date)) < TRASH_RETENTION_MS);
 }
 
 function moveToTrash(issue) {
-  LJ.trash.unshift({ issues: [issue], date: new Date() });
+  _trash.unshift({ issues: [issue], date: new Date() });
   saveState();
 }
 
 function restoreFromTrash(idx) {
-  if (idx < 0 || idx >= LJ.trash.length) return;
-  const entry = LJ.trash[idx];
+  if (idx < 0 || idx >= _trash.length) return;
+  const entry = _trash[idx];
   entry.issues.forEach(i => {
     i.status = 'todo';
-    LJ.issues.push(i);
+    _issues.push(i);
   });
-  LJ.trash.splice(idx, 1);
+  _trash.splice(idx, 1);
   saveState();
   renderBoard();
   updateCounts();
 }
 
 // ===== Sprints =====
-function getSprints() {
-  if (!LJ.sprints) LJ.sprints = {};
-  return LJ.sprints;
-}
 
 function saveSprints() {
   localStorage.setItem('jirito-sprints', JSON.stringify(getSprints()));
-  localStorage.setItem('jirito-customColumns', JSON.stringify(LJ.customColumns));
+  localStorage.setItem('jirito-customColumns', JSON.stringify(_customColumns));
 }
 
 function createSprint(name, startDate, endDate) {
@@ -183,8 +205,7 @@ function updateSprint(id, updates) {
 function deleteSprint(id) {
   const sprints = getSprints();
   if (sprints[id]) {
-    // Unassign issues from this sprint
-    LJ.issues.forEach(i => { if (i.sprint === id) i.sprint = null; });
+    _issues.forEach(i => { if (i.sprint === id) i.sprint = null; });
     delete sprints[id];
     saveSprints();
   }
@@ -209,8 +230,9 @@ function getActiveSprintId() {
 }
 
 // ===== Dependencies =====
+
 function addDependency(issueId, targetId, type) {
-  const issue = LJ.issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => i.id === issueId);
   if (!issue) return;
   if (!issue.dependencies) issue.dependencies = [];
   if (!issue.dependencies.find(d => d.targetId === targetId && d.type === type)) {
@@ -218,7 +240,7 @@ function addDependency(issueId, targetId, type) {
   }
   // Create reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = LJ.issues.find(i => i.id === targetId);
+    const target = _issues.find(i => i.id === targetId);
     if (target && !target.dependencies) target.dependencies = [];
     if (target && !target.dependencies.find(d => d.targetId === issueId && d.type === 'relates-to')) {
       target.dependencies.push({ targetId: issueId, type: 'relates-to', created: new Date().toISOString() });
@@ -228,12 +250,12 @@ function addDependency(issueId, targetId, type) {
 }
 
 function removeDependency(issueId, targetId, type) {
-  const issue = LJ.issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => i.id === issueId);
   if (!issue || !issue.dependencies) return;
   issue.dependencies = issue.dependencies.filter(d => !(d.targetId === targetId && d.type === type));
   // Remove reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = LJ.issues.find(i => i.id === targetId);
+    const target = _issues.find(i => i.id === targetId);
     if (target && target.dependencies) {
       target.dependencies = target.dependencies.filter(d => !(d.targetId === issueId && d.type === 'relates-to'));
     }
@@ -245,24 +267,24 @@ function hasCircularDependency(issueId, targetId, visited = new Set()) {
   if (issueId === targetId) return true;
   if (visited.has(targetId)) return false;
   visited.add(targetId);
-  const target = LJ.issues.find(i => i.id === targetId);
+  const target = _issues.find(i => i.id === targetId);
   if (!target || !target.dependencies) return false;
   return target.dependencies.some(d => hasCircularDependency(issueId, d.targetId, visited));
 }
 
-
-
 function getDependencies(issueId) {
-  const issue = LJ.issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => i.id === issueId);
   return issue && issue.dependencies ? issue.dependencies : [];
 }
 
 function getDependents(issueId) {
-  return LJ.issues.filter(i => {
+  return _issues.filter(i => {
     if (!i.dependencies) return false;
     return i.dependencies.some(d => d.targetId === issueId);
   });
 }
+
+// ===== Sample Data =====
 
 const sampleIssues = [
   { id: 101, title: "Design login page mockup", desc: "Create wireframes for the new login flow", type: "story", priority: "high", assignee: "Alice", status: "todo", dueDate: "2026-05-15", labels: ["design"], storyPoints: 5, rank: 0 },
@@ -276,10 +298,11 @@ const sampleIssues = [
 const typeIcons = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
 
 // ===== Duplicate Detection =====
+
 function findDuplicateIssues(title) {
   if (!title || title.length < 3) return [];
   const normalized = title.toLowerCase().trim();
-  return LJ.issues.filter(i => {
+  return _issues.filter(i => {
     if (!i.title) return false;
     const other = i.title.toLowerCase().trim();
     // Exact match
@@ -294,20 +317,11 @@ function findDuplicateIssues(title) {
     const longer = wordsA.length < wordsB.length ? wordsB : wordsA;
     let matches = 0;
     shorter.forEach(w => { if (longer.includes(w)) matches++; });
-    return matches / shorter.length >= 0.6;
+    return matches / shorter.length >= DUPLICATE_WORD_OVERLAP;
   });
 }
 
 // ===== Custom Column Helpers =====
-function getCustomColumns() {
-  return LJ.customColumns[LJ.currentProject] || null;
-}
-
-function setCustomColumns(columns) {
-  if (!LJ.customColumns[LJ.currentProject]) LJ.customColumns[LJ.currentProject] = [];
-  LJ.customColumns[LJ.currentProject] = columns;
-  saveState();
-}
 
 function getDefaultColumns() {
   return [
@@ -356,31 +370,20 @@ function reorderColumns(orderMap) {
 }
 
 // ===== Data Initialization (Task 2.2: Consolidated migration logic) =====
+
 function initializeData() {
   // 1. Ensure default project exists
-  if (!LJ.projects['default']) {
-    LJ.projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: LJ.issues.length > 0 ? LJ.issues : [...sampleIssues] };
+  if (!_projects['default']) {
+    _projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: _issues.length > 0 ? _issues : [...sampleIssues] };
   }
   // 2. Ensure currentProject is valid
-  if (!LJ.projects[LJ.currentProject]) {
-    LJ.currentProject = 'default';
+  if (!_projects[_currentProject]) {
+    _currentProject = 'default';
   }
   // 3. Sync global issues with current project
-  LJ.issues = LJ.projects[LJ.currentProject].issues;
+  _issues = _projects[_currentProject].issues;
   // 4. Ensure project key exists
-  if (!LJ.projects[LJ.currentProject].key) {
-    LJ.projects[LJ.currentProject].key = LJ.currentProject.toUpperCase();
+  if (!_projects[_currentProject].key) {
+    _projects[_currentProject].key = _currentProject.toUpperCase();
   }
-  // 5. Sync aliases
-  issues = LJ.issues;
-  issueCounter = LJ.issueCounter;
-  currentDetailIssue = LJ.currentDetailIssue;
-  comments = LJ.comments;
-  currentProject = LJ.currentProject;
-  currentView = LJ.currentView;
-  projects = LJ.projects;
-  savedFilters = LJ.savedFilters;
-  activityLog = LJ.activityLog;
-  selectedIds = LJ.selectedIds;
-  trash = LJ.trash;
 }
