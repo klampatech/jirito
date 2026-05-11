@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Sprint created', 'success');
   });
 
-  document.getElementById('add-issue-btn').addEventListener('click', openModal);
+  document.getElementById('add-issue-btn').addEventListener('click', () => openModal());
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
   document.getElementById('modal-overlay').addEventListener('click', e => {
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
       type: document.getElementById('issue-type').value,
       priority: document.getElementById('issue-priority').value,
       assignee: document.getElementById('issue-assignee').value.trim(),
-      status: 'todo',
+      status: document.getElementById('issue-status').value || 'todo',
       dueDate: document.getElementById('issue-due-date').value || null,
       labels: [],
       storyPoints: document.getElementById('issue-story-points').value ? parseInt(document.getElementById('issue-story-points').value) : null,
@@ -284,9 +284,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Add card buttons
+  // Add card buttons — pass the column's status so the new issue lands in the right column
   document.querySelectorAll('.btn-add-card').forEach(btn => {
-    btn.addEventListener('click', () => openModal());
+    btn.addEventListener('click', () => openModal(btn.dataset.status));
   });
 
   // Column "..." menu buttons
@@ -584,8 +584,9 @@ function checkOnboarding() {
 }
 
 // ===== Modal helpers =====
-function openModal() {
+function openModal(status) {
   document.getElementById('modal-overlay').style.display = 'flex';
+  document.getElementById('issue-status').value = status || 'todo';
   document.getElementById('issue-title').focus();
 }
 function closeModal() {
