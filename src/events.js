@@ -1,14 +1,18 @@
 // ===== Event Handlers =====
 
+// Constants loaded via <script src="src/constants.js"> in index.html
+const HISTORY_MAX_ENTRIES = LJ_CONSTANTS.HISTORY_MAX_ENTRIES;
+const DEP_SEARCH_DEBOUNCE_MS = LJ_CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
+
 // ===== Detail Panel =====
 let _detailChangeHandler = null;
 let _detailCommentClickHandler = null;
 let _detailCommentKeydownHandler = null;
 
 function openDetailPanel(issueId) {
-  const issue = LJ.issues.find(i => i.id === issueId);
+  const issue = getIssues().find(i => i.id === issueId);
   if (!issue) return;
-  LJ.currentDetailIssue = issue;
+  setCurrentDetailIssue(issue);
 
   const panel = document.getElementById('detail-panel');
   const body = document.getElementById('detail-body');
@@ -28,7 +32,7 @@ function openDetailPanel(issueId) {
   // Build history HTML
   let historyHtml = '';
   if (issue.history && issue.history.length > 0) {
-    historyHtml = issue.history.slice(-50).reverse().map(h => `
+    historyHtml = issue.history.slice(-HISTORY_MAX_ENTRIES).reverse().map(h => `
       <div class="history-entry">
         <span class="history-field">${escapeHtml(h.field)}</span>
         <span class="history-arrow">→</span>
@@ -103,7 +107,7 @@ function openDetailPanel(issueId) {
       <label>Dependencies</label>
       <div id="detail-dependencies">
         ${(issue.dependencies || []).map(d => {
-          const target = LJ.issues.find(i => i.id === d.targetId);
+          const target = getIssues().find(i => i.id === d.targetId);
           const targetKey = target ? generateIssueKey(getProjectKey(), target.id) : 'Unknown';
           const typeIcon = d.type === 'blocks' ? 'TriangleAlert' : 'Link';
           return `<div class="dep-entry">
@@ -130,9 +134,9 @@ function openDetailPanel(issueId) {
       <div class="history-list">${historyHtml || '<span class="history-empty">No changes yet</span>'}</div>
     </div>
     <div class="comments-section">
-      <h3>Comments (${(LJ.comments[issue.id] || []).length})</h3>
+      <h3>Comments (${(getComments()[issue.id] || []).length})</h3>
       <div id="comments-list">
-        ${(LJ.comments[issue.id] || []).map(c => `
+        ${(getComments()[issue.id] || []).map(c => `
           <div class="comment">
             <div class="comment-header">
               <span class="comment-author">${escapeHtml(c.author)}</span>
@@ -369,7 +373,7 @@ function openDetailPanel(issueId) {
       searchTimeout = setTimeout(() => {
         const query = depSearch.value.trim().toUpperCase();
         if (!query) { depResults.style.display = 'none'; return; }
-        const matches = LJ.issues.filter(i => {
+        const matches = getIssues().filter(i => {
           if (i.id === issueId) return false;
           const key = generateIssueKey(getProjectKey(), i.id);
           const titleMatch = (i.title || '').toUpperCase().includes(query);
@@ -397,12 +401,12 @@ function openDetailPanel(issueId) {
             openDetailPanel(issueId);
           });
         });
-      }, 200);
+      }, DEP_SEARCH_DEBOUNCE_MS);
     });
     depAddBtn.addEventListener('click', () => {
       const query = depSearch.value.trim().toUpperCase();
       if (!query) return;
-      const match = LJ.issues.find(i => {
+      const match = getIssues().find(i => {
         const key = generateIssueKey(getProjectKey(), i.id).toUpperCase();
         return key.includes(query) && i.id !== issueId;
       });
@@ -447,20 +451,20 @@ function trackHistory(issue, field, from, to) {
     date: new Date().toISOString(),
     user: 'You'
   });
-  // Limit history to last 50 entries
-  if (issue.history.length > 50) {
-    issue.history = issue.history.slice(-50);
+  // Limit history to last HISTORY_MAX_ENTRIES entries
+  if (issue.history.length > HISTORY_MAX_ENTRIES) {
+    issue.history = issue.history.slice(-HISTORY_MAX_ENTRIES);
   }
   saveState();
 }
 
 function deleteIssue(issueId) {
   if (!confirm('Delete this issue? You can restore it from Trash.')) return;
-  const idx = LJ.issues.findIndex(i => i.id === issueId);
+  const idx = getIssues().findIndex(i => i.id === issueId);
   if (idx === -1) return;
-  const title = LJ.issues[idx].title;
-  const issue = LJ.issues.splice(idx, 1)[0];
-  delete LJ.comments[issueId];
+  const title = getIssues()[idx].title;
+  const issue = getIssues().splice(idx, 1)[0];
+  delete getComments()[issueId];
   // Move to trash instead of deleting
   moveToTrash(issue);
   addActivity(`Trash`, `Deleted issue: ${title}`);
@@ -471,8 +475,8 @@ function deleteIssue(issueId) {
   showToast('Issue moved to trash', 'success');
   // Wire up undo
   showUndoToast('Issue deleted', () => {
-    LJ.issues.push(issue);
-    LJ.comments[issueId] = LJ.comments[issueId] || [];
+    getIssues().push(issue);
+    getComments()[issueId] = getComments()[issueId] || [];
     saveState();
     renderBoard();
     updateCounts();
@@ -485,28 +489,28 @@ function closeDetailPanel() {
   document.getElementById('detail-panel').classList.remove('open');
   document.getElementById('detail-backdrop').classList.remove('visible');
   document.getElementById('detail-backdrop').style.display = 'none';
-  LJ.currentDetailIssue = null;
+  setCurrentDetailIssue(null);
 }
 
 function addComment() {
-  if (!LJ.currentDetailIssue) return;
+  if (!getCurrentDetailIssue()) return;
   const input = document.getElementById('comment-input');
   const text = input.value.trim();
   if (!text) return;
 
-  if (!LJ.comments[LJ.currentDetailIssue.id]) LJ.comments[LJ.currentDetailIssue.id] = [];
-  const commentIdx = LJ.comments[LJ.currentDetailIssue.id].length;
-  LJ.comments[LJ.currentDetailIssue.id].push({
+  if (!getComments()[getCurrentDetailIssue().id]) getComments()[getCurrentDetailIssue().id] = [];
+  const commentIdx = getComments()[getCurrentDetailIssue().id].length;
+  getComments()[getCurrentDetailIssue().id].push({
     author: 'You',
     text: text,
     date: new Date().toISOString()
   });
   saveState();
-  openDetailPanel(LJ.currentDetailIssue.id); // Refresh
+  openDetailPanel(getCurrentDetailIssue().id); // Refresh
   renderBoard(); // Update comment count badge
-  const issueId = LJ.currentDetailIssue.id;
+  const issueId = getCurrentDetailIssue().id;
   showUndoToast('Comment added', () => {
-    LJ.comments[issueId].splice(commentIdx, 1);
+    getComments()[issueId].splice(commentIdx, 1);
     saveState();
     openDetailPanel(issueId);
     renderBoard();
@@ -611,11 +615,12 @@ function initMarkdownToggles() {
 }
 
 function cloneIssue(issueId) {
-  const issue = LJ.issues.find(i => i.id === issueId);
+  const issue = getIssues().find(i => i.id === issueId);
   if (!issue) return;
-  LJ.issueCounter++;
+  const newId = getIssueCounter() + 1;
+  setIssueCounter(newId);
   const newIssue = {
-    id: LJ.issueCounter,
+    id: newId,
     title: issue.title + ' (clone)',
     desc: issue.desc || '',
     type: issue.type,
@@ -627,10 +632,10 @@ function cloneIssue(issueId) {
     storyPoints: issue.storyPoints,
     sprint: issue.sprint,
     dependencies: [],
-    rank: LJ.issues.length,
+    rank: getIssues().length,
     history: [],
   };
-  LJ.issues.push(newIssue);
+  getIssues().push(newIssue);
   saveState();
   renderBoard();
   updateCounts();
@@ -640,10 +645,10 @@ function cloneIssue(issueId) {
   showToast(`Issue cloned as ${newKey}`, 'success');
   openDetailPanel(newIssue.id);
   showUndoToast(`Cloned to ${newKey}`, () => {
-    const idx = LJ.issues.findIndex(i => i.id === newIssue.id);
+    const idx = getIssues().findIndex(i => i.id === newIssue.id);
     if (idx !== -1) {
-      LJ.issues.splice(idx, 1);
-      delete LJ.comments[newIssue.id];
+      getIssues().splice(idx, 1);
+      delete getComments()[newIssue.id];
       saveState();
       renderBoard();
       updateCounts();
@@ -683,8 +688,8 @@ function initDragDrop() {
       const checkbox = e.target.closest('.issue-checkbox');
       if (!checkbox) return;
       const id = parseInt(checkbox.dataset.id);
-      if (checkbox.checked) selectedIds.add(id);
-      else selectedIds.delete(id);
+      if (checkbox.checked) getSelectedIds().add(id);
+      else getSelectedIds().delete(id);
       updateBulkBar();
     });
   });
@@ -748,7 +753,7 @@ function initDragDrop() {
       col.classList.remove('drag-over');
       col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
       const id = parseInt(e.dataTransfer.getData('text/plain'));
-      const issue = LJ.issues.find(i => i.id === id);
+      const issue = getIssues().find(i => i.id === id);
       if (!issue) return;
 
       const droppedOnCard = e.target.closest('.issue-card');
@@ -765,9 +770,9 @@ function initDragDrop() {
         const oldRank = issue.rank;
         if (droppedOnCard) {
           const targetId = parseInt(droppedOnCard.dataset.id);
-          const targetIssue = LJ.issues.find(i => i.id === targetId);
+          const targetIssue = getIssues().find(i => i.id === targetId);
           if (targetIssue && targetIssue.status === newStatus && targetIssue.id !== issue.id) {
-            const siblings = LJ.issues.filter(i => i.status === newStatus && i.id !== issue.id);
+            const siblings = getIssues().filter(i => i.status === newStatus && i.id !== issue.id);
             const targetRank = targetIssue.rank;
             const beforeRank = siblings.filter(i => i.rank < targetRank).length > 0
               ? Math.max(...siblings.filter(i => i.rank < targetRank).map(i => i.rank))
@@ -778,10 +783,10 @@ function initDragDrop() {
             const dropAbove = e.clientY < droppedOnCard.getBoundingClientRect().top + droppedOnCard.getBoundingClientRect().height / 2;
             issue.rank = dropAbove ? beforeRank : targetRank;
           } else {
-            issue.rank = (LJ.issues.filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+            issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
           }
         } else {
-          issue.rank = (LJ.issues.filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+          issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
         }
         saveState();
         renderBoard();
@@ -800,9 +805,9 @@ function initDragDrop() {
         // Calculate new rank based on drop position
         if (droppedOnCard) {
           const targetId = parseInt(droppedOnCard.dataset.id);
-          const targetIssue = LJ.issues.find(i => i.id === targetId);
+          const targetIssue = getIssues().find(i => i.id === targetId);
           if (targetIssue && targetIssue.status === newStatus) {
-            const siblings = LJ.issues.filter(i => i.status === newStatus && i.id !== issue.id);
+            const siblings = getIssues().filter(i => i.status === newStatus && i.id !== issue.id);
             const targetRank = targetIssue.rank;
             const beforeRank = siblings.filter(i => i.rank < targetRank).length > 0
               ? Math.max(...siblings.filter(i => i.rank < targetRank).map(i => i.rank))
@@ -812,10 +817,10 @@ function initDragDrop() {
               : targetRank + 1;
             issue.rank = (beforeRank + targetRank) / 2;
           } else {
-            issue.rank = (LJ.issues.filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+            issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
           }
         } else {
-          issue.rank = (LJ.issues.filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
+          issue.rank = (getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1)) + 1;
         }
         issue.status = newStatus;
         trackHistory(issue, 'status', oldStatus, newStatus);
@@ -840,26 +845,27 @@ function initDragDrop() {
 // ===== Bulk Actions =====
 function updateBulkBar() {
   const bar = document.getElementById('bulk-bar');
-  if (selectedIds.size === 0) {
+  const sel = getSelectedIds();
+  if (sel.size === 0) {
     bar.style.display = 'none';
     return;
   }
   bar.style.display = 'flex';
-  document.getElementById('bulk-count').textContent = `${selectedIds.size} selected`;
+  document.getElementById('bulk-count').textContent = `${sel.size} selected`;
 }
 
 function handleBulkStatusChange(e) {
   const status = e.target.value;
   if (!status) return;
   const movedIssues = [];
-  LJ.issues.forEach(i => {
-    if (selectedIds.has(i.id)) {
+  getIssues().forEach(i => {
+    if (getSelectedIds().has(i.id)) {
       trackHistory(i, 'status', i.status, status);
       i.status = status;
       movedIssues.push({ id: i.id, oldStatus: i.status });
     }
   });
-  selectedIds.clear();
+  getSelectedIds().clear();
   saveState();
   renderBoard();
   updateCounts();
@@ -867,7 +873,7 @@ function handleBulkStatusChange(e) {
   // Wire up undo
   showUndoToast(`${movedIssues.length} issues moved`, () => {
     movedIssues.forEach(m => {
-      const issue = LJ.issues.find(i => i.id === m.id);
+      const issue = getIssues().find(i => i.id === m.id);
       if (issue) {
         issue.status = m.oldStatus;
         trackHistory(issue, 'status', status, m.oldStatus);
@@ -882,22 +888,21 @@ function handleBulkStatusChange(e) {
 }
 
 function handleBulkDelete() {
-  if (!confirm(`Delete ${selectedIds.size} issues?`)) return;
+  if (!confirm(`Delete ${getSelectedIds().size} issues?`)) return;
   const titles = [];
   const deletedIssues = [];
-  LJ.issues = LJ.issues.filter(i => {
-    if (selectedIds.has(i.id)) {
+  setIssues(getIssues().filter(i => {
+    if (getSelectedIds().has(i.id)) {
       titles.push(i.title);
       deletedIssues.push(i);
       moveToTrash(i);
-      delete LJ.comments[i.id];
+      delete getComments()[i.id];
       return false;
     }
     return true;
-  });
-  // Sync alias
-  issues = LJ.issues;
-  selectedIds.clear();
+  }));
+  // Clean up bulk selection
+  getSelectedIds().clear();
   saveState();
   addActivity(`Trash`, `Deleted ${titles.length} issues`);
   renderBoard();
@@ -906,7 +911,7 @@ function handleBulkDelete() {
   showToast(`${titles.length} issues moved to trash`, 'success');
   // Wire up undo
   showUndoToast(`${titles.length} issues deleted`, () => {
-    deletedIssues.forEach(i => LJ.issues.push(i));
+    deletedIssues.forEach(i => getIssues().push(i));
     saveState();
     renderBoard();
     updateCounts();
@@ -916,7 +921,7 @@ function handleBulkDelete() {
 }
 
 function handleBulkClear() {
-  selectedIds.clear();
+  getSelectedIds().clear();
   document.querySelectorAll('.issue-checkbox').forEach(cb => cb.checked = false);
   updateBulkBar();
 }
@@ -935,7 +940,7 @@ function applyFilters() {
     if (!colBody) return;
     const status = colDef.status || colDef.id;
     colBody.innerHTML = '';
-    let filtered = LJ.issues.filter(i => {
+    let filtered = getIssues().filter(i => {
       if (typeFilter !== 'all' && i.type !== typeFilter) return false;
       if (priorityFilter !== 'all' && i.priority !== priorityFilter) return false;
       if (assigneeFilter !== 'all' && i.assignee !== assigneeFilter) return false;
@@ -975,6 +980,7 @@ function showToast(message, type = 'info') {
     color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 200;
     animation: toastIn 0.3s ease;
   `;
+  toast.setAttribute('role', 'alert');
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.animation = 'toastOut 0.3s ease';
@@ -1007,6 +1013,7 @@ function showUndoToast(message, onUndo) {
     background: var(--bg-card); color: var(--text); box-shadow: 0 4px 12px var(--shadow);
     z-index: 200; display: flex; align-items: center; gap: 12px;
   `;
+  toast.setAttribute('role', 'alert');
   toast.innerHTML = `
     <span>${message}</span>
     <button class="btn btn-sm" style="background:var(--primary);color:#fff;border:none;cursor:pointer;" id="undo-btn">Undo</button>
@@ -1049,7 +1056,7 @@ function renderSprintList() {
     const isFuture = now < start;
     const statusClass = active ? 'active' : isPast ? 'past' : isFuture ? 'future' : '';
     const statusLabel = active ? '● Active' : isPast ? 'Past' : isFuture ? 'Future' : '';
-    const sprintIssues = LJ.issues.filter(i => i.sprint === s.id);
+    const sprintIssues = getIssues().filter(i => i.sprint === s.id);
     const totalSP = sprintIssues.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
     const doneSP = sprintIssues.filter(i => i.status === 'done').reduce((sum, i) => sum + (i.storyPoints || 0), 0);
     return `<div class="sprint-list-item ${statusClass}">

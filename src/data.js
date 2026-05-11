@@ -2,15 +2,15 @@
 
 function exportData() {
   const data = {
-    issues: LJ.issues,
-    comments: LJ.comments,
-    projects: LJ.projects,
-    currentProject: LJ.currentProject,
-    savedFilters: LJ.savedFilters,
-    activityLog: LJ.activityLog.map(a => ({ ...a, time: a.time.toISOString() })),
-    issueCounter: LJ.issueCounter,
-    trash: LJ.trash.map(t => ({ ...t, date: t.date.toISOString() })),
-    sprints: LJ.sprints,
+    issues: getIssues(),
+    comments: getComments(),
+    projects: getProjects(),
+    currentProject: getCurrentProject(),
+    savedFilters: getSavedFilters(),
+    activityLog: getActivityLog().map(a => ({ ...a, time: a.time.toISOString() })),
+    issueCounter: getIssueCounter(),
+    trash: getTrash().map(t => ({ ...t, date: t.date.toISOString() })),
+    sprints: getSprints(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -54,34 +54,25 @@ function importData(file) {
           throw new Error('Imported issues must have id, title, and status fields');
         }
       }
-      LJ.issues = data.issues;
-      LJ.comments = data.comments;
-      LJ.projects = data.projects;
-      LJ.currentProject = data.currentProject || 'default';
-      LJ.savedFilters = data.savedFilters || [];
-      LJ.activityLog = (data.activityLog || []).map(a => ({ ...a, time: new Date(a.time) }));
+      setIssues(data.issues);
+      _comments = data.comments;
+      setProjects(data.projects);
+      setCurrentProject(data.currentProject || 'default');
+      setSavedFilters(data.savedFilters || []);
+      _activityLog = (data.activityLog || []).map(a => ({ ...a, time: new Date(a.time) }));
       // Prevent ID collision: ensure issueCounter is higher than any imported ID
-      const maxId = Math.max(...LJ.issues.map(i => i.id), 0);
-      LJ.issueCounter = Math.max(data.issueCounter || 106, maxId + 1);
+      const maxId = Math.max(...getIssues().map(i => i.id), 0);
+      setIssueCounter(Math.max(data.issueCounter || 106, maxId + 1));
       if (data.trash) {
-        LJ.trash = data.trash.map(t => ({ ...t, date: new Date(t.date) }));
+        _trash = data.trash.map(t => ({ ...t, date: new Date(t.date) }));
         purgeTrash();
       }
       if (data.sprints) {
-        LJ.sprints = data.sprints;
+        _sprints = data.sprints;
       }
-      // Sync aliases
-      issues = LJ.issues;
-      issueCounter = LJ.issueCounter;
-      currentDetailIssue = LJ.currentDetailIssue;
-      comments = LJ.comments;
-      currentProject = LJ.currentProject;
-      currentView = LJ.currentView;
-      projects = LJ.projects;
-      savedFilters = LJ.savedFilters;
-      activityLog = LJ.activityLog;
-      selectedIds = LJ.selectedIds;
-      trash = LJ.trash;
+      // State synced via setters above
+      selectedIds = getSelectedIds();
+      trash = getTrash();
       saveState();
       renderBoard();
       renderSidebar();
@@ -99,25 +90,25 @@ function importData(file) {
 function createProject(name, key) {
   const icons = ['🚀', '🎯', '⚡', '🔥', '💡', '🌟', '🎨', '🔧'];
   const icon = icons[Math.floor(Math.random() * icons.length)];
-  LJ.projects[key] = { name, icon, key: key.toUpperCase(), issues: [] };
+  getProjects()[key] = { name, icon, key: key.toUpperCase(), issues: [] };
   saveState();
   switchProject(key);
   addActivity('Sparkles', `<strong>${escapeHtml(name)}</strong> project created`);
 }
 
 function deleteProject(key) {
-  if (Object.keys(LJ.projects).length <= 1) {
+  if (Object.keys(getProjects()).length <= 1) {
     showToast('You must have at least one project.', 'error');
     return;
   }
-  if (!confirm(`Delete project "${LJ.projects[key].name}" and all its issues?`)) return;
+  if (!confirm(`Delete project "${getProjects()[key].name}" and all its issues?`)) return;
   // Move project issues to trash before deleting
-  const projectIssues = LJ.projects[key].issues.filter(i => i);
+  const projectIssues = getProjects()[key].issues.filter(i => i);
   if (projectIssues.length > 0) {
-    LJ.trash.unshift({ issues: [...projectIssues], date: new Date() });
+    getTrash().unshift({ issues: [...projectIssues], date: new Date() });
   }
-  delete LJ.projects[key];
-  const remaining = Object.keys(LJ.projects)[0];
+  delete getProjects()[key];
+  const remaining = Object.keys(getProjects())[0];
   saveState();
   switchProject(remaining);
 }

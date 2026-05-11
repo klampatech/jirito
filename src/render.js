@@ -56,7 +56,7 @@ function renderBoard() {
     // Render cards in column
     const colBody = col.querySelector('.column-body');
     colBody.innerHTML = '';
-    let colIssues = LJ.issues.filter(i => {
+    let colIssues = getIssues().filter(i => {
       if (colDef.status) return i.status === colDef.status;
       // For custom columns without status mapping, show all (they're custom)
       return false;
@@ -91,7 +91,7 @@ function createCard(issue) {
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label', `${generateIssueKey(getProjectKey(), issue.id)}: ${escapeHtml(issue.title)}`);
 
-  const commentCount = (LJ.comments[issue.id] || []).length;
+  const commentCount = (getComments()[issue.id] || []).length;
   const projectKey = getProjectKey();
   const key = generateIssueKey(projectKey, issue.id);
   const deps = getDependencies(issue.id);
@@ -159,8 +159,8 @@ function createCard(issue) {
   // Checkbox for bulk actions
   const checkbox = card.querySelector('.issue-checkbox');
   checkbox.addEventListener('change', () => {
-    if (checkbox.checked) selectedIds.add(issue.id);
-    else selectedIds.delete(issue.id);
+    if (checkbox.checked) getSelectedIds().add(issue.id);
+    else getSelectedIds().delete(issue.id);
     updateBulkBar();
   });
 
@@ -182,7 +182,7 @@ function updateCounts() {
     if (countEl) {
       const status = colDef.status;
       if (status) {
-        countEl.textContent = LJ.issues.filter(i => i.status === status).length;
+        countEl.textContent = getIssues().filter(i => i.status === status).length;
       } else {
         countEl.textContent = '—';
       }
@@ -196,7 +196,7 @@ function updateNotifications() {
   const bell = document.getElementById('notification-bell');
   const countEl = document.getElementById('notification-count');
   if (!bell || !countEl) return;
-  const overdue = LJ.issues.filter(i => isOverdue(i.dueDate, i.status));
+  const overdue = getIssues().filter(i => isOverdue(i.dueDate, i.status));
   if (overdue.length > 0) {
     countEl.textContent = overdue.length;
     countEl.style.display = 'flex';
@@ -217,7 +217,7 @@ function renderSidebar() {
 
 // ===== Inline Project Rename =====
 function startInlineRename(key, itemEl) {
-  const proj = LJ.projects[key];
+  const proj = getProjects()[key];
   if (!proj) return;
 
   const nameSpan = itemEl.querySelector('.project-name');
@@ -245,9 +245,9 @@ function startInlineRename(key, itemEl) {
     // Re-render to restore the name span
     renderProjects();
     // Update nav project name if this is the current project
-    if (LJ.currentProject === key) {
+    if (getCurrentProject() === key) {
       const navName = document.getElementById('nav-project-name');
-      if (navName) navName.textContent = LJ.projects[key].name;
+      if (navName) navName.textContent = getProjects()[key].name;
     }
   };
 
@@ -265,9 +265,9 @@ function startInlineRename(key, itemEl) {
 function renderProjects() {
   const list = document.getElementById('project-list');
   list.innerHTML = '';
-  Object.entries(LJ.projects).forEach(([key, proj]) => {
+  Object.entries(getProjects()).forEach(([key, proj]) => {
     const item = document.createElement('div');
-    item.className = `project-item${key === LJ.currentProject ? ' active' : ''}`;
+    item.className = `project-item${key === getCurrentProject() ? ' active' : ''}`;
     item.dataset.key = key;
     item.innerHTML = `
       <span class="project-icon">${proj.icon}</span>
@@ -280,7 +280,7 @@ function renderProjects() {
       if (e.target.closest('.project-delete')) return;
       // If clicking the project name and the project is already selected, trigger inline rename
       const nameTarget = e.target.closest('.project-name');
-      if (nameTarget && key === LJ.currentProject) {
+      if (nameTarget && key === getCurrentProject()) {
         e.stopPropagation();
         startInlineRename(key, item);
         return;
@@ -306,7 +306,7 @@ function renderViews() {
   ];
   views.forEach(v => {
     const item = document.createElement('div');
-    item.className = `view-item${v.id === LJ.currentView ? ' active' : ''}`;
+    item.className = `view-item${v.id === getCurrentView() ? ' active' : ''}`;
     item.innerHTML = `<span class="view-icon">${lucideIcon(v.icon, {class:'icon'})}</span><span>${v.label}</span>`;
     item.addEventListener('click', () => switchView(v.id));
     list.appendChild(item);
@@ -322,7 +322,7 @@ function renderColumnConfig() {
 
   container.innerHTML = columns.map((col, idx) => {
     const isDefault = getDefaultColumns().some(d => d.id === col.id);
-    const cardCount = col.status ? LJ.issues.filter(i => i.status === col.status).length : 0;
+    const cardCount = col.status ? getIssues().filter(i => i.status === col.status).length : 0;
     const statusOptions = ['todo', 'inprogress', 'review', 'done'].map(s => {
       const labels = { todo: 'To Do', inprogress: 'In Progress', review: 'In Review', done: 'Done' };
       return `<option value="${s}" ${col.status === s ? 'selected' : ''}>${labels[s]}</option>`;
@@ -373,7 +373,7 @@ function renderColumnConfig() {
         const col = columns.find(c => c.id === btn.dataset.colId);
         if (col && col.status) {
           // Move cards to To Do
-          LJ.issues.filter(i => i.status === col.status).forEach(i => i.status = 'todo');
+          getIssues().filter(i => i.status === col.status).forEach(i => i.status = 'todo');
         }
         removeCustomColumn(btn.dataset.colId);
         renderColumnConfig();
@@ -488,7 +488,7 @@ function renderCalendarView() {
     day.addEventListener('click', () => {
       const date = day.dataset.date;
       if (!date) return;
-      const filtered = LJ.issues.filter(i => i.dueDate === date);
+      const filtered = getIssues().filter(i => i.dueDate === date);
       if (filtered.length > 0) {
         const lines = filtered.map(i => {
           const key = generateIssueKey(getProjectKey(), i.id);
@@ -510,89 +510,23 @@ function renderCalendarView() {
 
 }
 
-function renderCalendar() {
-  const section = document.getElementById('calendar-section');
-  const grid = document.getElementById('calendar-grid');
-  const label = document.getElementById('calendar-month-label');
-  if (!grid || !label) return;
-
-  label.textContent = `${getMonthName(calendarMonth)} ${calendarYear}`;
-
-  const days = getCalendarDays(calendarYear, calendarMonth);
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  let html = '<div class="calendar-header"><div class="calendar-day-name">Sun</div><div class="calendar-day-name">Mon</div><div class="calendar-day-name">Tue</div><div class="calendar-day-name">Wed</div><div class="calendar-day-name">Thu</div><div class="calendar-day-name">Fri</div><div class="calendar-day-name">Sat</div></div><div class="calendar-body">';
-
-  days.forEach(day => {
-    const isToday = day.isCurrentMonth && day.date.toDateString() === new Date().toDateString();
-    const cls = day.isCurrentMonth ? 'calendar-day current-month' : 'calendar-day other-month';
-    const overdue = day.dueIssues.filter(i => isOverdue(i.dueDate, i.status));
-    const hasOverdue = overdue.length > 0;
-    const hasDue = day.dueIssues.length > 0;
-
-    html += `<div class="${cls}${isToday ? ' today' : ''}${hasOverdue ? ' overdue' : ''}" data-date="${day.dateStr || ''}">`;
-    html += `<span class="calendar-day-num">${day.date.getDate()}</span>`;
-    if (hasDue) {
-      day.dueIssues.slice(0, 3).forEach(i => {
-        const color = { todo: '#9E9E9E', inprogress: '#D14A2A', review: '#D49B00' }[i.status] || '#9E9E9E';
-        html += `<div class="calendar-issue-dot" style="background:${color}" title="${escapeHtml(i.title)}"></div>`;
-      });
-      if (day.dueIssues.length > 3) {
-        html += `<span class="calendar-more">+${day.dueIssues.length - 3}</span>`;
-      }
-    }
-    html += '</div>';
-  });
-
-  html += '</div>';
-  grid.innerHTML = html;
-
-  // Click on day to show issues
-  grid.querySelectorAll('.calendar-day.current-month').forEach(day => {
-    day.addEventListener('click', () => {
-      const date = day.dataset.date;
-      if (!date) return;
-      const filtered = LJ.issues.filter(i => i.dueDate === date);
-      if (filtered.length > 0) {
-        const lines = filtered.map(i => {
-          const key = generateIssueKey(getProjectKey(), i.id);
-          const statusColor = { todo: '#9E9E9E', inprogress: '#D14A2A', review: '#D49B00', done: '#34A853' }[i.status] || '#9E9E9E';
-          return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border-light);">
-            <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;"></span>
-            <span style="font-size:11px;color:var(--text-muted);min-width:60px;">${key}</span>
-            <span style="font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(i.title)}</span>
-            <span style="font-size:10px;color:var(--text-muted);text-transform:capitalize;">${i.status}</span>
-          </div>`;
-        }).join('');
-        // Show as a toast with scrollable content
-        if (undoToast) undoToast.remove();
-        const toast = document.createElement('div');
-        toast.className = 'toast toast-undo';
-        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:16px 20px;border-radius:8px;font-size:13px;background:var(--bg-card);color:var(--text);box-shadow:0 4px 12px var(--shadow);z-index:200;max-width:400px;max-height:400px;overflow-y:auto;';
-        toast.innerHTML = `<strong style="display:block;margin-bottom:8px;">📅 ${formatDate(date)}</strong>${lines}<button class="btn btn-sm" style="margin-top:8px;background:var(--primary);color:#fff;border:none;cursor:pointer;" onclick="this.parentElement.remove();">Close</button>`;
-        document.body.appendChild(toast);
-        undoToast = toast;
-        setTimeout(() => { if (undoToast === toast) { toast.remove(); undoToast = null; } }, 15000);
-      }
-    });
-    day.style.cursor = 'pointer';
-  });
-}
+// ===== renderCalendar (sidebar version) is deprecated — only renderCalendarView (board version) is used =====
+// Kept temporarily for reference. Remove after confirming no callers.
 
 // ===== Dashboard View =====
 function renderDashboardView() {
   const container = document.getElementById('dashboard-container');
   if (!container) return;
 
-  const total = LJ.issues.length;
+  const total = getIssues().length;
   const byStatus = { todo: 0, inprogress: 0, review: 0, done: 0 };
-  LJ.issues.forEach(i => { if (byStatus[i.status] !== undefined) byStatus[i.status]++; });
+  getIssues().forEach(i => { if (byStatus[i.status] !== undefined) byStatus[i.status]++; });
   const doneCount = byStatus.done;
   const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const overdueCount = LJ.issues.filter(i => isOverdue(i.dueDate, i.status)).length;
-  const highPriority = LJ.issues.filter(i => i.priority === 'high' && i.status !== 'done').length;
-  const unassigned = LJ.issues.filter(i => !i.assignee).length;
-  const dueThisWeek = LJ.issues.filter(i => {
+  const overdueCount = getIssues().filter(i => isOverdue(i.dueDate, i.status)).length;
+  const highPriority = getIssues().filter(i => i.priority === 'high' && i.status !== 'done').length;
+  const unassigned = getIssues().filter(i => !i.assignee).length;
+  const dueThisWeek = getIssues().filter(i => {
     if (!i.dueDate || i.status === 'done') return false;
     const due = new Date(i.dueDate);
     const now = new Date();
@@ -602,7 +536,7 @@ function renderDashboardView() {
 
   // Assignee stats
   const byAssignee = {};
-  LJ.issues.forEach(i => {
+  getIssues().forEach(i => {
     const a = i.assignee || 'Unassigned';
     if (!byAssignee[a]) byAssignee[a] = { total: 0, done: 0, overdue: 0 };
     byAssignee[a].total++;
@@ -614,17 +548,17 @@ function renderDashboardView() {
 
   // Priority breakdown
   const byPriority = { high: 0, medium: 0, low: 0 };
-  LJ.issues.forEach(i => { if (byPriority[i.priority] !== undefined) byPriority[i.priority]++; });
+  getIssues().forEach(i => { if (byPriority[i.priority] !== undefined) byPriority[i.priority]++; });
 
   // Type breakdown
   const byType = { story: 0, bug: 0, task: 0, epic: 0 };
-  LJ.issues.forEach(i => { if (byType[i.type] !== undefined) byType[i.type]++; });
+  getIssues().forEach(i => { if (byType[i.type] !== undefined) byType[i.type]++; });
 
   // Sprint progress
   const activeSprint = getActiveSprint();
   let sprintProgressHtml = '';
   if (activeSprint) {
-    const sprintIssues = LJ.issues.filter(i => i.sprint === activeSprint.id);
+    const sprintIssues = getIssues().filter(i => i.sprint === activeSprint.id);
     const sprintTotalSP = sprintIssues.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
     const sprintDoneSP = sprintIssues.filter(i => i.status === 'done').reduce((sum, i) => sum + (i.storyPoints || 0), 0);
     const now = new Date();
@@ -660,7 +594,7 @@ function renderDashboardView() {
 function renderSavedFilters() {
   const list = document.getElementById('saved-filters');
   list.innerHTML = '';
-  LJ.savedFilters.forEach((f, idx) => {
+  getSavedFilters().forEach((f, idx) => {
     const item = document.createElement('div');
     item.className = 'saved-filter-item';
     item.innerHTML = `
@@ -670,7 +604,7 @@ function renderSavedFilters() {
     item.querySelector('.filter-name').addEventListener('click', () => applySavedFilter(idx));
     item.querySelector('.filter-delete').addEventListener('click', e => {
       e.stopPropagation();
-      LJ.savedFilters.splice(idx, 1);
+      getSavedFilters().splice(idx, 1);
       saveState();
       renderSavedFilters();
     });
@@ -681,7 +615,7 @@ function renderSavedFilters() {
 function renderActivity() {
   const feed = document.getElementById('activity-feed');
   feed.innerHTML = '';
-  LJ.activityLog.slice(0, 15).forEach(a => {
+  getActivityLog().slice(0, 15).forEach(a => {
     const item = document.createElement('div');
     item.className = 'activity-item';
     const ago = timeAgo(a.time);
@@ -700,25 +634,21 @@ function renderActivity() {
 
 function switchProject(key) {
   // Task 2.4: Validate key before use
-  if (!LJ.projects[key]) return;
-  LJ.currentProject = key;
-  LJ.issues = LJ.projects[key].issues;
-  // Sync aliases
-  currentProject = LJ.currentProject;
-  issues = LJ.issues;
+  if (!getProjects()[key]) return;
+  setCurrentProject(key);
+  setIssues(getProjects()[key].issues);
   renderSidebar();
   renderBoard();
   populateAssigneeFilter();
   const boardTitle = document.getElementById('board-title');
-  if (boardTitle) boardTitle.textContent = `${LJ.projects[key].icon} ${LJ.projects[key].name} — Board`;
+  if (boardTitle) boardTitle.textContent = `${getProjects()[key].icon} ${getProjects()[key].name} — Board`;
   // Update nav project name display
   const navName = document.getElementById('nav-project-name');
-  if (navName) navName.textContent = LJ.projects[key].name;
+  if (navName) navName.textContent = getProjects()[key].name;
 }
 
 function switchView(view) {
-  LJ.currentView = view;
-  currentView = LJ.currentView;
+  setCurrentView(view);
   renderViews();
   // Re-render Phosphor icons after view changes so sidebar icons are visible
   const board = document.getElementById('board');
@@ -729,9 +659,9 @@ function switchView(view) {
 
   // Update board title to reflect current view
   const boardTitle = document.getElementById('board-title');
-  if (boardTitle && LJ.projects[LJ.currentProject]) {
+  if (boardTitle && getProjects()[getCurrentProject()]) {
     const viewLabels = { board: 'Board', list: 'List', calendar: 'Calendar', dashboard: 'Dashboard' };
-    boardTitle.textContent = `${LJ.projects[LJ.currentProject].icon} ${LJ.projects[LJ.currentProject].name} — ${viewLabels[view] || 'Board'}`;
+    boardTitle.textContent = `${getProjects()[getCurrentProject()].icon} ${getProjects()[getCurrentProject()].name} — ${viewLabels[view] || 'Board'}`;
   }
 
   // Hide all view containers and sidebar calendar/dashboard sections
@@ -867,7 +797,7 @@ function renderListView() {
 }
 
 function applySavedFilter(idx) {
-  const f = LJ.savedFilters[idx];
+  const f = getSavedFilters()[idx];
   if (!f) return;
   document.getElementById('filter-type').value = f.type || 'all';
   document.getElementById('filter-priority').value = f.priority || 'all';
@@ -888,13 +818,13 @@ function saveCurrentFilter() {
     showToast('Save a meaningful filter!', 'error');
     return;
   }
-  LJ.savedFilters.push(f);
+  getSavedFilters().push(f);
   saveState();
   renderSavedFilters();
 }
 
 function populateAssigneeFilter() {
-  const assignees = [...new Set(LJ.issues.map(i => i.assignee).filter(Boolean))];
+  const assignees = [...new Set(getIssues().map(i => i.assignee).filter(Boolean))];
   const select = document.getElementById('filter-assignee');
   select.innerHTML = '<option value="all">All Assignees</option>';
   assignees.forEach(a => {
