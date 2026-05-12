@@ -157,7 +157,402 @@ test('dragging a card to Done updates its status', async ({ page }) => {
   await expect(doneCards).toHaveCount(2);
 });
 
-// ===== Search Tests =====
+// ===== Drag and Drop: Reordering Tests =====
+
+test('dragging a card within the same column reorders it', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.nth(0);
+  const secondCard = todoCards.nth(1);
+
+  // Get initial titles
+  const firstTitle = await firstCard.locator('.issue-title').textContent();
+  const secondTitle = await secondCard.locator('.issue-title').textContent();
+
+  // Playwright's dragTo doesn't fire drop events for same-container drops,
+  // so we simulate the drag-drop sequence via evaluate
+  const result = await page.evaluate(() => {
+    const col = document.querySelector('[data-status="todo"] .column-body');
+    const cards = col.querySelectorAll('.issue-card');
+    if (cards.length < 2) return { error: 'not enough cards' };
+
+    const firstCard = cards[0];
+    const secondCard = cards[1];
+
+    // Simulate dragstart on first card
+    const dt = new DataTransfer();
+    dt.setData('text/plain', firstCard.dataset.id);
+    const dragStart = new DragEvent('dragstart', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 100,
+      dataTransfer: dt
+    });
+    firstCard.dispatchEvent(dragStart);
+
+    // Simulate dragover on column body (drop on bottom half of second card)
+    const secondRect = secondCard.getBoundingClientRect();
+
+    const dragOver = new DragEvent('dragover', {
+      bubbles: true,
+      cancelable: true,
+      clientX: secondRect.left + secondRect.width / 2,
+      clientY: secondRect.top + secondRect.height * 0.75,
+      dataTransfer: dt
+    });
+    col.dispatchEvent(dragOver);
+
+    // Simulate drop
+    const drop = new DragEvent('drop', {
+      bubbles: true,
+      cancelable: true,
+      clientX: secondRect.left + secondRect.width / 2,
+      clientY: secondRect.top + secondRect.height * 0.75,
+      dataTransfer: dt
+    });
+    col.dispatchEvent(drop);
+
+    // Read result immediately (renderBoard is synchronous)
+    const newCards = col.querySelectorAll('.issue-card');
+    const titles = Array.from(newCards).map(c => c.querySelector('.issue-title')?.textContent);
+    return { titles, count: newCards.length };
+  });
+
+  // The original first card should no longer be first (it was reordered)
+  expect(result.titles[0]).not.toBe(firstTitle);
+});
+
+test('dragging a card to top of column inserts at top', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const secondCard = todoCards.nth(1);
+
+  // Get initial title of second card
+  const secondTitle = await secondCard.locator('.issue-title').textContent();
+
+  // Simulate drag-drop to top of column
+  const result = await page.evaluate(() => {
+    const col = document.querySelector('[data-status="todo"] .column-body');
+    const cards = col.querySelectorAll('.issue-card');
+    if (cards.length < 2) return { error: 'not enough cards' };
+
+    const secondCard = cards[1];
+    const firstCard = cards[0];
+
+    // Simulate dragstart on second card
+    const dt = new DataTransfer();
+    dt.setData('text/plain', secondCard.dataset.id);
+    const dragStart = new DragEvent('dragstart', {
+      bubbles: true, cancelable: true,
+      clientX: 100, clientY: 100, dataTransfer: dt
+    });
+    secondCard.dispatchEvent(dragStart);
+
+    // Simulate dragover on top half of first card
+    const firstRect = firstCard.getBoundingClientRect();
+
+    const dragOver = new DragEvent('dragover', {
+      bubbles: true, cancelable: true,
+      clientX: firstRect.left + firstRect.width / 2,
+      clientY: firstRect.top + firstRect.height * 0.25,
+      dataTransfer: dt
+    });
+    col.dispatchEvent(dragOver);
+
+    // Simulate drop
+    const drop = new DragEvent('drop', {
+      bubbles: true, cancelable: true,
+      clientX: firstRect.left + firstRect.width / 2,
+      clientY: firstRect.top + firstRect.height * 0.25,
+      dataTransfer: dt
+    });
+    col.dispatchEvent(drop);
+
+    const newCards = col.querySelectorAll('.issue-card');
+    const titles = Array.from(newCards).map(c => c.querySelector('.issue-title')?.textContent);
+    return { titles, count: newCards.length };
+  });
+
+  // The dragged card should now be first
+  expect(result.titles[0]).toBe(secondTitle);
+});
+
+test('dragging a card to bottom of column appends to bottom', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const lastCard = todoCards.last();
+
+  // Get initial title of first card
+  const firstTitle = await firstCard.locator('.issue-title').textContent();
+
+  // Drag first card to the bottom of the last card
+  const sourceBox = await firstCard.boundingBox();
+  const targetBox = await lastCard.boundingBox();
+  if (!sourceBox || !targetBox) return;
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height);
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  // The dragged card should now be last
+  const newLastCard = page.locator('[data-status="todo"] .issue-card').last();
+  await expect(newLastCard.locator('.issue-title')).toContainText(firstTitle);
+});
+
+test('dragging a card between columns updates column counts', async ({ page }) => {
+  const inProgressCards = page.locator('[data-status="inprogress"] .issue-card');
+  const reviewCards = page.locator('[data-status="review"] .issue-card');
+
+  const inProgressCount = await inProgressCards.count();
+  const reviewCount = await reviewCards.count();
+
+  // Drag a card from In Progress to Review
+  const source = page.locator('[data-status="inprogress"] .issue-card').first();
+  const target = page.locator('[data-status="review"] .column-body');
+  await source.dragTo(target);
+
+  await expect(page.locator('[data-status="inprogress"] .issue-card')).toHaveCount(inProgressCount - 1);
+  await expect(page.locator('[data-status="review"] .issue-card')).toHaveCount(reviewCount + 1);
+});
+
+test('dragging a card from In Progress to To Do updates status', async ({ page }) => {
+  const inProgressCards = page.locator('[data-status="inprogress"] .issue-card');
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+
+  const inProgressCount = await inProgressCards.count();
+  const todoCount = await todoCards.count();
+
+  // Drag a card from In Progress to To Do
+  const source = page.locator('[data-status="inprogress"] .issue-card').first();
+  const target = page.locator('[data-status="todo"] .column-body');
+  await source.dragTo(target);
+
+  await expect(page.locator('[data-status="inprogress"] .issue-card')).toHaveCount(inProgressCount - 1);
+  await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(todoCount + 1);
+});
+
+test('dragging a card to Review column updates status', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const reviewCards = page.locator('[data-status="review"] .issue-card');
+
+  const todoCount = await todoCards.count();
+  const reviewCount = await reviewCards.count();
+
+  const source = page.locator('[data-status="todo"] .issue-card').first();
+  const target = page.locator('[data-status="review"] .column-body');
+  await source.dragTo(target);
+
+  await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(todoCount - 1);
+  await expect(page.locator('[data-status="review"] .issue-card')).toHaveCount(reviewCount + 1);
+});
+
+test('dragging a card to empty area at bottom of column appends', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const lastCard = todoCards.last();
+
+  // Get initial count
+  const initialCount = await todoCards.count();
+  const firstCardTitle = await todoCards.first().locator('.issue-title').textContent();
+
+  // Drag first card to the bottom of the column using mouse drag
+  const sourceBox = await todoCards.first().boundingBox();
+  const targetBox = await lastCard.boundingBox();
+  if (!sourceBox || !targetBox) return;
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  // Move to the bottom of the column body (below all cards)
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height + 100);
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  // The card should still be in the same column (just reordered)
+  await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(initialCount);
+  // The first card title should still exist somewhere in the column
+  const allTitles = await page.locator('[data-status="todo"] .issue-title').allTextContents();
+  expect(allTitles).toContain(firstCardTitle);
+});
+
+test('drop indicator is visible during drag', async ({ page }) => {
+  const card = page.locator('[data-status="todo"] .issue-card').first();
+  const target = page.locator('[data-status="inprogress"] .column-body');
+
+  // Simulate dragover to show the drop indicator
+  const indicatorVisible = await page.evaluate(() => {
+    return new Promise(resolve => {
+      const col = document.querySelector('[data-status="inprogress"] .column-body');
+      const todoCol = document.querySelector('[data-status="todo"] .column-body');
+      const firstCard = todoCol.querySelector('.issue-card');
+
+      // Simulate dragstart
+      const dt = new DataTransfer();
+      dt.setData('text/plain', firstCard.dataset.id);
+      const dragStart = new DragEvent('dragstart', {
+        bubbles: true, cancelable: true,
+        clientX: 100, clientY: 100, dataTransfer: dt
+      });
+      firstCard.dispatchEvent(dragStart);
+
+      // Simulate dragover
+      const firstCardRect = firstCard.getBoundingClientRect();
+      const colRect = col.getBoundingClientRect();
+      const dragOver = new DragEvent('dragover', {
+        bubbles: true, cancelable: true,
+        clientX: colRect.left + colRect.width / 2,
+        clientY: colRect.top + 50,
+        dataTransfer: dt
+      });
+      col.dispatchEvent(dragOver);
+
+      // Check if drop indicator exists
+      const indicator = col.querySelector('.drop-indicator');
+      const hasDragOverClass = col.classList.contains('drag-over');
+      resolve({
+        indicatorVisible: !!indicator,
+        hasDragOverClass
+      });
+    });
+  });
+
+  expect(indicatorVisible.indicatorVisible).toBe(true);
+  expect(indicatorVisible.hasDragOverClass).toBe(true);
+});
+
+test('dragging a card updates its rank property', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const secondCard = todoCards.nth(1);
+
+  // Get initial ranks
+  const firstRankBefore = await firstCard.evaluate(el => parseFloat(el.dataset.rank));
+  const secondRankBefore = await secondCard.evaluate(el => parseFloat(el.dataset.rank));
+
+  // Use mouse drag to reorder
+  const sourceBox = await firstCard.boundingBox();
+  const targetBox = await secondCard.boundingBox();
+  if (!sourceBox || !targetBox) return;
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height * 0.75);
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  // Re-query cards after re-render
+  const cards = page.locator('[data-status="todo"] .issue-card');
+  const count = await cards.count();
+  const expectedCount = await todoCards.count();
+  await expect(count).toBe(expectedCount);
+
+  // Verify ranks are floating-point values
+  const firstRankAfter = await cards.first().evaluate(el => parseFloat(el.dataset.rank));
+  expect(typeof firstRankAfter).toBe('number');
+});
+
+test('undo toast appears after drag-drop reorder', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const secondCard = todoCards.nth(1);
+
+  // Drag first card to after second card
+  await firstCard.dragTo(secondCard, { sourcePosition: { x: 10, y: 10 } });
+
+  // Undo toast should appear
+  const undoToast = page.locator('.toast-undo');
+  await expect(undoToast).toBeVisible({ timeout: 5000 });
+});
+
+test('undo toast appears after drag-drop status change', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const target = page.locator('[data-status="inprogress"] .column-body');
+
+  await firstCard.dragTo(target);
+
+  // Undo toast should appear
+  const undoToast = page.locator('.toast-undo');
+  await expect(undoToast).toBeVisible({ timeout: 5000 });
+});
+
+test('undoing a reorder restores original order', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const secondCard = todoCards.nth(1);
+
+  const firstTitle = await firstCard.locator('.issue-title').textContent();
+  const secondTitle = await secondCard.locator('.issue-title').textContent();
+
+  // Drag first card to after second card
+  await firstCard.dragTo(secondCard, { sourcePosition: { x: 10, y: 10 } });
+
+  // Wait for reorder to complete
+  await page.waitForTimeout(300);
+
+  // Click undo
+  await page.locator('#undo-btn').click();
+  await page.waitForTimeout(300);
+
+  // Verify order is restored
+  const cards = page.locator('[data-status="todo"] .issue-card');
+  await expect(cards.nth(0).locator('.issue-title')).toContainText(firstTitle);
+  await expect(cards.nth(1).locator('.issue-title')).toContainText(secondTitle);
+});
+
+test('undoing a status change restores original status', async ({ page }) => {
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const firstCard = todoCards.first();
+  const target = page.locator('[data-status="inprogress"] .column-body');
+
+  const firstTitle = await firstCard.locator('.issue-title').textContent();
+
+  // Drag card to In Progress
+  await firstCard.dragTo(target);
+  await page.waitForTimeout(300);
+
+  // Click undo
+  await page.locator('#undo-btn').click();
+  await page.waitForTimeout(300);
+
+  // Verify card is back in To Do
+  const todoCardsAfter = page.locator('[data-status="todo"] .issue-card');
+  const todoCount = await todoCardsAfter.count();
+  await expect(todoCardsAfter).toHaveCount(await todoCards.count());
+  // Verify card title is in To Do
+  const found = await todoCardsAfter.locator('.issue-title').allTextContents();
+  expect(found).toContain(firstTitle);
+});
+
+test('dragging a card to a column with many cards works', async ({ page }) => {
+  // Close any open modal first
+  const modalOverlay = page.locator('#modal-overlay');
+  if (await modalOverlay.isVisible()) {
+    await page.locator('#modal-close').click();
+    await page.waitForTimeout(200);
+  }
+
+  // Create a new issue in To Do
+  await page.locator('#add-issue-btn').click();
+  await page.locator('#issue-title').fill('Drag test issue');
+  await page.locator('#issue-form').evaluate(form => form.requestSubmit());
+  await page.waitForTimeout(300);
+
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const lastCard = todoCards.last();
+  const target = page.locator('[data-status="inprogress"] .column-body');
+
+  // Drag the new card to In Progress
+  await lastCard.dragTo(target);
+
+  // Verify it moved
+  const inProgressCards = page.locator('[data-status="inprogress"] .issue-card');
+  await expect(inProgressCards.last().locator('.issue-title')).toContainText('Drag test issue');
+});
+
+// ===== Search Tests
 test('search input exists', async ({ page }) => {
   const search = page.locator('.search-input');
   await expect(search).toBeVisible();

@@ -801,7 +801,7 @@ function initDragDrop() {
       const sameColumn = colDef && colDef.status && issue.status === newStatus;
 
       // Find target card and insert position using mouse Y position (like Jira)
-      const cards = [...col.querySelectorAll('.issue-card:not([data-drag-id="' + id + '"])')];
+      const cards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
       const colRect = col.getBoundingClientRect();
       const mouseY = e.clientY - colRect.top + col.scrollTop;
       let targetIssue = null;
@@ -824,18 +824,34 @@ function initDragDrop() {
         const oldRank = issue.rank;
         if (targetIssue && targetIssue.id !== issue.id) {
           // Find ranks of cards before and after the target
-          const beforeIssue = [...cards].slice(0, cards.indexOf(targetIssue) + (insertBefore ? 0 : 1))
+          const targetIdx = cards.findIndex(c => parseInt(c.dataset.id) === targetIssue.id);
+          const beforeCard = [...cards].slice(0, targetIdx + (insertBefore ? 0 : 1))
             .reverse().find(c => parseInt(c.dataset.id) !== issue.id);
-          const afterIssue = [...cards].slice(cards.indexOf(targetIssue) + (insertBefore ? 1 : 0))
+          const afterCard = [...cards].slice(targetIdx + (insertBefore ? 1 : 0))
             .find(c => parseInt(c.dataset.id) !== issue.id);
 
-          const beforeIssueData = beforeIssue ? getIssues().find(i => i.id === parseInt(beforeIssue.dataset.id)) : null;
-          const afterIssueData = afterIssue ? getIssues().find(i => i.id === parseInt(afterIssue.dataset.id)) : null;
+          const beforeIssueData = beforeCard ? getIssues().find(i => i.id === parseInt(beforeCard.dataset.id)) : null;
+          const afterIssueData = afterCard ? getIssues().find(i => i.id === parseInt(afterCard.dataset.id)) : null;
           const beforeRank = beforeIssueData?.rank ?? -1;
           const afterRank = afterIssueData?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
 
           // Use midpoint for smooth insertion (floating point ranks)
-          issue.rank = (beforeRank + afterRank) / 2;
+          // Ensure the new rank is strictly between beforeRank and afterRank
+          if (beforeRank < 0) {
+            // No before card — insert before the first card
+            // Use target card's rank as the upper bound
+            const targetRank = targetIssue.rank;
+            if (targetRank <= 0) {
+              issue.rank = targetRank - 1;
+            } else {
+              issue.rank = targetRank / 2;
+            }
+          } else if (afterRank < 0) {
+            // No after card — insert after the last card
+            issue.rank = beforeRank + 1;
+          } else {
+            issue.rank = (beforeRank + afterRank) / 2;
+          }
         } else {
           // Dropping in empty area or on self — append to bottom
           const maxRank = getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1);
