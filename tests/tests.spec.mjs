@@ -15,8 +15,19 @@ async function clearStorage(page) {
   }
 }
 
+test.beforeAll(async ({ page }) => {
+  // Clear storage once before all tests - localStorage is persistent across page loads
+  // but Playwright creates a fresh browser context for each worker
+  await page.goto('file://' + indexPath);
+  try {
+    await page.evaluate(() => localStorage.clear());
+  } catch {
+    // file:// protocol may block localStorage - page load will handle default data
+  }
+});
+
 test.beforeEach(async ({ page }) => {
-  await clearStorage(page);
+  // Navigate to fresh page for each test
   await page.goto('file://' + indexPath);
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');

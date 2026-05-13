@@ -55,6 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initFilters();
   initIssueForm();
   initSidebar();
+  initColumnMenuButtons();
+  initDetailPanel();
+  initSidebarToggle();
+  initSaveFilter();
+  initExportImport();
+  initBulkActions();
+  initFilterControls();
 
 
   // 4. Show onboarding on first load
