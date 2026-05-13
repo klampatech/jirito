@@ -1,8 +1,8 @@
 /* ===== CSS Custom Properties (Light Theme) ===== */
 :root {
   /* Brand Foundation (derived from Jirito logo palette) */
-  --primary: #DB8C61;
-  --primary-hover: #C87A50;
+  --primary: #C77A50;
+  --primary-hover: #B56840;
   --secondary: #79C5BB;
   --accent: #F0C8A0;
 
@@ -34,7 +34,7 @@
   --link: #DB8C61;
 
   /* Status colors (warm palette) */
-  --status-todo: #A89080;
+  --status-todo: #8B7565;
   --status-inprogress: #C85028;
   --status-review: #D49B00;
   --status-done: #79C5BB;
@@ -66,8 +66,8 @@
   --text-light: #C4B0A0;
   --border: #3D2A1E;
   --border-light: #4D3A2E;
-  --primary: #DB8C61;
-  --primary-hover: #E8A078;
+  --primary: #E8A078;
+  --primary-hover: #DB8C61;
   --danger: #D46A42;
   --danger-bg: #3D1F18;
   --success: #79C5BB;
@@ -87,7 +87,7 @@
   --priority-medium-text: #D49B00;
   --priority-low-bg: #1A3D2E;
   --priority-low-text: #79C5BB;
-  --status-todo: #A89080;
+  --status-todo: #C4B0A0;
   --status-inprogress: #D46A42;
   --status-review: #D49B00;
   --status-done: #79C5BB;
