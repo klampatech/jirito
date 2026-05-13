@@ -1,7 +1,5 @@
 // ===== Onboarding Module =====
-// Handles: first-time user onboarding wizard
-
-function checkOnboarding() {
+function initOnboarding() {
   const seen = localStorage.getItem('jirito-onboarding');
   if (seen) return;
   const overlay = document.getElementById('onboarding-overlay');
@@ -34,3 +32,4 @@ function checkOnboarding() {
     localStorage.setItem('jirito-onboarding', 'true');
   });
 }
+

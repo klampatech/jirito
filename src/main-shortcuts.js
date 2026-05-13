@@ -1,46 +1,27 @@
 // ===== Keyboard Shortcuts Module =====
-// Handles: global keydown events, keyboard navigation
-
 function initShortcuts() {
+  // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
-    // Escape key: close any open overlay/panel
     if (e.key === 'Escape') {
       const panel = document.getElementById('detail-panel');
-      if (panel.classList.contains('open')) {
-        closeDetailPanel();
-        return;
-      }
+      if (panel.classList.contains('open')) { closeDetailPanel(); return; }
       const modal = document.getElementById('modal-overlay');
-      if (modal.style.display === 'flex') {
-        closeModal();
-        return;
-      }
+      if (modal.style.display === 'flex') { closeModal(); return; }
       const projectModal = document.getElementById('project-modal-overlay');
-      if (projectModal.style.display === 'flex') {
-        projectModal.style.display = 'none';
-        return;
-      }
+      if (projectModal.style.display === 'flex') { projectModal.style.display = 'none'; return; }
       const onboarding = document.getElementById('onboarding-overlay');
-      if (onboarding.style.display === 'flex') {
-        onboarding.style.display = 'none';
-        return;
-      }
+      if (onboarding.style.display === 'flex') { onboarding.style.display = 'none'; return; }
     }
-
-    // Ctrl/Cmd+K: focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       const searchInput = document.getElementById('search-input');
       if (searchInput) searchInput.focus();
     }
-
-    // Ctrl/Cmd+N: new issue
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
       openModal();
     }
-
-    // Ctrl/Cmd+Z: undo (no shift)
+    // Ctrl+Z / Cmd+Z for undo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
       if (currentUndoCallback) {
@@ -48,7 +29,6 @@ function initShortcuts() {
         removeUndoToast();
       }
     }
-
     // Arrow key navigation for cards
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.ctrlKey && !e.metaKey) {
       const active = document.activeElement;
@@ -70,3 +50,4 @@ function initShortcuts() {
     }
   });
 }
+

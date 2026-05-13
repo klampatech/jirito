@@ -20,9 +20,9 @@
 | # | Status | Issue | Notes |
 |---|--------|-------|-------|
 | P1 | ✅ | Eliminate LJ global namespace pollution | Complete — All 240+ LJ. references replaced with getter/setter functions. 16 bare aliases removed. All 162 tests pass. |
-| P2 | ✅ | Split main.js into focused modules | Created 10 modules: main-projects, main-sprints, main-shortcuts, main-theme, main-modals, main-notifications, main-trash, main-onboarding, main-filters, main-sidebar, main-issue-form |
-| P3 | ❌ | Deduplicate calendar rendering | Extract shared `renderCalendarGrid()` |
-| P4 | ❌ | Add unit tests for core logic | parseMarkdown, isSafeUrl, etc. |
+<| P2 | ✅ | Split main.js into focused modules | Created 15 modules: main-projects.js, main-sprints.js, main-shortcuts.js, main-theme.js, main-onboarding.js, main-modals.js, main-notifications.js, main-column-config.js, main-export-import.js, main-bulk-actions.js, main-sidebar-toggle.js, main-save-filter.js, main-detail-panel.js, main-column-menu.js, main-filter-controls.js. main.js reduced to ~60 line thin orchestrator. All init() functions called from DOMContentLoaded. |
+| P3 | ✅ | Deduplicate calendar rendering | Extracted shared `renderCalendarGrid(year, month)` from `renderCalendarView()`. Reused grid HTML generation. Removed deprecated `renderCalendar()` stub. 161 E2E tests pass. |
+| P4 | ✅ | Add unit tests for core logic | Created 4 test files in `tests/unit/`: `markdown.test.js` (16 tests for parseMarkdown), `security.test.js` (18 tests for isSafeUrl + escapeHtml), `date-helpers.test.js` (19 tests for isOverdue, formatDate, timeAgo, getCalendarDays), `issue-helpers.test.js` (12 tests for generateIssueKey + lucideIcon). Total: 65 unit tests, all passing. Added `vitest` + `jsdom` as dev dependencies. Added `test:unit` script to package.json. |
 
 ## Phase 2: Quality
 

@@ -56,8 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initIssueForm();
   initSidebar();
 
+
   // 4. Show onboarding on first load
-  checkOnboarding();
+checkOnboarding();
 
   // 5. Initialize calendar
   initCalendar();

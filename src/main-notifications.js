@@ -1,6 +1,4 @@
 // ===== Notification Dropdown Module =====
-// Handles: notification bell, overdue issues display
-
 function updateNotificationDropdown() {
   const body = document.getElementById('notification-dropdown-body');
   if (!body) return;
@@ -49,3 +47,4 @@ function initNotifications() {
     }
   });
 }
+
