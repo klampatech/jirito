@@ -53,6 +53,42 @@ function importData(file) {
         if (issue.id == null || issue.title == null || issue.status == null) {
           throw new Error('Imported issues must have id, title, and status fields');
         }
+        // Validate title length
+        if (typeof issue.title === 'string' && issue.title.length > LJ_CONSTANTS.MAX_TITLE_LENGTH) {
+          throw new Error(`Issue #${issue.id}: title exceeds ${LJ_CONSTANTS.MAX_TITLE_LENGTH} characters`);
+        }
+        // Validate status is allowed
+        if (!LJ_CONSTANTS.VALID_STATUSES.includes(issue.status)) {
+          throw new Error(`Issue #${issue.id}: invalid status "${issue.status}" (allowed: ${LJ_CONSTANTS.VALID_STATUSES.join(', ')})`);
+        }
+        // Validate type if present
+        if (issue.type != null && !LJ_CONSTANTS.VALID_ISSUE_TYPES.includes(issue.type)) {
+          throw new Error(`Issue #${issue.id}: invalid type "${issue.type}" (allowed: ${LJ_CONSTANTS.VALID_ISSUE_TYPES.join(', ')})`);
+        }
+        // Validate priority if present
+        if (issue.priority != null && !LJ_CONSTANTS.VALID_PRIORITIES.includes(issue.priority)) {
+          throw new Error(`Issue #${issue.id}: invalid priority "${issue.priority}" (allowed: ${LJ_CONSTANTS.VALID_PRIORITIES.join(', ')})`);
+        }
+        // Validate id is positive integer
+        if (typeof issue.id !== 'number' || issue.id < 1 || !Number.isInteger(issue.id)) {
+          throw new Error(`Issue #${issue.id}: id must be a positive integer`);
+        }
+        // Sanitize labels: ensure array of strings
+        if (issue.labels != null) {
+          if (!Array.isArray(issue.labels)) {
+            issue.labels = [issue.labels];
+          }
+          issue.labels = issue.labels.filter(l => typeof l === 'string' && l.trim());
+        }
+        // Sanitize assignee
+        if (issue.assignee != null && typeof issue.assignee !== 'string') {
+          issue.assignee = String(issue.assignee);
+        }
+        // Sanitize story points
+        if (issue.storyPoints != null) {
+          const sp = parseInt(issue.storyPoints);
+          issue.storyPoints = (Number.isInteger(sp) && sp >= 0 && sp <= 100) ? sp : null;
+        }
       }
       setIssues(data.issues);
       _comments = data.comments;
@@ -88,12 +124,19 @@ function importData(file) {
 }
 
 function createProject(name, key) {
+  // Sanitize project key: only allow alphanumeric, dash, underscore
+  const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase().slice(0, LJ_CONSTANTS.MAX_PROJECT_KEY_LENGTH);
+  if (!sanitizedKey) {
+    showToast('Project key must contain only letters, numbers, dashes, and underscores.', 'error');
+    return null;
+  }
   const icons = ['🚀', '🎯', '⚡', '🔥', '💡', '🌟', '🎨', '🔧'];
   const icon = icons[Math.floor(Math.random() * icons.length)];
-  getProjects()[key] = { name, icon, key: key.toUpperCase(), issues: [] };
+  getProjects()[sanitizedKey] = { name, icon, key: sanitizedKey, issues: [] };
   saveState();
-  switchProject(key);
+  switchProject(sanitizedKey);
   addActivity('Sparkles', `<strong>${escapeHtml(name)}</strong> project created`);
+  return sanitizedKey;
 }
 
 function deleteProject(key) {
