@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         i.priority = priority;
       }
     });
-    saveStateDebounced();
+    saveState();
     renderBoard();
     updateCounts();
     e.target.value = '';
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         i.assignee = assignee;
       }
     });
-    saveStateDebounced();
+    saveState();
     renderBoard();
     updateCounts();
     e.target.value = '';
@@ -490,6 +490,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('jirito-theme', next);
     themeToggle.innerHTML = next === 'dark' ? lucideIcon('Sun', {class:'icon'}) : lucideIcon('Moon', {class:'icon'});
+  });
+
+  // Ensure any pending debounced saves are flushed before page unload
+  window.addEventListener('beforeunload', () => {
+    saveStateImmediate();
   });
 });
 
