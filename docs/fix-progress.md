@@ -29,9 +29,9 @@
 | # | Status | Issue | Notes |
 |---|--------|-------|-------|
 | P5 | ❌ | Split events.js | detail-panel, drag-drop, toasts, bulk, filters |
-| P6 | ❌ | Fix saveState() debounce pattern | Debounce by default |
-| P7 | ❌ | Add input validation on import | Validate issue fields |
-| P8 | ❌ | Fix remaining CSS accessibility | contrast, aria-labels, dark-mode consolidation |
+| P6 | ✅ | Fix saveState() debounce pattern | Made saveState() debounced by default. Added saveStateImmediate(). Added beforeunload flush. |
+| P7 | ✅ | Add input validation on import | Validate title length, status/type/priority against allowed sets, positive int id, sanitize labels/assignee/storyPoints. Sanitize project key. |
+| P8 | ✅ (partial) | Fix remaining CSS accessibility | Contrast: --primary, --status-todo fixed light/dark. Added aria-label to checkboxes. Dark-mode consolidation remaining. |
 
 ## Phase 3: Performance
 
