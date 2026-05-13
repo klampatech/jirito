@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // 4. Show onboarding on first load
-checkOnboarding();
+initOnboarding();
 
   // 5. Initialize calendar
   initCalendar();
