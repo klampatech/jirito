@@ -20,7 +20,7 @@
 | # | Status | Issue | Notes |
 |---|--------|-------|-------|
 | P1 | ✅ | Eliminate LJ global namespace pollution | Complete — All 240+ LJ. references replaced with getter/setter functions. 16 bare aliases removed. All 162 tests pass. |
-| P2 | ❌ | Split main.js into focused modules | 300+ line god function |
+| P2 | ✅ | Split main.js into focused modules | Created 10 modules: main-projects, main-sprints, main-shortcuts, main-theme, main-modals, main-notifications, main-trash, main-onboarding, main-filters, main-sidebar, main-issue-form |
 | P3 | ❌ | Deduplicate calendar rendering | Extract shared `renderCalendarGrid()` |
 | P4 | ❌ | Add unit tests for core logic | parseMarkdown, isSafeUrl, etc. |
 

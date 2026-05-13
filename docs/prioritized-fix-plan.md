@@ -48,7 +48,7 @@ Within the same priority tier, smaller wins come before larger refactors.
 
 ### P2: Split main.js into focused modules ⭐ (Highest Impact)
 
-**Files:** `main.js` → `main-projects.js`, `main-sprints.js`, `main-shortcuts.js`, `main-theme.js`
+**Files:** `main.js` → `main-projects.js`, `main-sprints.js`, `main-shortcuts.js`, `main-theme.js`, `main-modals.js`, `main-notifications.js`, `main-trash.js`, `main-onboarding.js`, `main-filters.js`, `main-sidebar.js`, `main-issue-form.js`
 
 **Problem:** `main.js` is 300+ lines with 30+ event listeners, modal creation, project creation, sprint forms, column config, keyboard shortcuts, notification dropdowns, and theme toggling.
 
