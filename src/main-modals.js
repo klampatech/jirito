@@ -45,7 +45,7 @@ function initModals() {
       history: [],
     };
     getIssues().push(newIssue);
-    saveState();
+    saveStateImmediate();
     renderBoard();
     closeModal();
     addActivity('PlusCircle', `Created <strong>${generateIssueKey(getProjectKey(), newIssue.id)}</strong>`);
@@ -54,7 +54,7 @@ function initModals() {
       if (idx !== -1) {
         getIssues().splice(idx, 1);
         delete getComments()[newIssue.id];
-        saveState();
+        saveStateImmediate();
         renderBoard();
         updateCounts();
         renderTrash();
