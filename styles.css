@@ -581,6 +581,15 @@ body {
 .column-body.drag-over {
   background: var(--border-light); border-radius: 6px;
 }
+
+/* Custom drag ghost styling */
+.issue-card.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 24px var(--shadow);
+  z-index: 100;
+  transition: none;
+}
 .column-footer { padding: 4px 8px 8px; }
 .btn-add-card {
   width: 100%; text-align: left; background: var(--bg-card);
@@ -609,6 +618,21 @@ body {
 [data-theme="dark"] .issue-card[data-type="epic"] { border-left-color: #D49B00; }
 .issue-card:hover { box-shadow: 0 2px 8px var(--shadow); }
 .issue-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+
+/* Drop indicator — thin line showing where card will land */
+.drop-indicator {
+  height: 3px;
+  background: var(--primary);
+  border-radius: 2px;
+  margin: 2px 0;
+  transition: all 0.1s ease;
+  animation: indicatorPulse 0.6s ease infinite;
+}
+
+@keyframes indicatorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
 .issue-card-header {
   display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
 }
@@ -965,6 +989,12 @@ body {
 /* Column body drag-over in dark mode */
 [data-theme="dark"] .column-body.drag-over {
   background: var(--hover-bg);
+}
+
+/* Drop indicator in dark mode */
+[data-theme="dark"] .drop-indicator {
+  background: var(--primary);
+  box-shadow: 0 0 4px rgba(var(--primary-rgb, 219, 140, 97), 0.4);
 }
 
 /* Filter select dropdown in dark mode */
