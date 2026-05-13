@@ -4,6 +4,72 @@
 const HISTORY_MAX_ENTRIES = LJ_CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = LJ_CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
 
+// ===== Drag & Drop State =====
+let draggedId = null;
+let draggedCard = null;
+let draggedSource = null;   // { columnId, index }
+let draggedTarget = null;   // { columnId, index, edge }
+
+// ===== Drag & Drop Helpers =====
+
+function getClosestEdge(mouseY, rect) {
+  const midpoint = rect.top + rect.height / 2;
+  return mouseY < midpoint ? 'top' : 'bottom';
+}
+
+function getDestinationIndex({ sourceIndex, indexOfTarget, closestEdge, totalCards }) {
+  // If source and target are the same column and same card,
+  // the user is hovering near the card itself — skip reordering
+  if (sourceIndex === indexOfTarget) return -1;
+  
+  // If edge is 'bottom', the indicator is after this card
+  if (closestEdge === 'bottom') {
+    return indexOfTarget + 1;
+  }
+  
+  // Edge is 'top' — the indicator is before this card
+  return indexOfTarget;
+}
+
+function insertDropIndicator(col, targetCard, edge) {
+  // Remove existing indicators
+  col.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+  
+  const indicator = document.createElement('div');
+  indicator.className = 'drop-indicator';
+  
+  if (!targetCard) {
+    // Empty column or past last card — append
+    col.appendChild(indicator);
+    return;
+  }
+  
+  if (edge === 'top') {
+    col.insertBefore(indicator, targetCard);
+  } else {
+    // Insert after targetCard
+    const next = targetCard.nextElementSibling;
+    if (next) {
+      col.insertBefore(indicator, next);
+    } else {
+      col.appendChild(indicator);
+    }
+  }
+}
+
+function removeDropIndicators() {
+  document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+}
+
+function getCardPosition(cardEl) {
+  const col = cardEl.closest('.column-body');
+  const cards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
+  return {
+    columnId: col.dataset.colId,
+    index: cards.findIndex(c => c === cardEl)
+  };
+}
+
 // ===== Detail Panel =====
 let _detailChangeHandler = null;
 let _detailCommentClickHandler = null;
@@ -659,6 +725,7 @@ function cloneIssue(issueId) {
   });
 }
 
+
 // ===== Drag & Drop =====
 function initDragDrop() {
   // Remove existing listeners by cloning column-bodies
@@ -695,173 +762,140 @@ function initDragDrop() {
   });
   // Re-attach drag events via event delegation on column-body
   document.querySelectorAll('.column-body').forEach(col => {
-    let draggedId = null;
-    let draggedCard = null;
+    // Phase 1: Drag Start
     col.addEventListener('dragstart', e => {
       const card = e.target.closest('.issue-card');
       if (!card) return;
+      
       draggedId = card.dataset.id;
       draggedCard = card;
+      
+      // Phase 1: Mark as dragging
       card.classList.add('dragging');
+      
+      // Phase 1: Store source position
+      const pos = getCardPosition(card);
+      draggedSource = pos;
+      
+      // Phase 1: Create custom drag image (card preview under cursor)
+      const rect = card.getBoundingClientRect();
+      e.dataTransfer.setDragImage(card, e.clientX - rect.left, e.clientY - rect.top);
+      
+      // Phase 1: Set drag data
       e.dataTransfer.setData('text/plain', String(card.dataset.id));
       e.dataTransfer.effectAllowed = 'move';
     });
-    col.addEventListener('dragend', e => {
-      const card = e.target.closest('.issue-card');
-      if (card) card.classList.remove('dragging');
-      col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-      col.classList.remove('drag-over');
-      draggedId = null;
-      draggedCard = null;
-    });
-  });
-  document.querySelectorAll('.column-body').forEach(col => {
+    
+    // Phase 2: Drag Over
     col.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       col.classList.add('drag-over');
-      // Remove previous indicator
-      col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-      // Find the nearest card based on mouse Y position for the entire column-body
+      
+      // Find which card we're over and where the indicator should go
       const cards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
       let targetCard = null;
-      let insertBefore = false;
-      const colRect = col.getBoundingClientRect();
-      const mouseY = e.clientY - colRect.top + col.scrollTop;
-
-      for (let i = 0; i < cards.length; i++) {
-        const cardRect = cards[i].getBoundingClientRect();
-        const cardTop = cardRect.top - colRect.top + col.scrollTop;
-        const cardMid = cardTop + cardRect.height / 2;
-        if (mouseY < cardMid) {
-          targetCard = cards[i];
-          insertBefore = true;
+      let closestEdge = null;
+      
+      for (const card of cards) {
+        const rect = card.getBoundingClientRect();
+        const edge = getClosestEdge(e.clientY, rect);
+        // If over top half → insert before this card (break here)
+        // If over bottom half → continue to next card (indicator goes after this one)
+        if (edge === 'top') {
+          targetCard = card;
+          closestEdge = edge;
           break;
         }
       }
-
+      
       if (targetCard) {
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.cssText = 'height:3px;background:var(--primary);border-radius:2px;margin:2px 0;';
-        const cardRect = targetCard.getBoundingClientRect();
-        const topPos = cardRect.top - colRect.top + col.scrollTop - 1.5;
-        indicator.style.top = topPos + 'px';
-        indicator.style.left = '8px';
-        indicator.style.right = '8px';
-        indicator.style.position = 'absolute';
-        indicator.style.zIndex = '10';
-        col.style.position = 'relative';
-        col.appendChild(indicator);
+        insertDropIndicator(col, targetCard, closestEdge);
+        draggedTarget = { columnId: col.dataset.colId, index: cards.indexOf(targetCard), edge: closestEdge };
+      } else if (cards.length > 0) {
+        // Past the last card — drop at bottom
+        insertDropIndicator(col, cards[cards.length - 1], 'bottom');
+        draggedTarget = { columnId: col.dataset.colId, index: cards.length, edge: 'bottom' };
       } else {
-        // No card found — drop at bottom
+        // Empty column — use column body rect to determine position
+        const colRect = col.getBoundingClientRect();
+        const colMidpoint = colRect.top + colRect.height / 2;
+        const edge = e.clientY < colMidpoint ? 'top' : 'bottom';
+        draggedTarget = { columnId: col.dataset.colId, index: 0, edge };
+        // Show indicator at the appropriate position in the empty column
+        col.querySelectorAll('.drop-indicator').forEach(el => el.remove());
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
-        indicator.style.cssText = 'height:3px;background:var(--primary);border-radius:2px;margin:2px 0;';
-        // Position at bottom of all cards
-        if (cards.length > 0) {
-          const lastCard = cards[cards.length - 1];
-          const lastRect = lastCard.getBoundingClientRect();
-          const bottomPos = lastRect.bottom - colRect.top + col.scrollTop - 1.5;
-          indicator.style.top = bottomPos + 'px';
+        if (edge === 'top') {
+          col.prepend(indicator);
         } else {
-          indicator.style.top = '0px';
+          col.appendChild(indicator);
         }
-        indicator.style.left = '8px';
-        indicator.style.right = '8px';
-        indicator.style.position = 'absolute';
-        indicator.style.zIndex = '10';
-        col.style.position = 'relative';
-        col.appendChild(indicator);
       }
     });
+    
     col.addEventListener('dragleave', e => {
-      if (!col.contains(e.relatedTarget)) {
+      // Only remove if the mouse actually left the column
+      // (not just moving between child elements)
+      const rect = col.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right ||
+          e.clientY < rect.top || e.clientY > rect.bottom) {
         col.classList.remove('drag-over');
-        col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+        removeDropIndicators();
       }
     });
-    col.addEventListener('dragend', e => {
-      col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-    });
+    
+    // Phase 3: Drop
     col.addEventListener('drop', e => {
       e.preventDefault();
       col.classList.remove('drag-over');
-      col.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+      removeDropIndicators();
+      
       const id = parseInt(e.dataTransfer.getData('text/plain'));
       const issue = getIssues().find(i => i.id === id);
       if (!issue) return;
-
+      
       const colId = col.dataset.colId;
       const colDef = getEffectiveColumns().find(c => c.id === colId);
       const newStatus = colDef?.status || col.dataset.status;
       const oldStatus = issue.status;
-
-      // Check if dropped in same column (reorder) or different column (move)
       const sameColumn = colDef && colDef.status && issue.status === newStatus;
-
-      // Find target card and insert position using mouse Y position (like Jira)
-      const cards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
-      const colRect = col.getBoundingClientRect();
-      const mouseY = e.clientY - colRect.top + col.scrollTop;
-      let targetIssue = null;
-      let insertBefore = false;
-
-      for (let i = 0; i < cards.length; i++) {
-        const cardRect = cards[i].getBoundingClientRect();
-        const cardTop = cardRect.top - colRect.top + col.scrollTop;
-        const cardMid = cardTop + cardRect.height / 2;
-        if (mouseY < cardMid) {
-          const tid = parseInt(cards[i].dataset.id);
-          targetIssue = getIssues().find(i => i.id === tid);
-          insertBefore = true;
-          break;
+      
+      // Calculate destination index from the visual indicator position
+      const targetCards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
+      let finalIndex;
+      if (draggedTarget?.edge === 'bottom' && draggedTarget?.index === 0 && targetCards.length === 0) {
+        // Empty column — insert at index 0
+        finalIndex = 0;
+      } else {
+        finalIndex = draggedTarget?.index ?? 0;
+        if (draggedTarget?.edge === 'bottom') {
+          finalIndex = draggedTarget.index + 1;
         }
       }
-
+      
       if (sameColumn) {
-        // Reorder within same column
-        const oldRank = issue.rank;
-        if (targetIssue && targetIssue.id !== issue.id) {
-          // Find ranks of cards before and after the target
-          const targetIdx = cards.findIndex(c => parseInt(c.dataset.id) === targetIssue.id);
-          const beforeCard = [...cards].slice(0, targetIdx + (insertBefore ? 0 : 1))
-            .reverse().find(c => parseInt(c.dataset.id) !== issue.id);
-          const afterCard = [...cards].slice(targetIdx + (insertBefore ? 1 : 0))
-            .find(c => parseInt(c.dataset.id) !== issue.id);
-
-          const beforeIssueData = beforeCard ? getIssues().find(i => i.id === parseInt(beforeCard.dataset.id)) : null;
-          const afterIssueData = afterCard ? getIssues().find(i => i.id === parseInt(afterCard.dataset.id)) : null;
-          const beforeRank = beforeIssueData?.rank ?? -1;
-          const afterRank = afterIssueData?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
-
-          // Use midpoint for smooth insertion (floating point ranks)
-          // Ensure the new rank is strictly between beforeRank and afterRank
-          if (beforeRank < 0) {
-            // No before card — insert before the first card
-            // Use target card's rank as the upper bound
-            const targetRank = targetIssue.rank;
-            if (targetRank <= 0) {
-              issue.rank = targetRank - 1;
-            } else {
-              issue.rank = targetRank / 2;
-            }
-          } else if (afterRank < 0) {
-            // No after card — insert after the last card
-            issue.rank = beforeRank + 1;
-          } else {
-            issue.rank = (beforeRank + afterRank) / 2;
-          }
-        } else {
-          // Dropping in empty area or on self — append to bottom
-          const maxRank = getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1);
-          issue.rank = maxRank + 1;
-        }
+        // Reorder within same column — use floating-point rank for smooth insertion
+        const beforeCards = [...col.querySelectorAll('.issue-card:not(.dragging)')].slice(0, finalIndex);
+        const afterCards = [...col.querySelectorAll('.issue-card:not(.dragging)')].slice(finalIndex);
+        
+        const beforeIssue = beforeCards.length > 0 
+          ? getIssues().find(i => i.id === parseInt(beforeCards[beforeCards.length - 1].dataset.id)) 
+          : null;
+        const afterIssue = afterCards.length > 0 
+          ? getIssues().find(i => i.id === parseInt(afterCards[0].dataset.id)) 
+          : null;
+        
+        const beforeRank = beforeIssue?.rank ?? -1;
+        const afterRank = afterIssue?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
+        
+        issue.rank = (beforeRank + afterRank) / 2;
+        
         saveState();
         renderBoard();
         updateCounts();
         showUndoToast('Card reordered', () => {
-          issue.rank = oldRank;
+          issue.rank = beforeIssue?.rank ?? afterIssue?.rank ?? 0;
           saveState();
           renderBoard();
           updateCounts();
@@ -869,34 +903,35 @@ function initDragDrop() {
           showToast('Reorder undone', 'success');
         });
       } else {
-        // Move to different column
-        const oldRank = issue.rank;
-        if (targetIssue && targetIssue.status === newStatus) {
-          const beforeCards = [...cards].slice(0, cards.indexOf(targetIssue) + (insertBefore ? 0 : 1))
-            .filter(c => parseInt(c.dataset.id) !== issue.id);
-          const afterCards = [...cards].slice(cards.indexOf(targetIssue) + (insertBefore ? 1 : 0))
-            .filter(c => parseInt(c.dataset.id) !== issue.id);
-
-          const beforeIssue = beforeCards.length > 0 ? getIssues().find(i => i.id === parseInt(beforeCards[beforeCards.length - 1].dataset.id)) : null;
-          const afterIssue = afterCards.length > 0 ? getIssues().find(i => i.id === parseInt(afterCards[0].dataset.id)) : null;
-
+        // Move to different column — insert at finalIndex position
+        const targetIssues = getIssues().filter(i => i.status === newStatus);
+        const targetCount = targetIssues.length;
+        
+        if (finalIndex >= targetCount) {
+          // Dropping past the last card — append
+          const maxRank = targetCount > 0
+            ? Math.max(...targetIssues.map(i => i.rank ?? 0))
+            : -1;
+          issue.rank = maxRank >= 0 ? maxRank + 1 : 1;
+        } else {
+          // Insert at the target position using floating-point rank
+          const beforeIssue = finalIndex > 0 ? targetIssues[finalIndex - 1] : null;
+          const afterIssue = targetIssues[finalIndex] ?? null;
+          
           const beforeRank = beforeIssue?.rank ?? -1;
           const afterRank = afterIssue?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
-
           issue.rank = (beforeRank + afterRank) / 2;
-        } else {
-          const maxRank = getIssues().filter(i => i.status === newStatus).reduce((max, i) => Math.max(max, i.rank ?? 0), -1);
-          issue.rank = maxRank + 1;
         }
+        
         issue.status = newStatus;
         trackHistory(issue, 'status', oldStatus, newStatus);
+        
         saveState();
         renderBoard();
         updateCounts();
         const statusLabels = { todo: 'To Do', inprogress: 'In Progress', review: 'In Review', done: 'Done' };
         showUndoToast(`Moved to ${statusLabels[newStatus]}`, () => {
           issue.status = oldStatus;
-          issue.rank = oldRank;
           saveState();
           renderBoard();
           updateCounts();
@@ -904,6 +939,22 @@ function initDragDrop() {
           showToast('Status restored', 'success');
         });
       }
+      
+      // Cleanup
+      draggedSource = null;
+      draggedTarget = null;
+    });
+    
+    // Cleanup on drag end
+    col.addEventListener('dragend', e => {
+      const card = e.target.closest('.issue-card');
+      if (card) card.classList.remove('dragging');
+      removeDropIndicators();
+      col.classList.remove('drag-over');
+      draggedId = null;
+      draggedCard = null;
+      draggedSource = null;
+      draggedTarget = null;
     });
   });
 }

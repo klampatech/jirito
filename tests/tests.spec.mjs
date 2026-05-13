@@ -281,24 +281,55 @@ test('dragging a card to bottom of column appends to bottom', async ({ page }) =
   const firstCard = todoCards.first();
   const lastCard = todoCards.last();
 
-  // Get initial title of first card
+  // Get initial titles
   const firstTitle = await firstCard.locator('.issue-title').textContent();
 
-  // Drag first card to the bottom of the last card
-  const sourceBox = await firstCard.boundingBox();
-  const targetBox = await lastCard.boundingBox();
-  if (!sourceBox || !targetBox) return;
+  // Use simulated drag-drop to drop after the last card
+  const result = await page.evaluate(({ firstId, firstTitle }) => {
+    const col = document.querySelector('[data-status="todo"] .column-body');
+    const cards = Array.from(col.querySelectorAll('.issue-card'));
+    if (cards.length < 2) return { error: 'not enough cards' };
 
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height);
-  await page.waitForTimeout(300);
-  await page.mouse.up();
-  await page.waitForTimeout(300);
+    const firstCard = cards[0];
+
+    // Simulate dragstart
+    const dt = new DataTransfer();
+    dt.setData('text/plain', firstCard.dataset.id);
+    const dragStart = new DragEvent('dragstart', {
+      bubbles: true, cancelable: true,
+      clientX: 100, clientY: 100, dataTransfer: dt
+    });
+    firstCard.dispatchEvent(dragStart);
+
+    // Simulate dragover below the last card (past it)
+    const lastCard = cards[cards.length - 1];
+    const lastRect = lastCard.getBoundingClientRect();
+
+    const dragOver = new DragEvent('dragover', {
+      bubbles: true, cancelable: true,
+      clientX: lastRect.left + lastRect.width / 2,
+      clientY: lastRect.bottom + 20, // below the last card
+      dataTransfer: dt
+    });
+    col.dispatchEvent(dragOver);
+
+    // Simulate drop
+    const drop = new DragEvent('drop', {
+      bubbles: true, cancelable: true,
+      clientX: lastRect.left + lastRect.width / 2,
+      clientY: lastRect.bottom + 20,
+      dataTransfer: dt
+    });
+    col.dispatchEvent(drop);
+
+    // Read result immediately (renderBoard is synchronous)
+    const newCards = col.querySelectorAll('.issue-card');
+    const titles = Array.from(newCards).map(c => c.querySelector('.issue-title')?.textContent);
+    return { titles, count: newCards.length, draggedId: firstId };
+  }, { firstId: await firstCard.evaluate(el => el.dataset.id), firstTitle });
 
   // The dragged card should now be last
-  const newLastCard = page.locator('[data-status="todo"] .issue-card').last();
-  await expect(newLastCard.locator('.issue-title')).toContainText(firstTitle);
+  expect(result.titles[result.titles.length - 1], `Expected last card to be "${firstTitle}" but got "${result.titles[result.titles.length - 1]}". All titles: [${result.titles.join(', ')}].`).toBe(firstTitle);
 });
 
 test('dragging a card between columns updates column counts', async ({ page }) => {
@@ -419,6 +450,46 @@ test('drop indicator is visible during drag', async ({ page }) => {
 
   expect(indicatorVisible.indicatorVisible).toBe(true);
   expect(indicatorVisible.hasDragOverClass).toBe(true);
+});
+
+test('drop indicator appears in empty column at top position', async ({ page }) => {
+  const card = page.locator('[data-status="todo"] .issue-card').first();
+
+  const result = await page.evaluate(() => {
+    return new Promise(resolve => {
+      const todoCol = document.querySelector('[data-status="todo"] .column-body');
+      const firstCard = todoCol.querySelector('.issue-card');
+      const targetCol = document.querySelector('[data-status="inprogress"] .column-body');
+
+      // Simulate dragstart
+      const dt = new DataTransfer();
+      dt.setData('text/plain', firstCard.dataset.id);
+      const dragStart = new DragEvent('dragstart', {
+        bubbles: true, cancelable: true,
+        clientX: 100, clientY: 100, dataTransfer: dt
+      });
+      firstCard.dispatchEvent(dragStart);
+
+      // Simulate dragover at the top of the target column
+      const colRect = targetCol.getBoundingClientRect();
+      const dragOver = new DragEvent('dragover', {
+        bubbles: true, cancelable: true,
+        clientX: colRect.left + colRect.width / 2,
+        clientY: colRect.top + 10, // near top
+        dataTransfer: dt
+      });
+      targetCol.dispatchEvent(dragOver);
+
+      const indicator = targetCol.querySelector('.drop-indicator');
+      resolve({
+        hasIndicator: !!indicator,
+        hasDragOverClass: targetCol.classList.contains('drag-over')
+      });
+    });
+  });
+
+  expect(result.hasIndicator).toBe(true);
+  expect(result.hasDragOverClass).toBe(true);
 });
 
 test('dragging a card updates its rank property', async ({ page }) => {
