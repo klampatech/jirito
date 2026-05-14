@@ -125,7 +125,7 @@ function createCard(issue) {
 
   card.innerHTML = `
     <div class="issue-card-header">
-      <input type="checkbox" class="issue-checkbox" data-id="${issue.id}" onclick="event.stopPropagation()">
+      <input type="checkbox" class="issue-checkbox" data-id="${issue.id}" onclick="event.stopPropagation()" aria-label="Select issue ${key}">
       <span class="issue-key">${key}</span>
       <span class="issue-type-icon">${lucideIcon(typeIcons[issue.type] || 'File', {class:'icon'})}</span>
       ${depIndicators ? `<span class="issue-dep-indicators">${depIndicators}</span>` : ''}

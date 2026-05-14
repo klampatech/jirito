@@ -121,7 +121,24 @@ function loadState() {
   }
 }
 
+// Internal debounce timer
+let _saveStateTimer = null;
+
+// saveState — debounced by default (300ms).
+// Batches rapid successive calls into a single localStorage write.
+// Call saveStateImmediate() when you need guaranteed persistence right away.
 function saveState() {
+  if (_saveStateTimer) {
+    clearTimeout(_saveStateTimer);
+  }
+  _saveStateTimer = setTimeout(() => {
+    _doSaveState();
+    _saveStateTimer = null;
+  }, LJ_CONSTANTS.SAVE_STATE_DEBOUNCE_MS);
+}
+
+// Internal: performs the actual localStorage writes (never call directly).
+function _doSaveState() {
   localStorage.setItem('jirito-issues', JSON.stringify(_issues));
   localStorage.setItem('jirito-comments', JSON.stringify(_comments));
   localStorage.setItem('jirito-projects', JSON.stringify(_projects));
@@ -132,26 +149,16 @@ function saveState() {
   localStorage.setItem('jirito-sprints', JSON.stringify(_sprints));
 }
 
-// Debounced save: batches multiple rapid saveState() calls into one localStorage write.
-// Used for bulk operations to avoid blocking the main thread.
-let _saveStateTimer = null;
-function saveStateDebounced() {
-  if (_saveStateTimer) {
-    clearTimeout(_saveStateTimer);
-  }
-  _saveStateTimer = setTimeout(() => {
-    saveState();
-    _saveStateTimer = null;
-  }, LJ_CONSTANTS.SAVE_STATE_DEBOUNCE_MS);
-}
-
-// Force immediate save (no debounce) — use for critical single operations
+// Force immediate save (no debounce) — use for critical operations:
+// - before page unload
+// - after user-triggered export
+// - after the last operation in a batch where undo must work
 function saveStateImmediate() {
   if (_saveStateTimer) {
     clearTimeout(_saveStateTimer);
     _saveStateTimer = null;
   }
-  saveState();
+  _doSaveState();
 }
 
 // ===== Trash =====

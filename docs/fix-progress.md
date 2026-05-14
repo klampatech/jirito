@@ -20,18 +20,18 @@
 | # | Status | Issue | Notes |
 |---|--------|-------|-------|
 | P1 | ✅ | Eliminate LJ global namespace pollution | Complete — All 240+ LJ. references replaced with getter/setter functions. 16 bare aliases removed. All 162 tests pass. |
-| P2 | ✅ | Split main.js into focused modules | Created 15 modules: main-projects.js, main-sprints.js, main-shortcuts.js, main-theme.js, main-onboarding.js, main-modals.js, main-notifications.js, main-column-config.js, main-export-import.js, main-bulk-actions.js, main-sidebar-toggle.js, main-save-filter.js, main-detail-panel.js, main-column-menu.js, main-filter-controls.js. main.js reduced to ~60 line thin orchestrator. All init() functions called from DOMContentLoaded. |
-| P3 | ✅ | Deduplicate calendar rendering | Extracted shared `renderCalendarGrid(year, month)` from `renderCalendarView()`. Reused grid HTML generation. Removed deprecated `renderCalendar()` stub. 161 E2E tests pass.
-| P4 | ✅ | Add unit tests for core logic | Created 4 test files in `tests/unit/`: `markdown.test.js` (16 tests for parseMarkdown), `security.test.js` (18 tests for isSafeUrl + escapeHtml), `date-helpers.test.js` (19 tests for isOverdue, formatDate, timeAgo, getCalendarDays), `issue-helpers.test.js` (12 tests for generateIssueKey + lucideIcon). Total: 65 unit tests, all passing. Added `vitest` + `jsdom` as dev dependencies. Added `test:unit` script to package.json.
+<| P2 | ✅ | Split main.js into focused modules | Created 15 modules: main-projects.js, main-sprints.js, main-shortcuts.js, main-theme.js, main-onboarding.js, main-modals.js, main-notifications.js, main-column-config.js, main-export-import.js, main-bulk-actions.js, main-sidebar-toggle.js, main-save-filter.js, main-detail-panel.js, main-column-menu.js, main-filter-controls.js. main.js reduced to ~60 line thin orchestrator. All init() functions called from DOMContentLoaded. |
+| P3 | ✅ | Deduplicate calendar rendering | Extracted shared `renderCalendarGrid(year, month)` from `renderCalendarView()`. Reused grid HTML generation. Removed deprecated `renderCalendar()` stub. 161 E2E tests pass. |
+| P4 | ✅ | Add unit tests for core logic | Created 4 test files in `tests/unit/`: `markdown.test.js` (16 tests for parseMarkdown), `security.test.js` (18 tests for isSafeUrl + escapeHtml), `date-helpers.test.js` (19 tests for isOverdue, formatDate, timeAgo, getCalendarDays), `issue-helpers.test.js` (12 tests for generateIssueKey + lucideIcon). Total: 65 unit tests, all passing. Added `vitest` + `jsdom` as dev dependencies. Added `test:unit` script to package.json. |
 
 ## Phase 2: Quality
 
 | # | Status | Issue | Notes |
 |---|--------|-------|-------|
 | P5 | ❌ | Split events.js | detail-panel, drag-drop, toasts, bulk, filters |
-| P6 | ❌ | Fix saveState() debounce pattern | Debounce by default |
-| P7 | ❌ | Add input validation on import | Validate issue fields |
-| P8 | ❌ | Fix remaining CSS accessibility | contrast, aria-labels, dark-mode consolidation |
+| P6 | ✅ | Fix saveState() debounce pattern | Made saveState() debounced by default. Added saveStateImmediate(). Added beforeunload flush. |
+| P7 | ✅ | Add input validation on import | Validate title length, status/type/priority against allowed sets, positive int id, sanitize labels/assignee/storyPoints. Sanitize project key. |
+| P8 | ✅ (partial) | Fix remaining CSS accessibility | Contrast: --primary, --status-todo fixed light/dark. Added aria-label to checkboxes. Dark-mode consolidation remaining. |
 
 ## Phase 3: Performance
 

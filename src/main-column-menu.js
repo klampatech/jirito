@@ -65,13 +65,13 @@ function initColumnMenuButtons() {
             if (confirm(`Delete all ${count} cards in this column?`)) {
               const clearedIssues = getIssues().filter(i => i.status === status);
               setIssues(getIssues().filter(i => i.status !== status));
-              saveState();
+              saveStateImmediate();
               renderBoard();
               updateCounts();
               addActivity('Trash', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
               showUndoToast(`${count} cards cleared`, () => {
                 clearedIssues.forEach(i => getIssues().push(i));
-                saveState();
+                saveStateImmediate();
                 renderBoard();
                 updateCounts();
                 removeUndoToast();

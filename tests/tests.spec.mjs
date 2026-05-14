@@ -16,8 +16,15 @@ async function clearStorage(page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await clearStorage(page);
+  // Navigate to fresh page for each test
   await page.goto('file://' + indexPath);
+  // Force reset to initial state - clear localStorage and reload
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  // Reload to start fresh with cleared storage
+  await page.reload({ waitUntil: 'load' });
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {
