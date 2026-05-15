@@ -131,7 +131,7 @@ function createCard(issue) {
     ${labelsHtml}
     ${sprintBadge ? `<div class="issue-sprint-row">${sprintBadge}</div>` : ''}
     <div class="issue-title">${escapeHtml(issue.title)}</div>
-    ${issue.desc ? `<div class="issue-desc">${escapeHtml(issue.desc)}</div>` : ''}
+    ${issue.desc ? `<div class="issue-desc">${truncateDesc(issue.desc, 120)}</div>` : ''}
     <div class="issue-card-footer">
       <span class="issue-priority priority-${escapeHtml(issue.priority)}">${escapeHtml(issue.priority)}</span>
       ${issue.storyPoints ? `<span class="issue-sp-badge" title="Story Points">${lucideIcon('Target', {class:'icon-sm'})} ${issue.storyPoints}</span>` : ''}

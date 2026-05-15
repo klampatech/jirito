@@ -119,8 +119,8 @@ function openDetailPanel(issueId) {
         }).join('')}
         ${(!issue.dependencies || issue.dependencies.length === 0) ? '<span class="history-empty">No dependencies</span>' : ''}
       </div>
+      <input type="text" id="dep-search" placeholder="Search issues (e.g. PROJ-101)...">
       <div class="dep-add-row">
-        <input type="text" id="dep-search" placeholder="Search issues (e.g. PROJ-101)...">
         <select id="dep-type">
           <option value="relates-to">Relates to</option>
           <option value="blocks">Blocks</option>
@@ -146,14 +146,22 @@ function openDetailPanel(issueId) {
           </div>
         `).join('')}
       </div>
-      <div class="comment-form">
-        <textarea id="comment-input" class="comment-textarea" placeholder="Add a comment... (supports Markdown)" rows="2"></textarea>
-        <div class="comment-form-toolbar">
+      <div class="markdown-editor">
+        <div class="markdown-editor-toolbar">
+          <button class="btn btn-sm btn-format" data-format="bold" title="Bold (Ctrl+B)"><strong>B</strong></button>
+          <button class="btn btn-sm btn-format" data-format="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+          <button class="btn btn-sm btn-format" data-format="link" title="Insert link">🔗</button>
+          <button class="btn btn-sm btn-format" data-format="code" title="Inline code">&lt;&gt;</button>
+          <button class="btn btn-sm btn-format" data-format="codeblock" title="Code block">▤</button>
           <button class="btn btn-sm btn-markdown-toggle" data-target="comment-input" data-issue-id="${issue.id}" title="Toggle markdown preview">
             ${lucideIcon('Eye', {class:'icon-sm'})} Preview
           </button>
+          <button class="btn btn-sm btn-markdown-help" title="Markdown syntax help">
+            ${lucideIcon('Question', {class:'icon-sm'})}
+          </button>
         </div>
-        <div id="comment-input-preview" class="markdown-preview comment-preview" style="display:none;"></div>
+        <textarea id="comment-input" class="markdown-textarea" placeholder="Add a comment... (supports Markdown)"></textarea>
+        <div id="comment-input-preview" class="markdown-preview" style="display:none;"></div>
         <button class="btn btn-primary btn-sm" id="comment-submit">Add</button>
       </div>
     </div>
@@ -962,6 +970,10 @@ function applyFilters() {
     filtered.forEach(issue => colBody.appendChild(createCard(issue)));
   });
   updateCounts();
+  // Also update list view when filters change
+  if (getCurrentView() === 'list') {
+    renderListView();
+  }
 }
 
 // ===== Toast Notifications =====
