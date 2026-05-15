@@ -1079,9 +1079,13 @@ test('sprint can be activated from the manage modal', async ({ page }) => {
   // Click the button that says "Activate" (not "Active")
   const activateBtn = page.locator('.sprint-activate-btn').filter({ hasText: 'Activate' }).first();
   await activateBtn.click();
-  // After activation, re-query the button — the DOM was re-rendered
-  await expect(page.locator('.sprint-activate-btn').first()).not.toContainText('Activate');
-  await expect(page.locator('.sprint-activate-btn').first()).toContainText('Active');
+  // Wait for re-render and verify Active button exists (wait for the modal to be updated)
+  await page.waitForFunction(() => {
+    const buttons = Array.from(document.querySelectorAll('.sprint-activate-btn'));
+    return buttons.some(btn => btn.textContent === 'Active');
+  }, { timeout: 5000 });
+  // Verify the activated sprint shows "Active"
+  await expect(page.locator('.sprint-activate-btn').filter({ hasText: 'Active' })).toHaveCount(1);
 });
 
 // ===== Dependency Search Tests =====
