@@ -114,6 +114,13 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function truncateDesc(str, maxChars) {
+  if (!str && str !== 0) return '';
+  const plain = String(str);
+  if (plain.length <= maxChars) return escapeHtml(plain);
+  return escapeHtml(plain.slice(0, maxChars)) + '…';
+}
+
 function isOverdue(dueDate, status) {
   if (!dueDate || status === 'done') return false;
   return new Date(dueDate) < new Date(new Date().toDateString());

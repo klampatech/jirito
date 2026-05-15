@@ -328,9 +328,10 @@ body {
 .dep-add-row {
   display: flex; gap: 6px; margin-top: 8px; align-items: center;
 }
-.dep-add-row input {
-  flex: 1; padding: 6px 10px; border: 1px solid var(--border);
-  border-radius: 4px; font-size: 13px; min-width: 0;
+#dep-search {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 4px; font-size: 13px;
+  margin-top: 8px;
 }
 .dep-add-row select {
   padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px;
@@ -604,6 +605,7 @@ body {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
   padding: 8px 12px; margin-bottom: 8px; cursor: grab;
   box-shadow: 0 1px 2px var(--shadow);
+  max-width: 280px;
   transition: box-shadow 0.15s, transform 0.15s, background 0.3s, border-color 0.3s;
 }
 /* Type-based left border accent (warm palette) */
@@ -721,19 +723,19 @@ body {
   margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px;
 }
 .detail-field .value { font-size: 14px; color: var(--text); }
-.detail-field textarea,
+.detail-field textarea:not(.markdown-textarea),
 .detail-field input,
 .detail-field select {
   width: 100%; padding: 8px 12px; border: 1px solid var(--border);
   border-radius: 6px; font-size: 14px; font-family: inherit;
   background: var(--bg-page);
 }
-.detail-field textarea:focus,
+.detail-field textarea:not(.markdown-textarea):focus,
 .detail-field input:focus,
 .detail-field select:focus {
   outline: none; border-color: var(--primary); background: var(--bg-card);
 }
-.detail-field textarea { min-height: 80px; resize: vertical; }
+.detail-field textarea:not(.markdown-textarea) { min-height: 80px; resize: vertical; }
 .detail-status-bar {
   display: flex; gap: 6px; padding: 12px 20px; border-top: 1px solid var(--border);
   background: var(--bg-page);
@@ -919,14 +921,20 @@ body {
 }
 
 /* Detail panel inputs in dark mode */
-[data-theme="dark"] .detail-field textarea,
+[data-theme="dark"] .detail-field textarea:not(.markdown-textarea),
 [data-theme="dark"] .detail-field input,
 [data-theme="dark"] .detail-field select {
   color: var(--text);
 }
-[data-theme="dark"] .detail-field textarea::placeholder,
+[data-theme="dark"] .detail-field textarea:not(.markdown-textarea)::placeholder,
 [data-theme="dark"] .detail-field input::placeholder,
 [data-theme="dark"] .detail-field select::placeholder {
+  color: var(--text-muted);
+}
+[data-theme="dark"] .markdown-textarea {
+  color: var(--text);
+}
+[data-theme="dark"] .markdown-textarea::placeholder {
   color: var(--text-muted);
 }
 
@@ -1077,11 +1085,6 @@ body {
   background: var(--bg-page);
   color: var(--primary);
 }
-[data-theme="dark"] .comment-preview {
-  background: var(--bg-page);
-  color: var(--text);
-  border-color: var(--border);
-}
 
 /* Calendar in dark mode */
 [data-theme="dark"] .calendar-grid {
@@ -1228,7 +1231,7 @@ body {
 [data-theme="dark"] .dep-entry {
   background: var(--bg-page);
 }
-[data-theme="dark"] .dep-add-row input {
+[data-theme="dark"] #dep-search {
   background: var(--bg-page);
   color: var(--text);
 }
@@ -1408,11 +1411,22 @@ body {
   color: var(--text);
 }
 .markdown-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   min-height: 120px;
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
+  background: var(--bg-page);
+  color: var(--text);
+}
+.markdown-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--bg-card);
 }
 .markdown-preview {
   padding: 12px;
@@ -1478,24 +1492,6 @@ body {
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 11px;
-}
-.comment-textarea {
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-}
-.comment-form-toolbar {
-  margin-top: 4px;
-}
-.comment-preview {
-  margin-top: 8px;
-  padding: 12px;
-  background: var(--bg-page);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 /* ===== Calendar View ===== */
