@@ -1,3 +1,7 @@
+// ===== Activity Log Routes =====
+// GET  /api/activity  — get activity log
+// POST /api/activity  — add activity entry
+
 import { getDb, saveDb } from '../db/index.js';
 
 function sendJson(res, statusCode, data) {
@@ -8,6 +12,19 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
+function parseJsonColumn(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
 function queryAll(sql, params = []) {
   const db = getDb();
   const result = db.exec(sql, params);
@@ -16,67 +33,58 @@ function queryAll(sql, params = []) {
   return result[0].values.map((row) => {
     const obj = {};
     cols.forEach((col, i) => {
-      if (col === 'details' && typeof row[i] === 'string') {
-        try {
-          obj[col] = JSON.parse(row[i]);
-        } catch {
-          obj[col] = row[i];
-        }
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        obj[col] = parseJsonColumn(value);
       } else {
-        obj[col] = row[i];
+        obj[col] = value;
       }
     });
     return obj;
   });
 }
 
-const router = {
-  getAll: async (req, res) => {
-    try {
-      const activities = queryAll(
-        'SELECT * FROM activity ORDER BY time DESC LIMIT 100'
-      );
-      sendJson(res, 200, activities);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
+export async function getAll(req, res) {
+  try {
+    const limit = parseInt(new URL(req.url, `http://${req.headers.host}`).searchParams.get('limit')) || 100;
+    const activity = queryAll(`SELECT * FROM activity ORDER BY time DESC LIMIT ${limit}`);
+    sendJson(res, 200, activity);
+  } catch (error) {
+    console.error('getAll activity error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-  create: async (req, res, data) => {
-    try {
-      const db = getDb();
-      const id = data.id || `activity_${Date.now()}`;
-      const now = new Date().toISOString();
+export async function create(req, res, body) {
+  try {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const id = `activity_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      db.run(
-        'INSERT INTO activity (id, issueId, action, details, time) VALUES (?, ?, ?, ?, ?)',
-        [
-          id,
-          data.issueId || null,
-          data.action || '',
-          typeof data.details === 'string' ? data.details : JSON.stringify(data.details || {}),
-          data.time || now,
-        ]
-      );
+    db.run(
+      'INSERT INTO activity (id, issueId, action, details, time) VALUES (?, ?, ?, ?, ?)',
+      [
+        id,
+        body.issueId || null,
+        body.action || '',
+        typeof body.details === 'string' ? body.details : JSON.stringify(body.details || {}),
+        now,
+      ]
+    );
 
-      saveDb();
-      const activity = queryAll('SELECT * FROM activity WHERE id = ?', [id]);
-      sendJson(res, 201, activity[0]);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
+    await saveDb();
 
-  clear: async (req, res) => {
-    try {
-      const db = getDb();
-      db.run('DELETE FROM activity');
-      saveDb();
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
-};
+    sendJson(res, 201, {
+      id,
+      issueId: body.issueId || null,
+      action: body.action || '',
+      details: body.details || {},
+      time: now,
+    });
+  } catch (error) {
+    console.error('create activity error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-export default router;
+export default { getAll, create };
