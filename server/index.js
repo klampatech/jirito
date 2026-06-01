@@ -10,10 +10,12 @@ import sprintsRouter from './routes/sprints.js';
 import activityRouter from './routes/activity.js';
 import filtersRouter from './routes/filters.js';
 import trashRouter from './routes/trash.js';
+import commentsRouter from './routes/comments.js';
 import { getState, setState } from './routes/state.js';
+import { importData, exportData } from './routes/import-export.js';
 
 const PORT = process.env.SERVER_PORT || 3001;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '*';
 
 // Parse JSON body
 function parseBody(req) {
@@ -70,6 +72,10 @@ async function route(req, res) {
     // Issues routes
     if (pathname === '/api/issues' && method === 'GET') {
       return issuesRouter.getAll(req, res, url);
+    }
+    if (pathname.match(/^\/api\/issues\/[^/]+$/) && method === 'GET') {
+      const id = pathname.split('/')[3];
+      return issuesRouter.getById(req, res, id);
     }
     if (pathname === '/api/issues' && method === 'POST') {
       return issuesRouter.create(req, res, await parseBody(req));
@@ -150,9 +156,29 @@ async function route(req, res) {
       const id = pathname.split('/')[3];
       return trashRouter.restore(req, res, id);
     }
+    if (pathname.match(/^\/api\/trash\/([^/]+)\/purge$/) && method === 'DELETE') {
+      const id = pathname.split('/')[3];
+      return trashRouter.purge(req, res, id);
+    }
     if (pathname.match(/^\/api\/trash\/([^/]+)$/) && method === 'DELETE') {
       const id = pathname.split('/')[3];
       return trashRouter.remove(req, res, id);
+    }
+
+    // Comments routes
+    if (pathname === '/api/comments' && method === 'GET') {
+      return commentsRouter.getAll(req, res);
+    }
+    if (pathname === '/api/comments' && method === 'POST') {
+      return commentsRouter.create(req, res, await parseBody(req));
+    }
+    if (pathname.match(/^\/api\/comments\/([^/]+)$/) && method === 'PUT') {
+      const id = pathname.split('/')[3];
+      return commentsRouter.update(req, res, id, await parseBody(req));
+    }
+    if (pathname.match(/^\/api\/comments\/([^/]+)$/) && method === 'DELETE') {
+      const id = pathname.split('/')[3];
+      return commentsRouter.remove(req, res, id);
     }
 
     // State sync endpoint - return all data for initial load
@@ -161,6 +187,16 @@ async function route(req, res) {
     }
     if (pathname === '/api/state' && method === 'PUT') {
       return setState(req, res, await parseBody(req));
+    }
+
+    // Import endpoint
+    if (pathname === '/api/import' && method === 'POST') {
+      return importData(req, res, await parseBody(req));
+    }
+
+    // Export endpoint
+    if (pathname === '/api/export' && method === 'GET') {
+      return exportData(req, res);
     }
 
     // Not found

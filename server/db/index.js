@@ -1,62 +1,76 @@
-import initSqlJs from 'sql.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+// ===== SQLite Database Layer =====
+// Wraps sql.js for in-process SQLite persistence.
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import initSqlJs from 'sql.js';
 
 let db = null;
 let dbPath = null;
 
-const DB_PATH = process.env.JIRITO_DB_PATH || path.join(process.cwd(), 'jirito.db');
-
+/**
+ * Initialize the SQLite database.
+ * Loads from JIRITO_DB_PATH env var, or defaults to './jirito.db'.
+ * If the file doesn't exist, creates a new in-memory-backed database
+ * that will be written on first saveDb() call.
+ */
 export async function initDb() {
   if (db) return db;
 
-  // Ensure directory exists
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  const sqlLib = await initSqlJs();
+
+  dbPath = process.env.JIRITO_DB_PATH || './jirito.db';
+
+  try {
+    const fs = await import('fs');
+    if (fs.existsSync(dbPath)) {
+      const data = fs.readFileSync(dbPath);
+      db = new sqlLib.Database(data);
+      console.log(`Loaded database from ${dbPath}`);
+    } else {
+      db = new sqlLib.Database();
+      console.log(`Created new database at ${dbPath}`);
+    }
+  } catch (err) {
+    // If loading fails, start fresh
+    db = new sqlLib.Database();
+    console.warn(`Could not load database: ${err.message}. Starting fresh.`);
   }
 
-  // Initialize SQL.js with WASM
-  const SQL = await initSqlJs({
-    locateFile: (file) => {
-      // sql.js looks for sql-wasm.wasm by default
-      if (file === 'sql-wasm.wasm') {
-        return path.join(process.cwd(), 'server', 'sqlite.wasm');
-      }
-      return path.join(process.cwd(), 'server', file);
-    },
-  });
+  // Enable WAL mode for better concurrent read performance
+  db.run('PRAGMA journal_mode=WAL');
+  // Enable foreign keys
+  db.run('PRAGMA foreign_keys=ON');
 
-  // Load existing database or create new one
-  if (fs.existsSync(DB_PATH)) {
-    const fileBuffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
-
-  dbPath = DB_PATH;
   return db;
 }
 
+/**
+ * Get the current database instance.
+ */
 export function getDb() {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDb() first.');
-  }
   return db;
 }
 
-export function saveDb() {
+/**
+ * Save the database to disk.
+ * Serializes the current state and writes to JIRITO_DB_PATH.
+ */
+let fs = null;
+
+export async function saveDb() {
   if (!db || !dbPath) return;
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(dbPath, buffer);
+  try {
+    if (!fs) fs = await import('fs');
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(dbPath, buffer);
+  } catch (err) {
+    console.error('Failed to save database:', err);
+  }
 }
 
+/**
+ * Close the database connection.
+ */
 export function closeDb() {
   if (db) {
     saveDb();

@@ -75,90 +75,115 @@ function addActivity(icon, text) {
 }
 
 // ===== State Load / Save =====
+// Uses the storage abstraction layer (localStorage or server API).
 
-function loadState() {
-  const saved = localStorage.getItem('jirito-issues');
-  const savedComments = localStorage.getItem('jirito-comments');
-  const savedProjects = localStorage.getItem('jirito-projects');
-  const savedCurrentProject = localStorage.getItem('jirito-currentProject');
-  const savedFiltersRaw = localStorage.getItem('jirito-savedFilters');
-  const savedActivity = localStorage.getItem('jirito-activity');
-  const savedTrash = localStorage.getItem('jirito-trash');
-  const savedSprints = localStorage.getItem('jirito-sprints');
-  const savedCustomColumns = localStorage.getItem('jirito-customColumns');
-  if (saved) {
-    _issues = JSON.parse(saved);
+// storage is available globally from storage.js
+
+let _initialized = false;
+
+async function loadState() {
+  // Initialize storage layer (detects online/offline mode)
+  if (!_initialized) {
+    await storage.initStorage();
+    _initialized = true;
+  }
+
+  // Load persisted data from storage layer (localStorage or server)
+  const data = await storage.getStorageData();
+
+  if (data && data.issues) {
+    _issues = data.issues;
     _issueCounter = Math.max(..._issues.map(i => i.id), ISSUE_COUNTER_START);
   } else {
     _issues = [...sampleIssues];
     _issueCounter = 106;
   }
-  if (savedComments) _comments = JSON.parse(savedComments);
-  if (savedProjects) _projects = JSON.parse(savedProjects);
+
+  // Restore projects (storage layer uses object-per-key format)
+  if (data && data.projects) {
+    _projects = data.projects;
+  }
+
   // Ensure default project exists before checking currentProject
   if (!_projects['default']) {
     _projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: _issues.length > 0 ? _issues : [...sampleIssues] };
   }
+
   // Validate currentProject exists in projects before restoring
-  if (savedCurrentProject && _projects[savedCurrentProject]) {
-    _currentProject = savedCurrentProject;
+  if (data && data.currentProject && _projects[data.currentProject]) {
+    _currentProject = data.currentProject;
   } else if (_projects['default']) {
     _currentProject = 'default';
   }
-  if (savedFiltersRaw) _savedFilters = JSON.parse(savedFiltersRaw);
-  if (savedActivity) {
-    _activityLog = JSON.parse(savedActivity).map(a => ({ ...a, time: new Date(a.time) }));
+
+  // Restore filters, activity, trash, sprints from storage layer
+  if (data && data.filters) {
+    _savedFilters = data.filters;
   }
-  if (savedTrash) {
-    _trash = JSON.parse(savedTrash).map(t => ({ ...t, date: new Date(t.date) }));
+  if (data && data.activity) {
+    _activityLog = data.activity.map(a => ({ ...a, time: new Date(a.time) }));
+  }
+  if (data && data.trash) {
+    _trash = data.trash.map(t => ({ ...t, date: new Date(t.date) }));
     purgeTrash();
   }
-  if (savedSprints) {
-    _sprints = JSON.parse(savedSprints);
+  if (data && data.sprints) {
+    _sprints = data.sprints;
   }
-  if (savedCustomColumns) {
-    _customColumns = JSON.parse(savedCustomColumns);
-  }
+
+  // Sync in-memory issues with current project
+  initializeData();
 }
 
 // Internal debounce timer
 let _saveStateTimer = null;
 
 // saveState — debounced by default (300ms).
-// Batches rapid successive calls into a single localStorage write.
+// Batches rapid successive calls into a single persistence write.
 // Call saveStateImmediate() when you need guaranteed persistence right away.
-function saveState() {
+async function saveState() {
   if (_saveStateTimer) {
     clearTimeout(_saveStateTimer);
   }
-  _saveStateTimer = setTimeout(() => {
-    _doSaveState();
+  _saveStateTimer = setTimeout(async () => {
+    await _doSaveState();
     _saveStateTimer = null;
   }, LJ_CONSTANTS.SAVE_STATE_DEBOUNCE_MS);
 }
 
-// Internal: performs the actual localStorage writes (never call directly).
-function _doSaveState() {
-  localStorage.setItem('jirito-issues', JSON.stringify(_issues));
-  localStorage.setItem('jirito-comments', JSON.stringify(_comments));
-  localStorage.setItem('jirito-projects', JSON.stringify(_projects));
-  localStorage.setItem('jirito-currentProject', _currentProject);
-  localStorage.setItem('jirito-savedFilters', JSON.stringify(_savedFilters));
-  localStorage.setItem('jirito-activity', JSON.stringify(_activityLog.map(a => ({ ...a, time: a.time.toISOString() }))));
-  localStorage.setItem('jirito-trash', JSON.stringify(_trash.map(t => ({ ...t, date: t.date.toISOString() }))));
-  localStorage.setItem('jirito-sprints', JSON.stringify(_sprints));
+// Internal: performs the actual persistence writes (localStorage or server).
+async function _doSaveState() {
+  // Build the storage-layer data structure
+  const customCols = getCustomColumns();
+  const data = {
+    issues: _issues,
+    projects: { ..._projects },
+    currentProject: _currentProject,
+    filters: _savedFilters || [],
+    activity: _activityLog.map(a => ({ ...a, time: a.time.toISOString() })),
+    trash: _trash.map(t => ({ ...t, date: t.date.toISOString() })),
+    sprints: _sprints,
+  };
+
+  // Only include columns if there are actual custom columns (not the default {} sentinel)
+  if (Array.isArray(customCols) && customCols.length > 0) {
+    data.columns = customCols;
+  }
+
+  // Delegate to storage layer (handles localStorage or server API)
+  await storage.saveStorageData(data);
 }
 
 // Force immediate save (no debounce) — use for critical operations:
 // - before page unload
 // - after user-triggered export
 // - after the last operation in a batch where undo must work
-function saveStateImmediate() {
+async function saveStateImmediate() {
   if (_saveStateTimer) {
     clearTimeout(_saveStateTimer);
     _saveStateTimer = null;
   }
-  _doSaveState();
+  await _doSaveState();
 }
 
 // ===== Trash =====
@@ -189,8 +214,22 @@ function restoreFromTrash(idx) {
 // ===== Sprints =====
 
 function saveSprints() {
-  localStorage.setItem('jirito-sprints', JSON.stringify(getSprints()));
-  localStorage.setItem('jirito-customColumns', JSON.stringify(_customColumns));
+  // Delegate to storage layer — handles both server and localStorage modes
+  var data = {
+    issues: _issues,
+    projects: _projects,
+    currentProject: _currentProject,
+    filters: _savedFilters,
+    activity: _activityLog.map(function (a) { return { icon: a.icon, text: a.text, time: a.time.toISOString() }; }),
+    issueCounter: _issueCounter,
+    trash: _trash.map(function (t) { return { issues: t.issues, date: t.date.toISOString() }; }),
+    sprints: _sprints,
+    columns: getEffectiveColumns(),
+    customColumns: getCustomColumns()
+  };
+  if (typeof storage !== 'undefined' && storage.saveStorageData) {
+    storage.saveStorageData(data).catch(err => console.error('[state] saveSprints failed:', err));
+  }
 }
 
 function createSprint(name, startDate, endDate) {
@@ -388,7 +427,15 @@ function initializeData() {
     _currentProject = 'default';
   }
   // 3. Sync global issues with current project
-  _issues = _projects[_currentProject].issues;
+  // Only sync if project.issues contains issue objects (not string IDs from server storage)
+  if (_projects[_currentProject].issues && _projects[_currentProject].issues.length > 0) {
+    const firstItem = _projects[_currentProject].issues[0];
+    if (typeof firstItem === 'object' && firstItem !== null && firstItem.id) {
+      // Project has issue objects — sync them
+      _issues = _projects[_currentProject].issues;
+    }
+    // If firstItem is a string, it's an ID list — keep _issues as-is (already set from storage)
+  }
   // 4. Ensure project key exists
   if (!_projects[_currentProject].key) {
     _projects[_currentProject].key = _currentProject.toUpperCase();

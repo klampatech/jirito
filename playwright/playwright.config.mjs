@@ -6,6 +6,7 @@ export default defineConfig({
   testMatch: '**/*.spec.mjs',
   testIgnore: ['**/*.test.ts', '**/*.test.js'],
   globalSetup: './playwright-global-setup.mjs',
+  globalTeardown: './playwright-global-teardown.mjs',
   reporter: 'list',
   forbidOnly: false,
   fullyParallel: false,

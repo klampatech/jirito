@@ -56,7 +56,8 @@ function renderBoard() {
     // Render cards in column
     const colBody = col.querySelector('.column-body');
     colBody.innerHTML = '';
-    let colIssues = getIssues().filter(i => {
+    const allIssues = getIssues();
+    let colIssues = allIssues.filter(i => {
       if (colDef.status) return i.status === colDef.status;
       // For custom columns without status mapping, show all (they're custom)
       return false;

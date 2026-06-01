@@ -1,3 +1,10 @@
+// ===== Issues CRUD Routes =====
+// GET    /api/issues          — list all issues
+// GET    /api/issues/:id      — get single issue
+// POST   /api/issues          — create issue
+// PUT    /api/issues/:id      — update issue
+// DELETE /api/issues/:id      — soft-delete (move to trash)
+
 import { getDb, saveDb } from '../db/index.js';
 
 function sendJson(res, statusCode, data) {
@@ -8,6 +15,19 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
+function parseJsonColumn(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
 function queryAll(sql, params = []) {
   const db = getDb();
   const result = db.exec(sql, params);
@@ -16,154 +36,215 @@ function queryAll(sql, params = []) {
   return result[0].values.map((row) => {
     const obj = {};
     cols.forEach((col, i) => {
-      // Parse JSON fields
-      if (col === 'labels' && typeof row[i] === 'string') {
-        try {
-          obj[col] = JSON.parse(row[i]);
-        } catch {
-          obj[col] = [];
-        }
+      const value = row[i];
+      // Auto-parse JSON columns
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        obj[col] = parseJsonColumn(value);
       } else {
-        obj[col] = row[i];
+        obj[col] = value;
       }
     });
     return obj;
   });
 }
 
-function queryOne(sql, params = []) {
-  const results = queryAll(sql, params);
-  return results.length > 0 ? results[0] : null;
+export async function getAll(req, res, url) {
+  try {
+    const projectId = url.searchParams.get('projectId');
+    let sql = 'SELECT * FROM issues';
+    const params = [];
+    if (projectId) {
+      sql += ' WHERE projectId = ?';
+      params.push(projectId);
+    }
+    sql += ' ORDER BY createdAt DESC';
+    const issues = queryAll(sql, params);
+    sendJson(res, 200, issues);
+  } catch (error) {
+    console.error('getAll issues error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
 }
 
-const router = {
-  getAll: async (req, res, url) => {
-    try {
-      const projectId = url.searchParams.get('projectId');
-      let sql = 'SELECT * FROM issues';
-      const params = [];
-      if (projectId) {
-        sql += ' WHERE projectId = ?';
-        params.push(projectId);
-      }
-      sql += ' ORDER BY createdAt DESC';
-      const issues = queryAll(sql, params);
-      sendJson(res, 200, issues);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+export async function getById(req, res, id) {
+  try {
+    const db = getDb();
+    const result = db.exec('SELECT * FROM issues WHERE id = ?', [String(id)]);
+    if (result.length === 0 || result[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Issue not found' });
     }
-  },
-
-  getById: async (req, res, id) => {
-    try {
-      const issue = queryOne('SELECT * FROM issues WHERE id = ?', [id]);
-      if (!issue) {
-        return sendJson(res, 404, { error: 'Issue not found' });
+    const cols = result[0].columns;
+    const row = result[0].values[0];
+    const issue = {};
+    cols.forEach((col, i) => {
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        issue[col] = parseJsonColumn(value);
+      } else {
+        issue[col] = value;
       }
-      sendJson(res, 200, issue);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
+    });
+    sendJson(res, 200, issue);
+  } catch (error) {
+    console.error('getById issue error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-  create: async (req, res, data) => {
-    try {
-      const db = getDb();
-      const id = String(data.id || Date.now());
-      const now = new Date().toISOString();
-      
-      const sql = `INSERT INTO issues (id, title, description, status, priority, labels, 
-                   assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      
-      db.run(sql, [
+export async function create(req, res, body) {
+  try {
+    const db = getDb();
+
+    // Generate ID from issueCounter metadata
+    const counterResult = db.exec("SELECT value FROM metadata WHERE key = 'issueCounter'");
+    let issueCounter = counterResult.length > 0 ? parseInt(counterResult[0].values[0][0]) || 1 : 1;
+    issueCounter += 1;
+    db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('issueCounter', ?)", [String(issueCounter)]);
+
+    const id = String(issueCounter);
+    const now = new Date().toISOString();
+
+    db.run(
+      `INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
-        data.title || '',
-        data.description || '',
-        data.status || 'backlog',
-        data.priority || 'medium',
-        JSON.stringify(data.labels || []),
-        data.assignee || '',
-        data.reporter || '',
-        data.projectId || 'default',
-        data.sprintId || null,
-        data.storyPoints || 0,
-        data.parentIssueId || null,
+        body.title || '',
+        body.description || '',
+        body.status || 'backlog',
+        body.priority || 'medium',
+        JSON.stringify(body.labels || []),
+        body.assignee || '',
+        body.reporter || '',
+        body.projectId || 'default',
+        body.sprintId || null,
+        body.storyPoints || 0,
+        body.parentIssueId || null,
         now,
         now,
-      ]);
+      ]
+    );
 
-      saveDb();
-      const issue = queryOne('SELECT * FROM issues WHERE id = ?', [id]);
-      sendJson(res, 201, issue);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    await saveDb();
+
+    sendJson(res, 201, {
+      id,
+      title: body.title || '',
+      description: body.description || '',
+      status: body.status || 'backlog',
+      priority: body.priority || 'medium',
+      labels: body.labels || [],
+      assignee: body.assignee || '',
+      reporter: body.reporter || '',
+      projectId: body.projectId || 'default',
+      sprintId: body.sprintId || null,
+      storyPoints: body.storyPoints || 0,
+      parentIssueId: body.parentIssueId || null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    console.error('create issue error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function update(req, res, id, body) {
+  try {
+    const db = getDb();
+
+    // Check issue exists
+    const check = db.exec('SELECT id FROM issues WHERE id = ?', [String(id)]);
+    if (check.length === 0 || check[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Issue not found' });
     }
-  },
 
-  update: async (req, res, id, data) => {
-    try {
-      const db = getDb();
-      const fields = [];
-      const values = [];
+    const now = new Date().toISOString();
 
-      const allowedFields = ['title', 'description', 'status', 'priority', 'labels', 
-                            'assignee', 'reporter', 'projectId', 'sprintId', 
-                            'storyPoints', 'parentIssueId'];
-      
-      for (const field of allowedFields) {
-        if (data[field] !== undefined) {
-          fields.push(`${field} = ?`);
-          values.push(field === 'labels' ? JSON.stringify(data[field]) : data[field]);
+    // Build dynamic UPDATE
+    const updates = [];
+    const params = [];
+    const fields = ['title', 'description', 'status', 'priority', 'labels', 'assignee', 'reporter', 'projectId', 'sprintId', 'storyPoints', 'parentIssueId'];
+    for (const field of fields) {
+      if (body[field] !== undefined) {
+        updates.push(`${field} = ?`);
+        if (['labels'].includes(field)) {
+          params.push(JSON.stringify(body[field]));
+        } else {
+          params.push(body[field]);
         }
       }
-
-      if (fields.length === 0) {
-        return sendJson(res, 400, { error: 'No fields to update' });
-      }
-
-      fields.push('updatedAt = ?');
-      values.push(new Date().toISOString());
-      values.push(id);
-
-      const sql = `UPDATE issues SET ${fields.join(', ')} WHERE id = ?`;
-      db.run(sql, values);
-      saveDb();
-
-      const issue = queryOne('SELECT * FROM issues WHERE id = ?', [id]);
-      if (!issue) {
-        return sendJson(res, 404, { error: 'Issue not found' });
-      }
-      sendJson(res, 200, issue);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
     }
-  },
+    updates.push('updatedAt = ?');
+    params.push(now);
+    params.push(String(id));
 
-  remove: async (req, res, id) => {
-    try {
-      const db = getDb();
-      const issue = queryOne('SELECT * FROM issues WHERE id = ?', [id]);
-      if (!issue) {
-        return sendJson(res, 404, { error: 'Issue not found' });
-      }
+    db.run(`UPDATE issues SET ${updates.join(', ')} WHERE id = ?`, params);
 
-      // Move to trash before deleting
-      const trashId = `trash_${Date.now()}`;
-      db.run(
-        'INSERT INTO trash (id, type, data, date) VALUES (?, ?, ?, ?)',
-        [trashId, 'issue', JSON.stringify(issue), new Date().toISOString()]
-      );
+    await saveDb();
 
-      // Delete issue
-      db.run('DELETE FROM issues WHERE id = ?', [id]);
-      saveDb();
-
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    // Return updated issue
+    const result = db.exec('SELECT * FROM issues WHERE id = ?', [String(id)]);
+    if (result.length === 0) {
+      return sendJson(res, 404, { error: 'Issue not found' });
     }
-  },
-};
+    const cols = result[0].columns;
+    const row = result[0].values[0];
+    const issue = {};
+    cols.forEach((col, i) => {
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        issue[col] = parseJsonColumn(value);
+      } else {
+        issue[col] = value;
+      }
+    });
+    sendJson(res, 200, issue);
+  } catch (error) {
+    console.error('update issue error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-export default router;
+export async function remove(req, res, id) {
+  try {
+    const db = getDb();
+
+    // Get the issue before deleting
+    const issueResult = db.exec('SELECT * FROM issues WHERE id = ?', [String(id)]);
+    if (issueResult.length === 0 || issueResult[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Issue not found' });
+    }
+
+    const cols = issueResult[0].columns;
+    const row = issueResult[0].values[0];
+    const issue = {};
+    cols.forEach((col, i) => {
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        issue[col] = parseJsonColumn(value);
+      } else {
+        issue[col] = value;
+      }
+    });
+
+    // Add to trash
+    const trashId = `trash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    db.run(
+      'INSERT INTO trash (id, type, data, date) VALUES (?, ?, ?, ?)',
+      [trashId, 'issue', JSON.stringify(issue), new Date().toISOString()]
+    );
+
+    // Delete from issues
+    db.run('DELETE FROM issues WHERE id = ?', [String(id)]);
+
+    await saveDb();
+
+    sendJson(res, 200, { success: true, message: 'Issue moved to trash' });
+  } catch (error) {
+    console.error('remove issue error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export default { getAll, getById, create, update, remove };

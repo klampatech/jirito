@@ -29,3 +29,8 @@ screenshot-before-fix.png
 # Environment
 .env
 .env.local
+
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm

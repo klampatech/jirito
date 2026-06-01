@@ -49,7 +49,7 @@ describe('State Sync', () => {
     assert.ok(Array.isArray(data.savedFilters));
     assert.ok(Array.isArray(data.activityLog));
     assert.ok(Array.isArray(data.trash));
-    assert.ok(Array.isArray(data.sprints));
+    assert.ok(typeof data.sprints === 'object');
   });
 
   it('should accept state via PUT /api/state', async () => {
@@ -388,5 +388,178 @@ describe('CORS', () => {
     const res = await fetch(`${API_BASE}/health`, { method: 'OPTIONS' });
     assert.strictEqual(res.status, 204);
     assert.strictEqual(res.headers.get('Access-Control-Allow-Methods'), 'GET, POST, PUT, DELETE, OPTIONS');
+  });
+});
+
+// ===== Import/Export Tests =====
+
+describe('Export', () => {
+  it('should export all data with correct structure', async () => {
+    // First ensure some data exists
+    await fetchJson('POST', '/issues', {
+      title: 'Export Test Issue',
+      description: 'For export verification',
+      status: 'backlog',
+      priority: 'medium',
+      labels: ['test'],
+      assignee: 'tester',
+      reporter: 'tester',
+      projectId: 'default',
+      storyPoints: 3,
+    });
+
+    const { status, data } = await fetchJson('GET', '/export');
+    assert.strictEqual(status, 200);
+    assert.ok(Array.isArray(data.issues));
+    assert.ok(typeof data.projects === 'object');
+    assert.ok(typeof data.currentProject === 'string');
+    assert.ok(Array.isArray(data.savedFilters));
+    assert.ok(Array.isArray(data.activityLog));
+    assert.ok(typeof data.issueCounter === 'number');
+    assert.ok(Array.isArray(data.trash));
+    assert.ok(typeof data.sprints === 'object');
+  });
+
+  it('should export data matching frontend storage format', async () => {
+    const { status, data } = await fetchJson('GET', '/export');
+    assert.strictEqual(status, 200);
+
+    // Verify the exported format matches what storage.js expects
+    // storage.js _loadFromServer expects: issues, projects, currentProject, savedFilters, activityLog, issueCounter, trash, sprints
+    assert.ok('issues' in data, 'export must include issues');
+    assert.ok('projects' in data, 'export must include projects');
+    assert.ok('currentProject' in data, 'export must include currentProject');
+    assert.ok('savedFilters' in data, 'export must include savedFilters');
+    assert.ok('activityLog' in data, 'export must include activityLog');
+    assert.ok('issueCounter' in data, 'export must include issueCounter');
+    assert.ok('trash' in data, 'export must include trash');
+    assert.ok('sprints' in data, 'export must include sprints');
+    assert.ok('comments' in data, 'export must include comments');
+  });
+
+  it('should export empty data when DB is empty', async () => {
+    const { status, data } = await fetchJson('GET', '/export');
+    assert.strictEqual(status, 200);
+    // Should have valid empty structures
+    assert.ok(Array.isArray(data.issues));
+    assert.ok(typeof data.projects === 'object');
+    assert.ok(typeof data.currentProject === 'string');
+    assert.ok(typeof data.issueCounter === 'number');
+  });
+});
+
+describe('Import', () => {
+  it('should import valid JSON data', async () => {
+    const testIssue = {
+      id: 'import-test-1',
+      title: 'Imported Test Issue',
+      description: 'Created via import endpoint',
+      status: 'backlog',
+      priority: 'high',
+      labels: ['imported', 'test'],
+      assignee: 'importer',
+      reporter: 'importer',
+      projectId: 'default',
+      sprintId: null,
+      storyPoints: 5,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const importPayload = {
+      issues: [testIssue],
+      projects: {
+        'default': { name: 'Default', key: 'DEF', icon: '🚀', color: '#0052CC', description: '', issues: ['import-test-1'] },
+      },
+      currentProject: 'default',
+      savedFilters: [],
+      activityLog: [],
+      issueCounter: 100,
+      trash: [],
+      sprints: [],
+    };
+
+    const { status, data } = await fetchJson('POST', '/import', importPayload);
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.imported.issues, 1);
+    assert.strictEqual(data.imported.projects, 1);
+
+    // Verify the issue was actually stored in the DB
+    const issuesRes = await fetch(`${API_BASE}/issues`);
+    const issues = await issuesRes.json();
+    const importedIssue = issues.find(i => i.id === 'import-test-1');
+    assert.ok(importedIssue, 'imported issue should exist in DB');
+    assert.strictEqual(importedIssue.title, 'Imported Test Issue');
+  });
+
+  it('should reject malformed import data', async () => {
+    const { status, data } = await fetchJson('POST', '/import', {
+      issues: 'not-an-array',
+      projects: {},
+    });
+    assert.strictEqual(status, 400);
+    assert.ok(data.error, 'should return an error message');
+  });
+
+  it('should clear existing data on import', async () => {
+    // First create a known issue
+    const { data: created } = await fetchJson('POST', '/issues', {
+      title: 'Pre-Import Issue',
+      description: 'Should be cleared',
+      status: 'backlog',
+      priority: 'medium',
+      labels: [],
+      assignee: '',
+      reporter: '',
+      projectId: 'default',
+      storyPoints: 0,
+    });
+
+    // Now import different data
+    const importPayload = {
+      issues: [{
+        id: 'import-only-1',
+        title: 'Import-Only Issue',
+        description: 'This is the only issue after import',
+        status: 'done',
+        priority: 'low',
+        labels: ['imported'],
+        assignee: '',
+        reporter: '',
+        projectId: 'default',
+        sprintId: null,
+        storyPoints: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }],
+      projects: {
+        'default': { name: 'Default', key: 'DEF', icon: '🚀', color: '#0052CC', description: '', issues: ['import-only-1'] },
+      },
+      currentProject: 'default',
+      savedFilters: [],
+      activityLog: [],
+      issueCounter: 200,
+      trash: [],
+      sprints: [],
+    };
+
+    const { status } = await fetchJson('POST', '/import', importPayload);
+    assert.strictEqual(status, 200);
+
+    // Verify only the imported issue exists
+    const issuesRes = await fetch(`${API_BASE}/issues`);
+    const issues = await issuesRes.json();
+    assert.strictEqual(issues.length, 1);
+    assert.strictEqual(issues[0].id, 'import-only-1');
+    assert.strictEqual(issues[0].title, 'Import-Only Issue');
+  });
+
+  it('should handle empty import gracefully', async () => {
+    const { status, data } = await fetchJson('POST', '/import', {
+      issues: [],
+      projects: {},
+    });
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.success, true);
   });
 });

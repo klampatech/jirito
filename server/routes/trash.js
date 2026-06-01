@@ -1,3 +1,9 @@
+// ===== Trash Routes =====
+// GET    /api/trash                  — list trash items
+// POST   /api/trash/:id/restore      — restore a trash item
+// DELETE /api/trash/:id/purge        — permanently remove a trash item
+// DELETE /api/trash/:id              — remove a trash item (alias for purge)
+
 import { getDb, saveDb } from '../db/index.js';
 
 function sendJson(res, statusCode, data) {
@@ -8,6 +14,19 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
+function parseJsonColumn(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
 function queryAll(sql, params = []) {
   const db = getDb();
   const result = db.exec(sql, params);
@@ -16,117 +35,144 @@ function queryAll(sql, params = []) {
   return result[0].values.map((row) => {
     const obj = {};
     cols.forEach((col, i) => {
-      if (col === 'data' && typeof row[i] === 'string') {
-        try {
-          obj[col] = JSON.parse(row[i]);
-        } catch {
-          obj[col] = row[i];
-        }
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        obj[col] = parseJsonColumn(value);
       } else {
-        obj[col] = row[i];
+        obj[col] = value;
       }
     });
     return obj;
   });
 }
 
-const router = {
-  getAll: async (req, res) => {
-    try {
-      const trashItems = queryAll('SELECT * FROM trash ORDER BY date DESC');
-      sendJson(res, 200, trashItems);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+export async function getAll(req, res) {
+  try {
+    const trash = queryAll('SELECT * FROM trash ORDER BY date DESC');
+    const trashItems = trash.map(t => ({
+      ...t,
+      date: t.date,
+    }));
+    sendJson(res, 200, trashItems);
+  } catch (error) {
+    console.error('getAll trash error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function restore(req, res, id) {
+  try {
+    const db = getDb();
+
+    // Get trash item
+    const trashResult = db.exec('SELECT * FROM trash WHERE id = ?', [id]);
+    if (trashResult.length === 0 || trashResult[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Trash item not found' });
     }
-  },
 
-  restore: async (req, res, id) => {
-    try {
-      const db = getDb();
-      const trashItem = queryAll('SELECT * FROM trash WHERE id = ?', [id]);
-
-      if (!trashItem[0]) {
-        return sendJson(res, 404, { error: 'Trash item not found' });
+    const cols = trashResult[0].columns;
+    const row = trashResult[0].values[0];
+    const trashItem = {};
+    cols.forEach((col, i) => {
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        trashItem[col] = parseJsonColumn(value);
+      } else {
+        trashItem[col] = value;
       }
+    });
 
-      const item = trashItem[0];
-      const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+    const type = trashItem.type;
+    const data = trashItem.data;
 
-      // Restore based on type
-      if (item.type === 'issue') {
-        // Check if issue already exists
-        const existing = db.exec('SELECT id FROM issues WHERE id = ?', [data.id]);
-        if (existing.length === 0 || existing[0].values.length === 0) {
-          db.run(
-            `INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              data.id,
-              data.title,
-              data.description || '',
-              data.status || 'backlog',
-              data.priority || 'medium',
-              JSON.stringify(data.labels || []),
-              data.assignee || '',
-              data.reporter || '',
-              data.projectId || 'default',
-              data.sprintId || null,
-              data.storyPoints || 0,
-              data.parentIssueId || null,
-              data.createdAt || new Date().toISOString(),
-              new Date().toISOString(),
-            ]
-          );
-        }
-      } else if (item.type === 'project') {
-        const existing = db.exec('SELECT id FROM projects WHERE id = ?', [data.id]);
-        if (existing.length === 0 || existing[0].values.length === 0) {
-          db.run(
-            'INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [data.id, data.name, data.key, data.icon, data.color, data.description, new Date().toISOString(), new Date().toISOString()]
-          );
-        }
-      } else if (item.type === 'sprint') {
-        const existing = db.exec('SELECT id FROM sprints WHERE id = ?', [data.id]);
-        if (existing.length === 0 || existing[0].values.length === 0) {
-          db.run(
-            'INSERT INTO sprints (id, projectId, name, status, startDate, endDate, goal, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [data.id, data.projectId, data.name, data.status, data.startDate, data.endDate, data.goal, new Date().toISOString(), new Date().toISOString()]
-          );
-        }
-      }
-
-      // Remove from trash
-      db.run('DELETE FROM trash WHERE id = ?', [id]);
-      saveDb();
-
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    if (type === 'issue' && data) {
+      // Restore issue
+      const now = new Date().toISOString();
+      db.run(
+        `INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          data.id,
+          data.title || '',
+          data.description || '',
+          data.status || 'backlog',
+          data.priority || 'medium',
+          JSON.stringify(data.labels || []),
+          data.assignee || '',
+          data.reporter || '',
+          data.projectId || 'default',
+          data.sprintId || null,
+          data.storyPoints || 0,
+          data.parentIssueId || null,
+          data.createdAt || now,
+          now,
+        ]
+      );
+    } else if (type === 'project' && data) {
+      // Restore project
+      const now = new Date().toISOString();
+      db.run(
+        'INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [data.id, data.name, data.key, data.icon, data.color, data.description, data.createdAt || now, now]
+      );
     }
-  },
 
-  remove: async (req, res, id) => {
-    try {
-      const db = getDb();
-      db.run('DELETE FROM trash WHERE id = ?', [id]);
-      saveDb();
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    // Remove from trash
+    db.run('DELETE FROM trash WHERE id = ?', [id]);
+
+    await saveDb();
+
+    sendJson(res, 200, { success: true, message: `${type} restored` });
+  } catch (error) {
+    console.error('restore trash error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function purge(req, res, id) {
+  try {
+    const db = getDb();
+
+    // Get trash item before removing
+    const trashResult = db.exec('SELECT * FROM trash WHERE id = ?', [id]);
+    let trashItem = null;
+    if (trashResult.length > 0 && trashResult[0].values.length > 0) {
+      const cols = trashResult[0].columns;
+      const row = trashResult[0].values[0];
+      trashItem = {};
+      cols.forEach((col, i) => {
+        const value = row[i];
+        if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+          trashItem[col] = parseJsonColumn(value);
+        } else {
+          trashItem[col] = value;
+        }
+      });
     }
-  },
 
-  purge: async (req, res) => {
-    try {
-      const db = getDb();
-      db.run('DELETE FROM trash');
-      saveDb();
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
-};
+    // Remove from trash
+    db.run('DELETE FROM trash WHERE id = ?', [id]);
 
-export default router;
+    await saveDb();
+
+    sendJson(res, 200, { success: true, message: `Trash item purged` });
+  } catch (error) {
+    console.error('purge trash error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function remove(req, res, id) {
+  // Alias for purge — just remove the trash entry
+  try {
+    const db = getDb();
+    db.run('DELETE FROM trash WHERE id = ?', [id]);
+    await saveDb();
+    sendJson(res, 200, { success: true, message: 'Trash item removed' });
+  } catch (error) {
+    console.error('remove trash error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export default { getAll, restore, purge, remove };

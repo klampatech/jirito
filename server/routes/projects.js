@@ -1,3 +1,10 @@
+// ===== Projects CRUD Routes =====
+// GET    /api/projects          — list all projects
+// GET    /api/projects/current  — get current project
+// PUT    /api/projects/current  — set current project
+// POST   /api/projects          — create project
+// DELETE /api/projects/:id      — delete project
+
 import { getDb, saveDb } from '../db/index.js';
 
 function sendJson(res, statusCode, data) {
@@ -8,6 +15,19 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
+function parseJsonColumn(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
 function queryAll(sql, params = []) {
   const db = getDb();
   const result = db.exec(sql, params);
@@ -16,153 +36,151 @@ function queryAll(sql, params = []) {
   return result[0].values.map((row) => {
     const obj = {};
     cols.forEach((col, i) => {
-      obj[col] = row[i];
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        obj[col] = parseJsonColumn(value);
+      } else {
+        obj[col] = value;
+      }
     });
     return obj;
   });
 }
 
-const router = {
-  getAll: async (req, res) => {
-    try {
-      const projects = queryAll('SELECT * FROM projects ORDER BY createdAt ASC');
-      sendJson(res, 200, projects);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+export async function getAll(req, res) {
+  try {
+    const projects = queryAll('SELECT * FROM projects ORDER BY createdAt ASC');
+    sendJson(res, 200, projects);
+  } catch (error) {
+    console.error('getAll projects error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function getCurrent(req, res) {
+  try {
+    const db = getDb();
+    const result = db.exec("SELECT value FROM metadata WHERE key = 'currentProject'");
+    const currentProject = result.length > 0 ? result[0].values[0][0] : 'default';
+
+    const projectResult = db.exec('SELECT * FROM projects WHERE id = ?', [currentProject]);
+    if (projectResult.length === 0 || projectResult[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Project not found' });
     }
-  },
+    const cols = projectResult[0].columns;
+    const row = projectResult[0].values[0];
+    const project = {};
+    cols.forEach((col, i) => {
+      const value = row[i];
+      if (['labels', 'query', 'details', 'data', 'description', 'goal'].includes(col.toLowerCase()) && typeof value === 'string') {
+        project[col] = parseJsonColumn(value);
+      } else {
+        project[col] = value;
+      }
+    });
+    sendJson(res, 200, project);
+  } catch (error) {
+    console.error('getCurrent project error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-  getCurrent: async (req, res) => {
-    try {
-      const db = getDb();
-      const result = db.exec("SELECT value FROM metadata WHERE key = 'currentProject'");
-      const currentProjectId = result.length > 0 ? result[0].values[0][0] : 'default';
-      const project = queryAll('SELECT * FROM projects WHERE id = ?', [currentProjectId]);
-      sendJson(res, 200, project[0] || null);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+export async function setCurrent(req, res, body) {
+  try {
+    const db = getDb();
+    const currentProject = body.currentProject;
+
+    // Verify project exists
+    const check = db.exec('SELECT id FROM projects WHERE id = ?', [currentProject]);
+    if (check.length === 0 || check[0].values.length === 0) {
+      return sendJson(res, 404, { error: 'Project not found' });
     }
-  },
 
-  setCurrent: async (req, res, data) => {
-    try {
-      const db = getDb();
-      if (data.currentProject) {
-        db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)", 
-          [data.currentProject]);
-        saveDb();
-      }
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)", [currentProject]);
+    await saveDb();
+
+    sendJson(res, 200, { success: true, currentProject });
+  } catch (error) {
+    console.error('setCurrent project error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function create(req, res, body) {
+  try {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const id = body.id || `proj_${Date.now()}`;
+
+    db.run(
+      'INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        body.name || '',
+        body.key || id,
+        body.icon || '\uD83D\uDE80',
+        body.color || '#0052CC',
+        body.description || '',
+        now,
+        now,
+      ]
+    );
+
+    await saveDb();
+
+    sendJson(res, 201, {
+      id,
+      name: body.name || '',
+      key: body.key || id,
+      icon: body.icon || '\uD83D\uDE80',
+      color: body.color || '#0052CC',
+      description: body.description || '',
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    console.error('create project error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+export async function remove(req, res, id) {
+  try {
+    const db = getDb();
+
+    // Check how many projects exist
+    const countResult = db.exec('SELECT COUNT(*) as count FROM projects');
+    const count = countResult.length > 0 ? countResult[0].values[0][0] : 0;
+    if (count <= 1) {
+      return sendJson(res, 400, { error: 'You must have at least one project' });
     }
-  },
 
-  create: async (req, res, data) => {
-    try {
-      const db = getDb();
-      const id = data.id || `proj_${Date.now()}`;
-      const now = new Date().toISOString();
+    // Get project name for response
+    const projectResult = db.exec('SELECT name FROM projects WHERE id = ?', [id]);
+    const projectName = projectResult.length > 0 ? projectResult[0].values[0][0] : id;
 
-      db.run(
-        'INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          id,
-          data.name || 'New Project',
-          data.key || '',
-          data.icon || '🚀',
-          data.color || '#0052CC',
-          data.description || '',
-          now,
-          now,
-        ]
-      );
+    // Delete project (cascade will handle sprints)
+    db.run('DELETE FROM projects WHERE id = ?', [id]);
 
-      saveDb();
-      const project = queryAll('SELECT * FROM projects WHERE id = ?', [id]);
-      sendJson(res, 201, project[0]);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
+    // Update current project if it was the current one
+    const currentResult = db.exec("SELECT value FROM metadata WHERE key = 'currentProject'");
+    const currentProject = currentResult.length > 0 ? currentResult[0].values[0][0] : 'default';
+    if (currentProject === id) {
+      // Find another project to use as current
+      const otherResult = db.exec('SELECT id FROM projects LIMIT 1');
+      if (otherResult.length > 0 && otherResult[0].values.length > 0) {
+        const newCurrent = otherResult[0].values[0][0];
+        db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)", [newCurrent]);
+      }
     }
-  },
 
-  update: async (req, res, id, data) => {
-    try {
-      const db = getDb();
-      const fields = [];
-      const values = [];
+    await saveDb();
 
-      const allowedFields = ['name', 'key', 'icon', 'color', 'description'];
-      
-      for (const field of allowedFields) {
-        if (data[field] !== undefined) {
-          fields.push(`${field} = ?`);
-          values.push(data[field]);
-        }
-      }
+    sendJson(res, 200, { success: true, message: `Project "${projectName}" deleted` });
+  } catch (error) {
+    console.error('remove project error:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
 
-      if (fields.length === 0) {
-        return sendJson(res, 400, { error: 'No fields to update' });
-      }
-
-      fields.push('updatedAt = ?');
-      values.push(new Date().toISOString());
-      values.push(id);
-
-      const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
-      db.run(sql, values);
-      saveDb();
-
-      const project = queryAll('SELECT * FROM projects WHERE id = ?', [id]);
-      if (!project[0]) {
-        return sendJson(res, 404, { error: 'Project not found' });
-      }
-      sendJson(res, 200, project[0]);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
-
-  remove: async (req, res, id) => {
-    try {
-      const db = getDb();
-
-      // Check if this is the only project
-      const count = db.exec('SELECT COUNT(*) as count FROM projects');
-      if (count[0].values[0][0] <= 1) {
-        return sendJson(res, 400, { error: 'Cannot delete the only project' });
-      }
-
-      // Move to trash
-      const project = queryAll('SELECT * FROM projects WHERE id = ?', [id]);
-      if (!project[0]) {
-        return sendJson(res, 404, { error: 'Project not found' });
-      }
-
-      const trashId = `trash_${Date.now()}`;
-      db.run(
-        'INSERT INTO trash (id, type, data, date) VALUES (?, ?, ?, ?)',
-        [trashId, 'project', JSON.stringify(project[0]), new Date().toISOString()]
-      );
-
-      // Delete project and its issues
-      db.run('DELETE FROM issues WHERE projectId = ?', [id]);
-      db.run('DELETE FROM projects WHERE id = ?', [id]);
-      saveDb();
-
-      // Set a different project as current
-      const remaining = db.exec('SELECT id FROM projects LIMIT 1');
-      if (remaining.length > 0) {
-        db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)",
-          [remaining[0].values[0][0]]);
-        saveDb();
-      }
-
-      sendJson(res, 200, { success: true });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message });
-    }
-  },
-};
-
-export default router;
+export default { getAll, getCurrent, setCurrent, create, remove };

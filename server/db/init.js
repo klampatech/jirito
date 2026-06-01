@@ -33,7 +33,7 @@ export function initTables() {
     CREATE TABLE IF NOT EXISTS comments (
       id TEXT PRIMARY KEY,
       issueId TEXT NOT NULL,
-      body TEXT DEFAULT '',
+      content TEXT DEFAULT '',
       author TEXT DEFAULT '',
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
@@ -133,12 +133,15 @@ export function initTables() {
     db.run(
       "INSERT INTO projects (id, name, key, icon) VALUES ('default', 'Default Project', 'JIR', '🚀')"
     );
-    db.run(
-      "INSERT INTO metadata (key, value) VALUES ('currentProject', 'default')"
-    );
-    db.run(
-      "INSERT INTO metadata (key, value) VALUES ('issueCounter', '1')"
-    );
+  }
+  // Ensure metadata entries exist (idempotent)
+  const hasCurrentProject = db.exec("SELECT COUNT(*) as count FROM metadata WHERE key = 'currentProject'");
+  if (hasCurrentProject[0].values[0][0] === 0) {
+    db.run("INSERT INTO metadata (key, value) VALUES ('currentProject', 'default')");
+  }
+  const hasIssueCounter = db.exec("SELECT COUNT(*) as count FROM metadata WHERE key = 'issueCounter'");
+  if (hasIssueCounter[0].values[0][0] === 0) {
+    db.run("INSERT INTO metadata (key, value) VALUES ('issueCounter', '1')");
   }
 
   saveDb();

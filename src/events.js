@@ -200,7 +200,8 @@ function openDetailPanel(issueId) {
       <div class="history-list">${historyHtml || '<span class="history-empty">No changes yet</span>'}</div>
     </div>
     <div class="comments-section">
-      <h3>Comments (${(getComments()[issue.id] || []).length})</h3>
+      <h3>Comments</h3>
+      <span id="comment-count" class="comment-count-badge">${(getComments()[issue.id] || []).length}</span>
       <div id="comments-list">
         ${(getComments()[issue.id] || []).map(c => `
           <div class="comment">

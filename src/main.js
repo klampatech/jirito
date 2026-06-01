@@ -9,9 +9,9 @@
 //   main-trash.js       — trash display & restore
 //   main-onboarding.js  — first-time user wizard
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Load state & initialize data
-  loadState();
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load state (async — detects server availability and loads from storage layer)
+  await loadState();
   initializeData();
 
   // 2. Render core UI
