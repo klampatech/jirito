@@ -30,7 +30,9 @@ async function navigate(page) {
 
 test.describe('E2E Integration Tests', () => {
   test.beforeEach(async ({ page }) => {
+    console.log('[e2e] beforeEach: clearing database...');
     await clearDb();
+    console.log('[e2e] beforeEach: database cleared');
   });
 
   test('should load data from server on startup', async ({ page }) => {

@@ -1,3 +1,9 @@
+// NOTE: This file uses @playwright/test and MUST be run via:
+//   npx playwright test tests/tests.spec.mjs
+// It CANNOT be run via `node --test tests/tests.spec.mjs` because
+// Playwright's test.beforeEach() is not compatible with Node's built-in
+// test runner and will throw: "Playwright Test did not expect test.beforeEach() to be called here."
+
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'url';
 import path from 'path';

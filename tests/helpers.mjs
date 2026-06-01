@@ -4,13 +4,26 @@ const API_URL = 'http://127.0.0.1:3001';
 
 export async function clearDb() {
   try {
-    // Get all issues first
-    const resp = await fetch(`${API_URL}/api/issues`);
-    const issues = await resp.json();
-    // Delete each issue
-    for (const issue of issues) {
-      await fetch(`${API_URL}/api/issues/${issue.id}`, { method: 'DELETE' });
-    }
+    // Use setState with empty data to clear all tables atomically.
+    // This avoids UNIQUE constraint errors on subsequent state imports
+    // (columns, sprints, filters, trash, comments, etc. were previously
+    // not cleared by setState, causing constraint failures).
+    await fetch(`${API_URL}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        issues: [],
+        projects: {},
+        currentProject: 'default',
+        savedFilters: [],
+        activityLog: [],
+        issueCounter: 1,
+        trash: [],
+        sprints: {},
+        columns: [],
+        comments: [],
+      }),
+    });
   } catch {
     // Server might not be running
   }

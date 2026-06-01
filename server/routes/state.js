@@ -170,12 +170,13 @@ export async function setState(req, res, data) {
 
     // Clear existing data
     db.run('DELETE FROM activity');
+    db.run('DELETE FROM columns');
+    db.run('DELETE FROM comments');
+    db.run('DELETE FROM filters');
     db.run('DELETE FROM issues');
     db.run('DELETE FROM projects');
     db.run('DELETE FROM sprints');
-    db.run('DELETE FROM filters');
     db.run('DELETE FROM trash');
-    db.run('DELETE FROM comments');
 
     // Import projects
     if (data.projects) {
