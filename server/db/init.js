@@ -21,6 +21,7 @@ export function initTables() {
       rank REAL DEFAULT 0,
       parentIssueId TEXT,
       dueDate TEXT DEFAULT '',
+      customColumnId TEXT DEFAULT NULL,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now'))
     )
