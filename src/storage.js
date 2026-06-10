@@ -28,8 +28,8 @@
     comments: {},
     projects: {
       default: {
-        name: 'Default Project',
-        key: 'JIR',
+        name: 'Project Alpha',
+        key: 'PROJ',
         icon: '\uD83D\uDE80',
         color: '#0052CC',
         description: '',
@@ -142,6 +142,7 @@
 
   function _loadFromServer() {
     return _apiRequest('/state', { method: 'GET' }).then(function (data) {
+      console.log('[storage] _loadFromServer received issues:', JSON.stringify(data.issues?.map(i => ({id:i.id, dueDate:i.dueDate}))));
       // Map trash from server format to frontend format
       var trashData = [];
       if (data.trash && Array.isArray(data.trash)) {
@@ -180,10 +181,45 @@
         return { issues: t.issues || [], date: t.date.toISOString ? t.date.toISOString() : t.date };
       }) : [],
       sprints: data.sprints || {},
+      customColumns: data.customColumns || {}
+    };
+    // Only include columns if non-empty to avoid overwriting server state
+    if (data.columns && data.columns.length > 0) {
+      stateToSave.columns = data.columns;
+    }
+    // Mirror to localStorage as a cache. This keeps the offline fallback
+    // warm and lets test suites (and any same-origin reader) observe the
+    // latest state without an extra round-trip to the server.
+    try {
+      _writeLocalMirror(stateToSave);
+    } catch (e) {
+      console.warn('[storage] Failed to mirror to localStorage:', e);
+    }
+    return _apiRequest('/state', { method: 'PUT', body: JSON.stringify(stateToSave) });
+  }
+
+  /**
+   * Write the current state to localStorage under the canonical
+   * "jirito-state" key. Used as a cache mirror in server mode and
+   * as the primary store in offline mode. Kept tolerant of partial data
+   * (missing fields fall back to safe defaults).
+   */
+  function _writeLocalMirror(data) {
+    if (typeof localStorage === 'undefined') return;
+    var stateToSave = {
+      issues: data.issues || [],
+      projects: data.projects || {},
+      currentProject: data.currentProject || 'default',
+      filters: data.filters || data.savedFilters || [],
+      activity: data.activity || data.activityLog || [],
+      activityLog: data.activityLog || data.activity || [],
+      issueCounter: data.issueCounter || 1,
+      trash: data.trash || [],
+      sprints: data.sprints || {},
       columns: data.columns || [],
       customColumns: data.customColumns || {}
     };
-    return _apiRequest('/state', { method: 'PUT', body: JSON.stringify(stateToSave) });
+    localStorage.setItem('jirito-state', JSON.stringify(stateToSave));
   }
 
   // ===== localStorage Fallback =====
@@ -203,23 +239,7 @@
 
   function _saveToLocalStorage(data) {
     try {
-      var stateToSave = {
-        issues: data.issues,
-        projects: data.projects,
-        currentProject: data.currentProject,
-        filters: data.filters || [],
-        activity: data.activity ? data.activity.map(function (a) {
-          return { icon: a.icon, text: a.text, time: a.time };
-        }) : [],
-        issueCounter: data.issueCounter,
-        trash: data.trash ? data.trash.map(function (t) {
-          return { issues: t.issues || [], date: t.date.toISOString ? t.date.toISOString() : t.date };
-        }) : [],
-        sprints: data.sprints || {},
-        columns: data.columns || [],
-        customColumns: data.customColumns || {}
-      };
-      localStorage.setItem('jirito-state', JSON.stringify(stateToSave));
+      _writeLocalMirror(data);
     } catch (e) {
       console.error('[storage] Failed to save to localStorage:', e);
     }

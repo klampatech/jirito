@@ -4,6 +4,15 @@
 const HISTORY_MAX_ENTRIES = LJ_CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = LJ_CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
 
+// Coerce both sides to string for ID comparison. After the server
+// migration, issue ids are stored as numbers but the DOM (data-id) and
+// URL params are always strings, so a strict === would always fail.
+function _matchesId(issue, id) {
+  if (issue == null || id == null) return false;
+  return String(issue.id) === String(id);
+}
+
+
 // ===== Drag & Drop State =====
 let draggedId = null;
 let draggedCard = null;
@@ -76,7 +85,7 @@ let _detailCommentClickHandler = null;
 let _detailCommentKeydownHandler = null;
 
 function openDetailPanel(issueId) {
-  const issue = getIssues().find(i => i.id === issueId);
+  const issue = getIssues().find(i => _matchesId(i, issueId));
   if (!issue) return;
   setCurrentDetailIssue(issue);
 
@@ -173,7 +182,7 @@ function openDetailPanel(issueId) {
       <label>Dependencies</label>
       <div id="detail-dependencies">
         ${(issue.dependencies || []).map(d => {
-          const target = getIssues().find(i => i.id === d.targetId);
+          const target = getIssues().find(i => _matchesId(i, d.targetId));
           const targetKey = target ? generateIssueKey(getProjectKey(), target.id) : 'Unknown';
           const typeIcon = d.type === 'blocks' ? 'TriangleAlert' : 'Link';
           return `<div class="dep-entry">
@@ -428,7 +437,7 @@ function openDetailPanel(issueId) {
     depContainer.querySelectorAll('.dep-remove').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        const targetId = parseInt(btn.dataset.targetId);
+        const targetId = btn.dataset.targetId;
         const type = btn.dataset.type;
         removeDependency(issueId, targetId, type);
         showToast('Dependency removed', 'success');
@@ -449,7 +458,7 @@ function openDetailPanel(issueId) {
         const query = depSearch.value.trim().toUpperCase();
         if (!query) { depResults.style.display = 'none'; return; }
         const matches = getIssues().filter(i => {
-          if (i.id === issueId) return false;
+          if (_matchesId(i, issueId)) return false;
           const key = generateIssueKey(getProjectKey(), i.id);
           const titleMatch = (i.title || '').toUpperCase().includes(query);
           const keyMatch = key.toUpperCase().includes(query);
@@ -463,8 +472,14 @@ function openDetailPanel(issueId) {
         depResults.style.display = 'block';
         depResults.querySelectorAll('.dep-result-item').forEach(item => {
           item.addEventListener('click', () => {
-            const targetId = parseInt(item.dataset.id);
+            const targetId = item.dataset.id;
             const type = document.getElementById('dep-type').value;
+            // Self-dependency: explicit, type-tolerant check (the type
+            // mismatch on ids makes hasCircularDependency unreliable here).
+            if (String(issueId) === String(targetId)) {
+              showToast('Cannot add: would create a circular dependency', 'error');
+              return;
+            }
             if (hasCircularDependency(issueId, targetId)) {
               showToast('Cannot add: would create a circular dependency', 'error');
               return;
@@ -483,7 +498,7 @@ function openDetailPanel(issueId) {
       if (!query) return;
       const match = getIssues().find(i => {
         const key = generateIssueKey(getProjectKey(), i.id).toUpperCase();
-        return key.includes(query) && i.id !== issueId;
+        return key.includes(query) && !_matchesId(i, issueId);
       });
       if (match) {
         const type = document.getElementById('dep-type').value;
@@ -535,7 +550,7 @@ function trackHistory(issue, field, from, to) {
 
 function deleteIssue(issueId) {
   if (!confirm('Delete this issue? You can restore it from Trash.')) return;
-  const idx = getIssues().findIndex(i => i.id === issueId);
+  const idx = getIssues().findIndex(i => _matchesId(i, issueId));
   if (idx === -1) return;
   const title = getIssues()[idx].title;
   const issue = getIssues().splice(idx, 1)[0];
@@ -690,7 +705,7 @@ function initMarkdownToggles() {
 }
 
 function cloneIssue(issueId) {
-  const issue = getIssues().find(i => i.id === issueId);
+  const issue = getIssues().find(i => _matchesId(i, issueId));
   if (!issue) return;
   const newId = getIssueCounter() + 1;
   setIssueCounter(newId);
@@ -720,7 +735,7 @@ function cloneIssue(issueId) {
   showToast(`Issue cloned as ${newKey}`, 'success');
   openDetailPanel(newIssue.id);
   showUndoToast(`Cloned to ${newKey}`, () => {
-    const idx = getIssues().findIndex(i => i.id === newIssue.id);
+    const idx = getIssues().findIndex(i => _matchesId(i, newIssue.id));
     if (idx !== -1) {
       getIssues().splice(idx, 1);
       delete getComments()[newIssue.id];
@@ -747,7 +762,7 @@ function initDragDrop() {
     col.addEventListener('click', e => {
       const card = e.target.closest('.issue-card');
       if (!card || card.classList.contains('dragging')) return;
-      const id = parseInt(card.dataset.id);
+      const id = card.dataset.id;
       if (id) openDetailPanel(id);
     });
     col.addEventListener('keydown', e => {
@@ -755,7 +770,7 @@ function initDragDrop() {
       if (!card) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        const id = parseInt(card.dataset.id);
+        const id = card.dataset.id;
         if (id) openDetailPanel(id);
       }
     });
@@ -763,7 +778,7 @@ function initDragDrop() {
     col.addEventListener('change', e => {
       const checkbox = e.target.closest('.issue-checkbox');
       if (!checkbox) return;
-      const id = parseInt(checkbox.dataset.id);
+      const id = checkbox.dataset.id;
       if (checkbox.checked) getSelectedIds().add(id);
       else getSelectedIds().delete(id);
       updateBulkBar();
@@ -860,8 +875,8 @@ function initDragDrop() {
       col.classList.remove('drag-over');
       removeDropIndicators();
       
-      const id = parseInt(e.dataTransfer.getData('text/plain'));
-      const issue = getIssues().find(i => i.id === id);
+      const id = e.dataTransfer.getData('text/plain');
+      const issue = getIssues().find(i => String(i.id) === String(id));
       if (!issue) return;
       
       const colId = col.dataset.colId;
@@ -889,10 +904,10 @@ function initDragDrop() {
         const afterCards = [...col.querySelectorAll('.issue-card:not(.dragging)')].slice(finalIndex);
         
         const beforeIssue = beforeCards.length > 0 
-          ? getIssues().find(i => i.id === parseInt(beforeCards[beforeCards.length - 1].dataset.id)) 
+          ? getIssues().find(i => _matchesId(i, beforeCards[beforeCards.length - 1].dataset.id))
           : null;
         const afterIssue = afterCards.length > 0 
-          ? getIssues().find(i => i.id === parseInt(afterCards[0].dataset.id)) 
+          ? getIssues().find(i => _matchesId(i, afterCards[0].dataset.id))
           : null;
         
         const beforeRank = beforeIssue?.rank ?? -1;
@@ -985,7 +1000,7 @@ function handleBulkStatusChange(e) {
   if (!status) return;
   const movedIssues = [];
   getIssues().forEach(i => {
-    if (getSelectedIds().has(i.id)) {
+    if (isSelectedIssue(i.id)) {
       trackHistory(i, 'status', i.status, status);
       i.status = status;
       movedIssues.push({ id: i.id, oldStatus: i.status });
@@ -999,7 +1014,7 @@ function handleBulkStatusChange(e) {
   // Wire up undo
   showUndoToast(`${movedIssues.length} issues moved`, () => {
     movedIssues.forEach(m => {
-      const issue = getIssues().find(i => i.id === m.id);
+      const issue = getIssues().find(i => _matchesId(i, m.id));
       if (issue) {
         issue.status = m.oldStatus;
         trackHistory(issue, 'status', status, m.oldStatus);
@@ -1018,7 +1033,7 @@ function handleBulkDelete() {
   const titles = [];
   const deletedIssues = [];
   setIssues(getIssues().filter(i => {
-    if (getSelectedIds().has(i.id)) {
+    if (isSelectedIssue(i.id)) {
       titles.push(i.title);
       deletedIssues.push(i);
       moveToTrash(i);

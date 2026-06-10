@@ -146,8 +146,8 @@ test('saveStorageData persists data to server when in server mode', async ({ pag
     data.sprints['sprint-browser-test'] = {
       id: 'sprint-browser-test',
       name: 'Browser Test Sprint',
-      startDate: '2026-05-26T00:00:00.000Z',
-      endDate: '2026-06-09T00:00:00.000Z',
+      startDate: '2026-06-01T00:00:00.000Z',
+      endDate: '2026-07-15T00:00:00.000Z',
       active: false,
       archived: false,
     };
@@ -269,8 +269,8 @@ test('state persists across page reloads', async ({ page }) => {
   // Create a sprint via the app
   await page.locator('#manage-sprints-btn').click();
   await page.locator('#sprint-name').fill('Persist Test Sprint');
-  await page.locator('#sprint-start').fill('2026-05-26');
-  await page.locator('#sprint-end').fill('2026-06-09');
+  await page.locator('#sprint-start').fill('2026-06-01');
+  await page.locator('#sprint-end').fill('2026-07-15');
   await page.locator('#sprint-form button[type="submit"]').click();
   await page.locator('#sprint-modal-close').click();
 
@@ -306,18 +306,43 @@ test('custom columns persist across page reloads', async ({ page }) => {
     await window.storage.saveStorageData(data);
   });
 
+  // Wait for server save to complete
+  await page.waitForTimeout(500);
+
+  // Verify columns were saved to server by calling getState directly
+  const serverState = await page.evaluate(async () => {
+    const resp = await fetch('/api/state');
+    return resp.json();
+  });
+  console.log('Server state columns:', JSON.stringify(serverState.columns));
+
   // Reload
   await page.reload();
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
   // Verify custom columns still exist
-  const columns = await page.evaluate(async () => {
+  const result = await page.evaluate(async () => {
+    // First try direct fetch to verify server has columns
+    const resp = await fetch('/api/state');
+    const serverData = await resp.json();
+    
     await window.storage.initStorage();
-    return window.storage.getStorageData().columns;
+    const data = window.storage.getStorageData();
+    return { 
+      columns: data.columns, 
+      serverColumns: serverData.columns,
+      storageType: window.storage.getStorageType()
+    };
   });
+  console.log('After reload, columns:', JSON.stringify(result.columns));
+  console.log('After reload, serverColumns:', JSON.stringify(result.serverColumns));
+  console.log('After reload, storageType:', result.storageType);
+  const columns = result.columns;
 
-  expect(columns.some(c => c.id === 'custom-persist')).toBe(true);
-  expect(columns.some(c => c.name === 'Custom Persist Column')).toBe(true);
+  expect(columns).toBeDefined();
+  expect(Array.isArray(columns)).toBe(true);
+  expect(columns.some(c => c && c.id === 'custom-persist')).toBe(true);
+  expect(columns.some(c => c && c.name === 'Custom Persist Column')).toBe(true);
 });
 
 // ===== Offline → Online Transition Tests =====

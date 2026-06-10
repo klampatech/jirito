@@ -11,8 +11,16 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
   });
   res.end(JSON.stringify(data));
+}
+
+function coerceIssueId(issue) {
+  if (issue && typeof issue.id === 'string' && /^\d+$/.test(issue.id)) {
+    return { ...issue, id: Number(issue.id) };
+  }
+  return issue;
 }
 
 function parseJsonColumn(value) {
@@ -59,7 +67,7 @@ export async function getAll(req, res, url) {
     }
     sql += ' ORDER BY createdAt DESC';
     const issues = queryAll(sql, params);
-    sendJson(res, 200, issues);
+    sendJson(res, 200, issues.map(coerceIssueId));
   } catch (error) {
     console.error('getAll issues error:', error);
     sendJson(res, 500, { error: error.message });
@@ -84,7 +92,7 @@ export async function getById(req, res, id) {
         issue[col] = value;
       }
     });
-    sendJson(res, 200, issue);
+    sendJson(res, 200, coerceIssueId(issue));
   } catch (error) {
     console.error('getById issue error:', error);
     sendJson(res, 500, { error: error.message });
@@ -105,12 +113,13 @@ export async function create(req, res, body) {
     const now = new Date().toISOString();
 
     db.run(
-      `INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.title || '',
         body.description || '',
+        body.type || 'task',
         body.status || 'backlog',
         body.priority || 'medium',
         JSON.stringify(body.labels || []),
@@ -119,7 +128,9 @@ export async function create(req, res, body) {
         body.projectId || 'default',
         body.sprintId || null,
         body.storyPoints || 0,
+        body.rank ?? 0,
         body.parentIssueId || null,
+        body.dueDate || '',
         now,
         now,
       ]
@@ -127,8 +138,8 @@ export async function create(req, res, body) {
 
     await saveDb();
 
-    sendJson(res, 201, {
-      id,
+    sendJson(res, 201, coerceIssueId({
+      id: Number(id),
       title: body.title || '',
       description: body.description || '',
       status: body.status || 'backlog',
@@ -140,9 +151,10 @@ export async function create(req, res, body) {
       sprintId: body.sprintId || null,
       storyPoints: body.storyPoints || 0,
       parentIssueId: body.parentIssueId || null,
+      dueDate: body.dueDate || null,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
   } catch (error) {
     console.error('create issue error:', error);
     sendJson(res, 500, { error: error.message });
@@ -164,7 +176,7 @@ export async function update(req, res, id, body) {
     // Build dynamic UPDATE
     const updates = [];
     const params = [];
-    const fields = ['title', 'description', 'status', 'priority', 'labels', 'assignee', 'reporter', 'projectId', 'sprintId', 'storyPoints', 'parentIssueId'];
+    const fields = ['title', 'description', 'type', 'status', 'priority', 'labels', 'assignee', 'reporter', 'projectId', 'sprintId', 'storyPoints', 'rank', 'parentIssueId', 'dueDate'];
     for (const field of fields) {
       if (body[field] !== undefined) {
         updates.push(`${field} = ?`);
@@ -199,7 +211,7 @@ export async function update(req, res, id, body) {
         issue[col] = value;
       }
     });
-    sendJson(res, 200, issue);
+    sendJson(res, 200, coerceIssueId(issue));
   } catch (error) {
     console.error('update issue error:', error);
     sendJson(res, 500, { error: error.message });

@@ -22,6 +22,15 @@ let _trash = [];
 let _sprints = {};
 let _customColumns = {};
 let _markdownCache = {};
+// Coerce both sides to string for ID comparison. After the SQLite
+// migration, issue ids are stored as numbers but the DOM (data-id) and
+// URL params are always strings, so a strict === would always fail.
+function _matchesId(issue, id) {
+  if (issue == null || id == null) return false;
+  return String(issue.id) === String(id);
+}
+
+
 
 // ===== Getter / Setter Accessors =====
 
@@ -51,6 +60,16 @@ function getActivityLog() { return _activityLog; }
 function setActivityLog(v) { _activityLog = v; }
 
 function getSelectedIds() { return _selectedIds; }
+
+// Loose check whether a given issue id is in the selected set.
+// After the SQLite migration, stored IDs may be strings (from dataset.id)
+// or numbers (from issue.id) depending on the path that added them.
+// Compare both forms.
+function isSelectedIssue(issueId) {
+  const set = _selectedIds;
+  if (set.has(issueId)) return true;
+  return set.has(String(issueId)) || set.has(Number(issueId));
+}
 
 function getTrash() { return _trash; }
 function setTrash(v) { _trash = v; }
@@ -82,6 +101,7 @@ function addActivity(icon, text) {
 let _initialized = false;
 
 async function loadState() {
+  console.log('[loadState] called, _initialized:', _initialized);
   // Initialize storage layer (detects online/offline mode)
   if (!_initialized) {
     await storage.initStorage();
@@ -91,12 +111,14 @@ async function loadState() {
   // Load persisted data from storage layer (localStorage or server)
   const data = await storage.getStorageData();
 
-  if (data && data.issues) {
-    _issues = data.issues;
+  if (data && data.issues && data.issues.length > 0) {
+    _issues = data.issues.map(i => ({ ...i, desc: i.desc || i.description || '' }));
     _issueCounter = Math.max(..._issues.map(i => i.id), ISSUE_COUNTER_START);
+    console.log('[loadState] Loaded', _issues.length, 'issues from storage, first dueDate:', _issues[0]?.dueDate);
   } else {
     _issues = [...sampleIssues];
     _issueCounter = 106;
+    console.log('[loadState] Using sample issues, first dueDate:', _issues[0]?.dueDate);
   }
 
   // Restore projects (storage layer uses object-per-key format)
@@ -138,6 +160,16 @@ async function loadState() {
 // Internal debounce timer
 let _saveStateTimer = null;
 
+// Expose a flag used by main.js's beforeunload handler to decide whether
+// a debounced save is queued. The flag is true only between a saveState()
+// call and the actual flush — preventing stale in-memory state from
+// overwriting newer server state on page reload.
+try {
+  if (typeof window !== 'undefined') {
+    window.__jiritoHasPendingSave = function () { return _saveStateTimer !== null; };
+  }
+} catch (e) { /* ignore */ }
+
 // saveState — debounced by default (300ms).
 // Batches rapid successive calls into a single persistence write.
 // Call saveStateImmediate() when you need guaranteed persistence right away.
@@ -163,9 +195,12 @@ async function _doSaveState() {
     activity: _activityLog.map(a => ({ ...a, time: a.time.toISOString() })),
     trash: _trash.map(t => ({ ...t, date: t.date.toISOString() })),
     sprints: _sprints,
+    // Persist the local issue counter so the next client reload doesn't
+    // regress to ISSUE_COUNTER_START and collide with existing IDs.
+    issueCounter: _issueCounter,
   };
 
-  // Only include columns if there are actual custom columns (not the default {} sentinel)
+  // Include columns if there are actual custom columns (not the default {} sentinel)
   if (Array.isArray(customCols) && customCols.length > 0) {
     data.columns = customCols;
   }
@@ -278,30 +313,32 @@ function getActiveSprintId() {
 // ===== Dependencies =====
 
 function addDependency(issueId, targetId, type) {
-  const issue = _issues.find(i => i.id === issueId);
+  // Use _matchesId to tolerate string/number ID mismatches (the DOM
+  // and URL params give us strings; the server-loaded issues use numbers).
+  const issue = _issues.find(i => _matchesId(i, issueId));
   if (!issue) return;
   if (!issue.dependencies) issue.dependencies = [];
-  if (!issue.dependencies.find(d => d.targetId === targetId && d.type === type)) {
-    issue.dependencies.push({ targetId, type, created: new Date().toISOString() });
+  if (!issue.dependencies.find(d => String(d.targetId) === String(targetId) && d.type === type)) {
+    issue.dependencies.push({ targetId: String(targetId), type, created: new Date().toISOString() });
   }
   // Create reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = _issues.find(i => i.id === targetId);
+    const target = _issues.find(i => _matchesId(i, targetId));
     if (target && !target.dependencies) target.dependencies = [];
-    if (target && !target.dependencies.find(d => d.targetId === issueId && d.type === 'relates-to')) {
-      target.dependencies.push({ targetId: issueId, type: 'relates-to', created: new Date().toISOString() });
+    if (target && !target.dependencies.find(d => String(d.targetId) === String(issueId) && d.type === 'relates-to')) {
+      target.dependencies.push({ targetId: String(issueId), type: 'relates-to', created: new Date().toISOString() });
     }
   }
   saveState();
 }
 
 function removeDependency(issueId, targetId, type) {
-  const issue = _issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => _matchesId(i, issueId));
   if (!issue || !issue.dependencies) return;
-  issue.dependencies = issue.dependencies.filter(d => !(d.targetId === targetId && d.type === type));
+  issue.dependencies = issue.dependencies.filter(d => !(String(d.targetId) === String(targetId) && d.type === type));
   // Remove reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = _issues.find(i => i.id === targetId);
+    const target = _issues.find(i => _matchesId(i, targetId));
     if (target && target.dependencies) {
       target.dependencies = target.dependencies.filter(d => !(d.targetId === issueId && d.type === 'relates-to'));
     }
@@ -310,23 +347,25 @@ function removeDependency(issueId, targetId, type) {
 }
 
 function hasCircularDependency(issueId, targetId, visited = new Set()) {
-  if (issueId === targetId) return true;
+  // Compare ids as strings so string/number mismatches don't let a
+  // self-loop sneak through.
+  if (String(issueId) === String(targetId)) return true;
   if (visited.has(targetId)) return false;
   visited.add(targetId);
-  const target = _issues.find(i => i.id === targetId);
+  const target = _issues.find(i => _matchesId(i, targetId));
   if (!target || !target.dependencies) return false;
   return target.dependencies.some(d => hasCircularDependency(issueId, d.targetId, visited));
 }
 
 function getDependencies(issueId) {
-  const issue = _issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => _matchesId(i, issueId));
   return issue && issue.dependencies ? issue.dependencies : [];
 }
 
 function getDependents(issueId) {
   return _issues.filter(i => {
     if (!i.dependencies) return false;
-    return i.dependencies.some(d => d.targetId === issueId);
+    return i.dependencies.some(d => String(d.targetId) === String(issueId));
   });
 }
 

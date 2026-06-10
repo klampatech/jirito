@@ -162,6 +162,25 @@ export default async function globalSetup() {
   if (!resp.ok) {
     throw new Error('Static server failed to start');
   }
+  // Seed default issues so tests.spec.mjs tests have data to work with
+  const seedIssues = [
+    { title: 'Design login page mockup', description: 'Create wireframes for the new login flow', type: 'story', priority: 'high', status: 'todo', storyPoints: 5, sprint: '', assignee: 'Alice', dueDate: '2026-05-15', rank: 0 },
+    { title: 'Fix auth token refresh bug', description: 'Tokens expire too early on mobile', type: 'bug', priority: 'high', status: 'inprogress', storyPoints: 3, sprint: '', assignee: 'Bob', dueDate: '2026-05-01', rank: 1 },
+    { title: 'Set up CI/CD pipeline', description: 'GitHub Actions for staging and prod', type: 'task', priority: 'medium', status: 'todo', storyPoints: 8, sprint: '', assignee: 'Charlie', dueDate: '2026-06-01', rank: 2 },
+    { title: 'Write API documentation', description: 'OpenAPI spec for all endpoints', type: 'story', priority: 'medium', status: 'inreview', storyPoints: 5, sprint: '', assignee: 'Alice', dueDate: '', rank: 3 },
+    { title: 'Update dependencies', description: 'Bump all npm packages to latest', type: 'task', priority: 'low', status: 'done', storyPoints: 2, sprint: '', assignee: 'Bob', dueDate: '2026-04-20', rank: 4 },
+  ];
+  for (const issue of seedIssues) {
+    try {
+      await fetch('http://127.0.0.1:3001/api/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(issue),
+      });
+    } catch {
+      // Server might not be running
+    }
+  }
   log('Global setup complete');
   } catch (e) {
     log('Global setup ERROR: ' + e.message);

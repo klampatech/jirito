@@ -9,6 +9,7 @@ export function initTables() {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
       description TEXT DEFAULT '',
+      type TEXT DEFAULT 'task',
       status TEXT DEFAULT 'backlog',
       priority TEXT DEFAULT 'medium',
       labels TEXT DEFAULT '[]',
@@ -17,7 +18,9 @@ export function initTables() {
       projectId TEXT,
       sprintId TEXT,
       storyPoints INTEGER DEFAULT 0,
+      rank REAL DEFAULT 0,
       parentIssueId TEXT,
+      dueDate TEXT DEFAULT '',
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now'))
     )
@@ -146,4 +149,20 @@ export function initTables() {
 
   saveDb();
   console.log('Database tables initialized successfully');
+}
+
+export function migrateTables() {
+  const db = getDb();
+  
+  // Check if dueDate column exists
+  const tableInfo = db.exec("PRAGMA table_info(issues)");
+  if (tableInfo.length > 0) {
+    const columns = tableInfo[0].values.map(row => row[1]);
+    if (!columns.includes('dueDate')) {
+      db.run("ALTER TABLE issues ADD COLUMN dueDate TEXT DEFAULT ''");
+      console.log('Added dueDate column to issues table');
+    }
+  }
+  
+  saveDb();
 }

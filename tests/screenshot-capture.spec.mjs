@@ -5,7 +5,7 @@ import { join, dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCREENSHOT_DIR = join(__dirname, '..', 'screenshots');
-const APP_PATH = join(__dirname, '..', 'index.html');
+const APP_URL = 'http://127.0.0.1:8080/';
 
 // Helper to clear localStorage safely
 async function clearStorage(page) {
@@ -19,6 +19,9 @@ async function clearStorage(page) {
 // Helper to navigate to the app
 async function navigate(page) {
   await clearStorage(page);
+  await page.goto(APP_URL);
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
+
   // Seed sample data so the board renders with issue cards.
   // Without this, the board is empty and tests that interact with cards
   // (detail panel, drag preview, activity feed) will timeout.
@@ -33,7 +36,7 @@ async function navigate(page) {
         { id: 'PROJ-106', title: 'Deploy pipeline', description: 'CI/CD setup', status: 'done', priority: 'medium', labels: ['devops'], assignee: 'Frank', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
       ],
       projects: {
-        default: { name: 'Default Project', key: 'JIR', icon: '\uD83D\uDE80', color: '#0052CC', description: '', issues: ['PROJ-101','PROJ-102','PROJ-103','PROJ-104','PROJ-105','PROJ-106'] },
+        default: { name: 'Project Alpha', key: 'PROJ', icon: '\uD83D\uDE80', color: '#0052CC', description: '', issues: ['PROJ-101','PROJ-102','PROJ-103','PROJ-104','PROJ-105','PROJ-106'] },
       },
       currentProject: 'default',
       savedFilters: [],
@@ -47,7 +50,9 @@ async function navigate(page) {
     localStorage.setItem('jirito-state', JSON.stringify(sampleData));
     localStorage.setItem('jirito-onboarding', 'true');
   });
-  await page.goto('file://' + APP_PATH);
+  // Reload to load the seeded data
+  await page.reload();
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {

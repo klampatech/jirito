@@ -1,7 +1,7 @@
 import http from 'http';
 
 import { initDb, closeDb, saveDb } from './db/index.js';
-import { initTables } from './db/init.js';
+import { initTables, migrateTables } from './db/init.js';
 
 // Routes - using dynamic imports for ESM
 import issuesRouter from './routes/issues.js';
@@ -40,6 +40,10 @@ function sendJson(res, statusCode, data) {
     'Access-Control-Allow-Origin': CLIENT_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    // Prevent the browser from caching API responses. The frontend reloads
+    // after mutations and the GET that follows must reflect the latest
+    // server state, not a stale cache entry.
+    'Cache-Control': 'no-store',
   });
   res.end(JSON.stringify(data));
 }
@@ -212,6 +216,7 @@ async function start() {
     // Initialize database
     await initDb();
     initTables();
+    migrateTables();
 
     // Create HTTP server
     const server = http.createServer(async (req, res) => {
@@ -236,7 +241,7 @@ async function start() {
       process.exit(0);
     });
 
-    server.listen(PORT, () => {
+    server.listen(PORT, '127.0.0.1', () => {
       console.log(`Jirito server running at http://localhost:${PORT}`);
       console.log(`Database: ${process.env.JIRITO_DB_PATH || './jirito.db'}`);
     });

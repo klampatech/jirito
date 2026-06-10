@@ -8,6 +8,7 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
   });
   res.end(JSON.stringify(data));
 }
@@ -29,6 +30,47 @@ function parseJsonColumn(value) {
   return value;
 }
 
+// Columns that are stored as JSON-encoded TEXT in the schema.
+// Kept in sync with server/db/init.js CREATE TABLE statements.
+const JSON_COLUMNS_BY_TABLE = {
+  issues: new Set(['labels']),
+  comments: new Set([]),
+  projects: new Set([]),
+  sprints: new Set([]),
+  activity: new Set(['details']),
+  filters: new Set(['query']),
+  trash: new Set(['data']),
+  columns: new Set(['query']),
+  metadata: new Set([]),
+};
+
+// Cache of table → column name set, built once on first request.
+let tableColumnsCache = null;
+
+// SQLite stores ids as TEXT, but the frontend (and many existing tests)
+// compares against numeric ids. Coerce on the way out to keep callers
+// from having to repeat the cast.
+function coerceIssueId(issue) {
+  if (issue && typeof issue.id === 'string' && /^\d+$/.test(issue.id)) {
+    return { ...issue, id: Number(issue.id) };
+  }
+  return issue;
+}
+
+function getTableColumns(tableName) {
+  if (!tableColumnsCache) {
+    tableColumnsCache = new Map();
+  }
+  if (tableColumnsCache.has(tableName)) {
+    return tableColumnsCache.get(tableName);
+  }
+  const db = getDb();
+  const info = db.exec(`PRAGMA table_info(${tableName})`);
+  const cols = info.length > 0 ? info[0].values.map((row) => row[1]) : [];
+  tableColumnsCache.set(tableName, cols);
+  return cols;
+}
+
 /**
  * Query all rows from a table, auto-parsing JSON columns.
  */
@@ -37,8 +79,13 @@ function queryAll(sql, params = []) {
   const result = db.exec(sql, params);
   if (result.length === 0 || result[0].values.length === 0) return [];
   const cols = result[0].columns;
-  // Determine which columns are JSON by examining the table schema
-  const jsonCols = getJsonColumns(cols);
+  // Determine which table this query targets (best-effort: "FROM <table>")
+  const tableMatch = sql.match(/FROM\s+(\w+)/i);
+  const tableName = tableMatch ? tableMatch[1] : null;
+  const jsonCols =
+    tableName && JSON_COLUMNS_BY_TABLE[tableName]
+      ? JSON_COLUMNS_BY_TABLE[tableName]
+      : new Set();
   return result[0].values.map((row) => {
     const obj = {};
     cols.forEach((col, i) => {
@@ -51,36 +98,6 @@ function queryAll(sql, params = []) {
     });
     return obj;
   });
-}
-
-// Cache of table schemas to identify JSON columns
-let schemaCache = new Map();
-
-function getJsonColumns(columns) {
-  const db = getDb();
-  const result = db.exec("SELECT sql FROM sqlite_master WHERE type='table'");
-  if (result.length === 0) return new Set();
-  const jsonCols = new Set();
-  result[0].values.forEach(([sql]) => {
-    // Extract column definitions from CREATE TABLE
-    const match = sql.match(/\((.*)\)/s);
-    if (!match) return;
-    const colDefs = match[1].split(',');
-    colDefs.forEach(def => {
-      const trimmed = def.trim();
-      // Match column name and type: "labels TEXT DEFAULT '[]'"
-      const colMatch = trimmed.match(/^(\w+)\s+([A-Z]+)/);
-      if (colMatch) {
-        const colName = colMatch[1].toLowerCase();
-        const colType = colMatch[2].toUpperCase();
-        // Only check JSON columns that are TEXT type
-        if (colType === 'TEXT' && ['labels', 'query', 'details', 'data', 'description', 'goal'].includes(colName)) {
-          jsonCols.add(colName);
-        }
-      }
-    });
-  });
-  return jsonCols;
 }
 
 // Get all data for initial frontend load
@@ -96,7 +113,7 @@ export async function getState(req, res) {
     const currentProject = currentProjectResult.length > 0 ? currentProjectResult[0].values[0][0] : 'default';
 
     // Get issues
-    const issues = queryAll('SELECT * FROM issues ORDER BY createdAt DESC');
+    const issues = queryAll('SELECT * FROM issues ORDER BY createdAt ASC').map(coerceIssueId);
 
     // Get sprints as an object keyed by id (matching frontend's expected format)
     const sprintsArr = queryAll('SELECT * FROM sprints ORDER BY createdAt ASC');
@@ -107,7 +124,7 @@ export async function getState(req, res) {
 
     // Get activity log with parsed dates
     const activity = queryAll('SELECT * FROM activity ORDER BY time DESC LIMIT 100');
-    const activityLog = activity.map(a => ({
+    const activityLog = activity.map((a) => ({
       ...a,
       time: a.time,
     }));
@@ -117,7 +134,7 @@ export async function getState(req, res) {
 
     // Get trash
     const trash = queryAll('SELECT * FROM trash ORDER BY date DESC');
-    const trashItems = trash.map(t => ({
+    const trashItems = trash.map((t) => ({
       ...t,
       date: t.date,
     }));
@@ -135,7 +152,7 @@ export async function getState(req, res) {
         icon: proj.icon || '\uD83D\uDE80',
         color: proj.color || '#0052CC',
         description: proj.description || '',
-        issues: issues.filter(i => i.projectId === proj.id).map(i => i.id),
+        issues: issues.filter((i) => i.projectId === proj.id).map((i) => i.id),
       };
     }
 
@@ -168,15 +185,15 @@ export async function setState(req, res, data) {
   try {
     const db = getDb();
 
-    // Clear existing data
-    db.run('DELETE FROM activity');
-    db.run('DELETE FROM columns');
-    db.run('DELETE FROM comments');
-    db.run('DELETE FROM filters');
-    db.run('DELETE FROM issues');
-    db.run('DELETE FROM projects');
-    db.run('DELETE FROM sprints');
-    db.run('DELETE FROM trash');
+    // Clear existing data (only for fields that are being updated)
+    if (data.activityLog !== undefined) db.run('DELETE FROM activity');
+    if (data.columns !== undefined) db.run('DELETE FROM columns');
+    if (data.comments !== undefined) db.run('DELETE FROM comments');
+    if (data.savedFilters !== undefined) db.run('DELETE FROM filters');
+    if (data.issues !== undefined) db.run('DELETE FROM issues');
+    if (data.projects !== undefined) db.run('DELETE FROM projects');
+    if (data.sprints !== undefined) db.run('DELETE FROM sprints');
+    if (data.trash !== undefined) db.run('DELETE FROM trash');
 
     // Import projects
     if (data.projects) {
@@ -191,15 +208,21 @@ export async function setState(req, res, data) {
     }
 
     // Import issues
+    // NOTE: Column list must stay in sync with server/db/init.js schema. The
+    // previous version of this INSERT was missing `dueDate`, which caused
+    // full-state syncs to silently drop the field (defaulting to ''). That
+    // broke overdue-notification tests and any feature that depends on
+    // dueDate being persisted end-to-end.
     if (data.issues) {
       for (const issue of data.issues) {
         db.run(
-          `INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             String(issue.id),
             issue.title || '',
             issue.description || '',
+            issue.type || 'task',
             issue.status || 'backlog',
             issue.priority || 'medium',
             JSON.stringify(issue.labels || []),
@@ -208,7 +231,9 @@ export async function setState(req, res, data) {
             issue.projectId || 'default',
             issue.sprintId || null,
             issue.storyPoints || 0,
+            issue.rank ?? 0,
             issue.parentIssueId || null,
+            issue.dueDate || '',
             issue.createdAt || new Date().toISOString(),
             issue.updatedAt || new Date().toISOString(),
           ]

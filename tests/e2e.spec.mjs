@@ -16,6 +16,9 @@ async function navigate(page) {
   });
   
   await page.goto(APP_URL);
+  // Wait for the async loadState() to complete so subsequent assertions
+  // observe the same data the rest of the app does.
+  await page.waitForFunction(() => window.__jiritoStateReady === true, { timeout: 10000 });
   
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {
@@ -36,6 +39,8 @@ test.describe('E2E Integration Tests', () => {
   });
 
   test('should load data from server on startup', async ({ page }) => {
+    // Uses the standard seedIssues fixture (3 todo, 1 inprogress, 1 review, 1 done = 6 total).
+    // The test verifies the data is loaded from the server on the first page load.
     await seedIssues();
 
     const { consoleMessages, errors } = await navigate(page);
@@ -44,15 +49,15 @@ test.describe('E2E Integration Tests', () => {
       console.log(`JS ERRORS: ${JSON.stringify(errors)}`);
     }
 
-    // Verify the seeded issues appear as cards on the board
+    // All 6 seeded issues should be rendered as cards across the 4 columns.
     const cards = page.locator('#board .issue-card');
-    await expect(cards).toHaveCount(3);
-    
-    // Check that all three seeded issue titles appear anywhere on the board
+    await expect(cards).toHaveCount(6);
+
+    // Spot-check that the seeded titles appear on the board.
     const board = await page.locator('#board').textContent();
-    expect(board).toContain('E2E Test Issue 1');
-    expect(board).toContain('E2E Test Issue 2');
-    expect(board).toContain('E2E Test Issue 3');
+    expect(board).toContain('Design login page mockup');
+    expect(board).toContain('Fix auth token refresh bug');
+    expect(board).toContain('Update dependencies');
   });
 
   test('should save data to server via UI', async ({ page }) => {
@@ -132,7 +137,7 @@ test.describe('E2E Integration Tests', () => {
     await page.locator('#issue-priority').selectOption('medium');
     await page.locator('#issue-form button[type="submit"]').click();
 
-    await expect(page.locator('#board .issue-card')).toContainText('Offline Test Issue');
+    await expect(page.locator('#board').getByRole('button', { name: 'PROJ-107: Offline Test Issue' })).toBeVisible();
 
     // Wait for the save to complete
     await page.waitForTimeout(1000);

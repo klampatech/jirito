@@ -9,7 +9,9 @@
 //   main-trash.js       — trash display & restore
 //   main-onboarding.js  — first-time user wizard
 
+console.log('[main] main.js loaded');
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[main] DOMContentLoaded, loadState exists:', typeof loadState);
   // Load state (async — detects server availability and loads from storage layer)
   await loadState();
   initializeData();
@@ -73,8 +75,19 @@ initOnboarding();
   // 6. Render trash
   renderTrash();
 
-  // 7. Flush pending saves before page unload
+  // 7. Flush pending saves before page unload — but only if the
+  //    debounced save is actually queued. Always saving would clobber
+  //    fresher server state (e.g., after a direct API mutation in
+  //    another tab or in tests) with this tab's in-memory snapshot.
   window.addEventListener('beforeunload', () => {
-    saveStateImmediate();
+    if (window.__jiritoHasPendingSave && window.__jiritoHasPendingSave()) {
+      saveStateImmediate();
+    }
   });
+
+  // 8. Signal completion for test runners / E2E tooling. Set on window so
+  //    it's accessible from page.evaluate() across reloads. This MUST be
+  //    after the full UI init — tests wait for this flag to know that
+  //    click handlers and other UI machinery are in place.
+  try { window.__jiritoStateReady = true; } catch (e) { /* ignore */ }
 });

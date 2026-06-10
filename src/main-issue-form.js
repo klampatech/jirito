@@ -46,6 +46,12 @@ function initIssueForm() {
         priority: document.getElementById('issue-priority').value,
         assignee: document.getElementById('issue-assignee').value.trim(),
         status: 'todo',
+        // Tag the issue with the current project so the board can
+        // filter per-project. This is required after the SQLite
+        // migration (the legacy localStorage mode tracked per-project
+        // issues separately; in server mode the issues are global and
+        // the board filters by projectId).
+        projectId: getCurrentProject(),
         dueDate: document.getElementById('issue-due-date').value || null,
         labels: [],
         storyPoints: document.getElementById('issue-story-points').value ? parseInt(document.getElementById('issue-story-points').value) : null,

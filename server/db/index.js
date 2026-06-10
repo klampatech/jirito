@@ -40,6 +40,20 @@ export async function initDb() {
   // Enable foreign keys
   db.run('PRAGMA foreign_keys=ON');
 
+  // Ensure 'type' column exists on issues table (migration for type support)
+  try {
+    db.exec("ALTER TABLE issues ADD COLUMN type TEXT DEFAULT 'task'");
+  } catch {
+    // Column already exists or table doesn't exist yet
+  }
+
+  // Ensure 'rank' column exists on issues table (migration for rank support)
+  try {
+    db.exec("ALTER TABLE issues ADD COLUMN rank REAL DEFAULT 0");
+  } catch {
+    // Column already exists
+  }
+
   return db;
 }
 
