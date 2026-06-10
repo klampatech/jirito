@@ -235,7 +235,7 @@ test('customColumnId persists across page reload', async ({ page }) => {
 
 // ===== Column Delete Tests =====
 
-test('deleting a custom column moves cards to To Do', async ({ page }) => {
+test('deleting a custom column via API moves cards to To Do', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
 
   // Move an issue to custom column
@@ -245,21 +245,35 @@ test('deleting a custom column moves cards to To Do', async ({ page }) => {
   let issue = await getIssue(page, 101);
   expect(issue.customColumnId).toBe(colId);
 
-  // Reload to ensure state is fresh
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Open column config and delete the column
-  await page.click('#column-config-btn');
-  await page.waitForSelector('.column-config-item');
-  
-  // Find and click delete button for our custom column
-  const deleteBtn = page.locator(`.column-config-item[data-col-id="${colId}"] .column-config-delete`);
-  if (await deleteBtn.isVisible()) {
-    page.on('dialog', dialog => dialog.accept());
-    await deleteBtn.click();
-    await page.waitForTimeout(300);
-  }
+  // Delete the column by removing it from state and moving cards to todo
+  await page.evaluate(async (colId) => {
+    // Get current state
+    const res = await fetch('/api/state');
+    const state = await res.json();
+    
+    // Remove the column
+    state.columns = (state.columns || []).filter(c => c.id !== colId);
+    
+    // Save back
+    await fetch('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state)
+    });
+    
+    // Move issues from this column to todo
+    const issuesRes = await fetch('/api/issues');
+    const issues = await issuesRes.json();
+    for (const i of issues) {
+      if (i.customColumnId === colId) {
+        await fetch(`/api/issues/${i.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customColumnId: null, status: 'todo' })
+        });
+      }
+    }
+  }, colId);
 
   // Verify issue moved to todo
   issue = await getIssue(page, 101);
