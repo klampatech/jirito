@@ -29,16 +29,14 @@ test.beforeEach(async ({ page }) => {
 // Helper: Create a custom column via the API
 async function createCustomColumn(page, name, color = '#9E9E9E') {
   const colId = await page.evaluate(async ({ name, color }) => {
-    // Use the app's addCustomColumn function if available
-    if (typeof window.addCustomColumn === 'function') {
-      return window.addCustomColumn(name, color);
-    }
-    // Otherwise, create via state manipulation
+    // Create via state manipulation using the storage layer
     const state = await window.storage.getStorageData();
-    const columns = state.columns || [];
+    const customColumns = state.customColumns || [];
     const id = 'col-' + Date.now();
-    columns.push({ id, name, color, status: null, order: columns.length });
-    state.columns = columns;
+    customColumns.push({ id, name, color, status: null, order: customColumns.length });
+    state.customColumns = customColumns;
+    // Also set 'columns' for server storage compatibility
+    state.columns = customColumns;
     await window.storage.saveStorageData(state);
     return id;
   }, { name, color });

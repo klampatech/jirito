@@ -138,7 +138,7 @@ async function loadState() {
     _currentProject = 'default';
   }
 
-  // Restore filters, activity, trash, sprints from storage layer
+  // Restore filters, activity, trash, sprints, customColumns from storage layer
   if (data && data.filters) {
     _savedFilters = data.filters;
   }
@@ -151,6 +151,12 @@ async function loadState() {
   }
   if (data && data.sprints) {
     _sprints = data.sprints;
+  }
+  if (data && data.customColumns) {
+    _customColumns = data.customColumns;
+  } else if (data && data.columns && Array.isArray(data.columns) && data.columns.length > 0) {
+    // Server stores as 'columns' array; map to customColumns
+    _customColumns = data.columns;
   }
 
   // Sync in-memory issues with current project
