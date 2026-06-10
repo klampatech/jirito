@@ -161,7 +161,7 @@
         trash: trashData,
         sprints: data.sprints || {},
         columns: data.columns || [],
-        customColumns: data.customColumns || {}
+        customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
       };
     });
   }
@@ -181,7 +181,7 @@
         return { issues: t.issues || [], date: t.date.toISOString ? t.date.toISOString() : t.date };
       }) : [],
       sprints: data.sprints || {},
-      customColumns: data.customColumns || {}
+      customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
     };
     // Only include columns if non-empty to avoid overwriting server state
     if (data.columns && data.columns.length > 0) {
@@ -217,7 +217,7 @@
       trash: data.trash || [],
       sprints: data.sprints || {},
       columns: data.columns || [],
-      customColumns: data.customColumns || {}
+      customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
     };
     localStorage.setItem('jirito-state', JSON.stringify(stateToSave));
   }

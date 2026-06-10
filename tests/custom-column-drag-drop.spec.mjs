@@ -31,7 +31,8 @@ async function createCustomColumn(page, name, color = '#9E9E9E') {
   const colId = await page.evaluate(async ({ name, color }) => {
     // Create via state manipulation using the storage layer
     const state = await window.storage.getStorageData();
-    const customColumns = state.customColumns || [];
+    // Ensure customColumns is an array (may be {} from initial state)
+    const customColumns = Array.isArray(state.customColumns) ? state.customColumns : [];
     const id = 'col-' + Date.now();
     customColumns.push({ id, name, color, status: null, order: customColumns.length });
     state.customColumns = customColumns;
