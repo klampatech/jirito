@@ -152,7 +152,7 @@ async function loadState() {
   if (data && data.sprints) {
     _sprints = data.sprints;
   }
-  if (data && data.customColumns) {
+  if (data && Array.isArray(data.customColumns) && data.customColumns.length > 0) {
     _customColumns = data.customColumns;
   } else if (data && data.columns && Array.isArray(data.columns) && data.columns.length > 0) {
     // Server stores as 'columns' array with different schema.
