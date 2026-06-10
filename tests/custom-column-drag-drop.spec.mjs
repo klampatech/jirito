@@ -26,26 +26,34 @@ test.beforeEach(async ({ page }) => {
   }
 });
 
-// Helper: Create a custom column via the API
-// Uses server's column format: { id, name, query, sortOrder }
+// Helper: Create a custom column via the server API
 async function createCustomColumn(page, name, color = '#9E9E9E') {
-  const colId = await page.evaluate(async ({ name, color }) => {
-    // Create via state manipulation using the storage layer
-    const state = await window.storage.getStorageData();
-    // Use server's column format (stored in 'columns' key)
-    const columns = Array.isArray(state.columns) ? state.columns : [];
-    const id = 'col-' + Date.now();
-    columns.push({ 
-      id, 
-      name, 
-      query: { color, status: null },  // Store frontend props in query
-      sortOrder: columns.length 
+  // First get current state from server
+  const stateRes = await page.evaluate(async () => {
+    const res = await fetch('/api/state');
+    return res.json();
+  });
+  
+  // Add new column to existing columns
+  const columns = stateRes.columns || [];
+  const id = 'col-' + Date.now();
+  columns.push({ 
+    id, 
+    name, 
+    query: { color, status: null },
+    sortOrder: columns.length 
+  });
+  
+  // Save back to server via PUT /api/state
+  await page.evaluate(async (data) => {
+    await fetch('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
-    state.columns = columns;
-    await window.storage.saveStorageData(state);
-    return id;
-  }, { name, color });
-  return colId;
+  }, { ...stateRes, columns });
+  
+  return id;
 }
 
 // Helper: Get issues by customColumnId
