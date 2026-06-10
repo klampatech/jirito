@@ -20,7 +20,7 @@ let _activityLog = [];
 let _selectedIds = new Set();
 let _trash = [];
 let _sprints = {};
-let _customColumns = {};
+let _customColumns = [];
 let _markdownCache = {};
 // Coerce both sides to string for ID comparison. After the SQLite
 // migration, issue ids are stored as numbers but the DOM (data-id) and

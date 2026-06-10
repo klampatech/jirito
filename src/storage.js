@@ -43,7 +43,7 @@
     trash: [],
     sprints: {},
     columns: [],
-    customColumns: {}
+    customColumns: []
   };
 
   // Detected storage mode: 'server' or 'offline'
