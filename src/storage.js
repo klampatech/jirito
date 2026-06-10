@@ -183,8 +183,11 @@
       sprints: data.sprints || {},
       customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
     };
-    // Only include columns if non-empty to avoid overwriting server state
-    if (data.columns && data.columns.length > 0) {
+    // Send as 'columns' for server compatibility (server expects 'columns' key)
+    // Also keep 'customColumns' for localStorage mirror
+    if (Array.isArray(data.customColumns) && data.customColumns.length > 0) {
+      stateToSave.columns = data.customColumns;
+    } else if (data.columns && data.columns.length > 0) {
       stateToSave.columns = data.columns;
     }
     // Mirror to localStorage as a cache. This keeps the offline fallback
