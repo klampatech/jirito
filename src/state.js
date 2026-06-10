@@ -20,7 +20,7 @@ let _activityLog = [];
 let _selectedIds = new Set();
 let _trash = [];
 let _sprints = {};
-let _customColumns = {};
+let _customColumns = [];
 let _markdownCache = {};
 // Coerce both sides to string for ID comparison. After the SQLite
 // migration, issue ids are stored as numbers but the DOM (data-id) and
@@ -138,7 +138,7 @@ async function loadState() {
     _currentProject = 'default';
   }
 
-  // Restore filters, activity, trash, sprints from storage layer
+  // Restore filters, activity, trash, sprints, customColumns from storage layer
   if (data && data.filters) {
     _savedFilters = data.filters;
   }
@@ -151,6 +151,22 @@ async function loadState() {
   }
   if (data && data.sprints) {
     _sprints = data.sprints;
+  }
+  if (data && Array.isArray(data.customColumns) && data.customColumns.length > 0) {
+    _customColumns = data.customColumns;
+  } else if (data && data.columns && Array.isArray(data.columns) && data.columns.length > 0) {
+    // Server stores as 'columns' array with different schema.
+    // Translate to frontend format: { id, name, color, status, order }
+    _customColumns = data.columns.map((col, idx) => {
+      const query = typeof col.query === 'string' ? JSON.parse(col.query) : (col.query || {});
+      return {
+        id: col.id,
+        name: col.name,
+        color: query.color || '#9E9E9E',
+        status: query.status || null,
+        order: col.sortOrder ?? idx
+      };
+    });
   }
 
   // Sync in-memory issues with current project

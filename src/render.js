@@ -60,8 +60,8 @@ function renderBoard() {
     const currentProject = getCurrentProject();
     let colIssues = allIssues.filter(i => {
       if (colDef.status) return i.status === colDef.status;
-      // For custom columns without status mapping, show all (they're custom)
-      return false;
+      // For custom columns without status mapping, filter by customColumnId
+      return i.customColumnId === colDef.id;
     });
     // Filter by current project. Issues without a projectId (e.g., legacy
     // localStorage data, or pre-migration fixtures) fall back to the
@@ -184,7 +184,8 @@ function updateCounts() {
       if (status) {
         countEl.textContent = getIssues().filter(i => i.status === status).length;
       } else {
-        countEl.textContent = '—';
+        // Custom column: count issues with matching customColumnId
+        countEl.textContent = getIssues().filter(i => i.customColumnId === colDef.id).length;
       }
     }
   });
@@ -322,7 +323,9 @@ function renderColumnConfig() {
 
   container.innerHTML = columns.map((col, idx) => {
     const isDefault = getDefaultColumns().some(d => d.id === col.id);
-    const cardCount = col.status ? getIssues().filter(i => i.status === col.status).length : 0;
+    const cardCount = col.status
+      ? getIssues().filter(i => i.status === col.status).length
+      : getIssues().filter(i => i.customColumnId === col.id).length;
     const statusOptions = ['todo', 'inprogress', 'review', 'done'].map(s => {
       const labels = { todo: 'To Do', inprogress: 'In Progress', review: 'In Review', done: 'Done' };
       return `<option value="${s}" ${col.status === s ? 'selected' : ''}>${labels[s]}</option>`;
@@ -372,8 +375,14 @@ function renderColumnConfig() {
       if (confirm('Delete this column? Cards in it will be moved to To Do.')) {
         const col = columns.find(c => c.id === btn.dataset.colId);
         if (col && col.status) {
-          // Move cards to To Do
+          // Move cards with this status to To Do
           getIssues().filter(i => i.status === col.status).forEach(i => i.status = 'todo');
+        } else if (col) {
+          // Custom column without status: move cards by customColumnId to To Do
+          getIssues().filter(i => i.customColumnId === col.id).forEach(i => {
+            i.customColumnId = null;
+            i.status = 'todo';
+          });
         }
         removeCustomColumn(btn.dataset.colId);
         renderColumnConfig();

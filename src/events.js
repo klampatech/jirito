@@ -881,9 +881,15 @@ function initDragDrop() {
       
       const colId = col.dataset.colId;
       const colDef = getEffectiveColumns().find(c => c.id === colId);
+      const isCustomColumn = colDef && !colDef.status;
       const newStatus = colDef?.status || col.dataset.status;
       const oldStatus = issue.status;
-      const sameColumn = colDef && colDef.status && issue.status === newStatus;
+      const oldCustomColumnId = issue.customColumnId;
+      
+      // Determine if this is a same-column operation
+      const sameColumn = isCustomColumn
+        ? issue.customColumnId === colId  // Custom column: compare customColumnId
+        : (colDef && colDef.status && issue.status === newStatus);  // Status column: compare status
       
       // Calculate destination index from the visual indicator position
       const targetCards = [...col.querySelectorAll('.issue-card:not(.dragging)')];
@@ -928,7 +934,10 @@ function initDragDrop() {
         });
       } else {
         // Move to different column — insert at finalIndex position
-        const targetIssues = getIssues().filter(i => i.status === newStatus);
+        // Determine target issues based on column type
+        const targetIssues = isCustomColumn
+          ? getIssues().filter(i => i.customColumnId === colId)
+          : getIssues().filter(i => i.status === newStatus);
         const targetCount = targetIssues.length;
         
         if (finalIndex >= targetCount) {
@@ -947,20 +956,36 @@ function initDragDrop() {
           issue.rank = (beforeRank + afterRank) / 2;
         }
         
-        issue.status = newStatus;
-        trackHistory(issue, 'status', oldStatus, newStatus);
+        // Update column assignment based on target column type
+        if (isCustomColumn) {
+          // Moving to a custom column — set customColumnId, clear status mapping
+          issue.customColumnId = colId;
+        } else {
+          // Moving to a status column — set status, clear customColumnId
+          issue.status = newStatus;
+          issue.customColumnId = null;
+          trackHistory(issue, 'status', oldStatus, newStatus);
+        }
         
         saveState();
         renderBoard();
         updateCounts();
-        const statusLabels = { todo: 'To Do', inprogress: 'In Progress', review: 'In Review', done: 'Done' };
-        showUndoToast(`Moved to ${statusLabels[newStatus]}`, () => {
-          issue.status = oldStatus;
+        
+        // Build undo toast message
+        const columnName = colDef ? colDef.name : newStatus;
+        showUndoToast(`Moved to ${columnName}`, () => {
+          // Undo: restore previous column assignment
+          if (isCustomColumn) {
+            issue.customColumnId = oldCustomColumnId;
+          } else {
+            issue.status = oldStatus;
+            issue.customColumnId = oldCustomColumnId;
+          }
           saveState();
           renderBoard();
           updateCounts();
           removeUndoToast();
-          showToast('Status restored', 'success');
+          showToast('Move undone', 'success');
         });
       }
       

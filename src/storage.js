@@ -43,7 +43,7 @@
     trash: [],
     sprints: {},
     columns: [],
-    customColumns: {}
+    customColumns: []
   };
 
   // Detected storage mode: 'server' or 'offline'
@@ -161,7 +161,7 @@
         trash: trashData,
         sprints: data.sprints || {},
         columns: data.columns || [],
-        customColumns: data.customColumns || {}
+        customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
       };
     });
   }
@@ -181,10 +181,13 @@
         return { issues: t.issues || [], date: t.date.toISOString ? t.date.toISOString() : t.date };
       }) : [],
       sprints: data.sprints || {},
-      customColumns: data.customColumns || {}
+      customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
     };
-    // Only include columns if non-empty to avoid overwriting server state
-    if (data.columns && data.columns.length > 0) {
+    // Send as 'columns' for server compatibility (server expects 'columns' key)
+    // Also keep 'customColumns' for localStorage mirror
+    if (Array.isArray(data.customColumns) && data.customColumns.length > 0) {
+      stateToSave.columns = data.customColumns;
+    } else if (data.columns && data.columns.length > 0) {
       stateToSave.columns = data.columns;
     }
     // Mirror to localStorage as a cache. This keeps the offline fallback
@@ -217,7 +220,7 @@
       trash: data.trash || [],
       sprints: data.sprints || {},
       columns: data.columns || [],
-      customColumns: data.customColumns || {}
+      customColumns: Array.isArray(data.customColumns) ? data.customColumns : []
     };
     localStorage.setItem('jirito-state', JSON.stringify(stateToSave));
   }
