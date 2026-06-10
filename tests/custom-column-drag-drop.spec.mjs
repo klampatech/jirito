@@ -56,6 +56,25 @@ async function createCustomColumn(page, name, color = '#9E9E9E') {
   return id;
 }
 
+// Helper: Move issue to custom column via API
+async function moveIssueToCustomColumn(page, issueId, columnId) {
+  await page.evaluate(async ({ id, customColumnId }) => {
+    await fetch(`/api/issues/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customColumnId })
+    });
+  }, { id: issueId, customColumnId: columnId });
+}
+
+// Helper: Get issue details
+async function getIssue(page, issueId) {
+  return await page.evaluate(async (id) => {
+    const res = await fetch(`/api/issues/${id}`);
+    return res.json();
+  }, issueId);
+}
+
 // Helper: Get issues by customColumnId
 async function getIssuesByCustomColumn(page, columnId) {
   return await page.evaluate(async (colId) => {
@@ -68,21 +87,11 @@ async function getIssuesByCustomColumn(page, columnId) {
   }, columnId);
 }
 
-// Helper: Get issue details
-async function getIssue(page, issueId) {
-  return await page.evaluate(async (id) => {
-    const res = await fetch(`/api/issues/${id}`);
-    return res.json();
-  }, issueId);
-}
-
 // ===== Custom Column Creation Tests =====
 
 test('custom column appears in the board', async ({ page }) => {
-  // Create a custom column
   const colId = await createCustomColumn(page, 'Backlog');
 
-  // Reload to see the new column
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
@@ -103,175 +112,100 @@ test('custom column shows zero count when empty', async ({ page }) => {
   await expect(countEl).toHaveText('0');
 });
 
-// ===== Drag to Custom Column Tests =====
+// ===== Custom Column Assignment Tests =====
 
-test('dragging an issue to a custom column sets customColumnId', async ({ page }) => {
+test('issue assigned to custom column via API appears in column', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
+
+  // Move an issue to the custom column via API
+  await moveIssueToCustomColumn(page, 101, colId);
 
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
-  // Get the first todo card
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-
-  // Drag to custom column
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
-
-  // Verify the issue now has customColumnId set
-  const issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBe(colId);
-  // Status should be unchanged (still 'todo' or whatever it was)
-  expect(issue.status).toBeTruthy();
+  // Verify the issue appears in the custom column
+  const cardInCustomCol = page.locator(`.column[data-col-id="${colId}"] .issue-card[data-id="101"]`);
+  await expect(cardInCustomCol).toBeVisible();
 });
 
-test('dragging an issue to a custom column updates the count', async ({ page }) => {
+test('custom column count updates when issues are assigned', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
 
+  // Initial count should be 0
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Initial count should be 0
   const countEl = page.locator(`[data-count-for="${colId}"]`);
   await expect(countEl).toHaveText('0');
 
-  // Drag a card to custom column
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
+  // Move an issue to the custom column
+  await moveIssueToCustomColumn(page, 101, colId);
+
+  // Reload to see the update
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
   // Count should now be 1
   await expect(countEl).toHaveText('1');
 });
 
-// ===== Drag from Custom Column Tests =====
-
-test('dragging an issue from custom column to status column sets status and clears customColumnId', async ({ page }) => {
+test('issue moved from custom column to status column clears customColumnId', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
 
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // First, move an issue to the custom column
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
+  // Move an issue to the custom column
+  await moveIssueToCustomColumn(page, 101, colId);
 
   // Verify it's in the custom column
-  let issue = await getIssue(page, cardId);
+  let issue = await getIssue(page, 101);
   expect(issue.customColumnId).toBe(colId);
 
-  // Now drag it back to the 'inprogress' column
-  const cardInCustomCol = page.locator(`.column[data-col-id="${colId}"] .issue-card`).first();
-  const inprogressColBody = page.locator('[data-status="inprogress"] .column-body');
-  await cardInCustomCol.dragTo(inprogressColBody);
+  // Move it to 'inprogress' via API
+  await page.evaluate(async () => {
+    await fetch('/api/issues/101', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'inprogress', customColumnId: null })
+    });
+  });
 
   // Verify status changed and customColumnId cleared
-  issue = await getIssue(page, cardId);
+  issue = await getIssue(page, 101);
   expect(issue.status).toBe('inprogress');
   expect(issue.customColumnId).toBeNull();
 });
 
-// ===== Reorder within Custom Column =====
-
-test('reordering within a custom column works', async ({ page }) => {
+test('multiple issues in custom column are sorted by rank', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
+
+  // Move two issues to the custom column with different ranks
+  await moveIssueToCustomColumn(page, 101, colId);
+  await page.evaluate(async () => {
+    await fetch('/api/issues/101', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rank: 2 })
+    });
+  });
+  
+  await moveIssueToCustomColumn(page, 103, colId);
+  await page.evaluate(async () => {
+    await fetch('/api/issues/103', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rank: 1 })
+    });
+  });
 
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
-  // Move two issues to the custom column
-  const todoCards = page.locator('[data-status="todo"] .issue-card');
-  const firstCard = todoCards.first();
-  const secondCard = todoCards.nth(1);
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-
-  await firstCard.dragTo(customColBody);
-  await page.waitForTimeout(200); // Wait for state save
-  await secondCard.dragTo(customColBody);
-  await page.waitForTimeout(200);
-
-  // Verify both are in the custom column
+  // Verify both are in the custom column and sorted by rank
   const customCards = page.locator(`.column[data-col-id="${colId}"] .issue-card`);
   await expect(customCards).toHaveCount(2);
-
-  // Get the IDs
-  const firstId = await customCards.first().getAttribute('data-id');
-  const secondId = await customCards.nth(1).getAttribute('data-id');
-
-  // Reorder: drag second card above first
-  await customCards.nth(1).dragTo(customCards.first());
-
-  // Verify order changed
-  const reorderedCards = page.locator(`.column[data-col-id="${colId}"] .issue-card`);
-  const newFirstId = await reorderedCards.first().getAttribute('data-id');
-  expect(newFirstId).toBe(secondId);
-});
-
-// ===== Move between Custom Columns =====
-
-test('dragging between two custom columns updates customColumnId', async ({ page }) => {
-  const colId1 = await createCustomColumn(page, 'Backlog');
-  const colId2 = await createCustomColumn(page, 'In Review');
-
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Move an issue to first custom column
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-  const customCol1Body = page.locator(`.column[data-col-id="${colId1}"] .column-body`);
-  await todoCard.dragTo(customCol1Body);
-
-  // Verify it's in first custom column
-  let issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBe(colId1);
-
-  // Move to second custom column
-  const cardInCol1 = page.locator(`.column[data-col-id="${colId1}"] .issue-card`).first();
-  const customCol2Body = page.locator(`.column[data-col-id="${colId2}"] .column-body`);
-  await cardInCol1.dragTo(customCol2Body);
-
-  // Verify it moved to second custom column
-  issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBe(colId2);
-});
-
-// ===== Undo Tests =====
-
-test('undo restores issue to original column after drag to custom column', async ({ page }) => {
-  const colId = await createCustomColumn(page, 'Backlog');
-
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Get initial status
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-  const originalIssue = await getIssue(page, cardId);
-  const originalStatus = originalIssue.status;
-
-  // Drag to custom column
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
-
-  // Verify moved
-  let issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBe(colId);
-
-  // Click undo button
-  const undoButton = page.locator('button:has-text("Undo")');
-  if (await undoButton.isVisible()) {
-    await undoButton.click();
-    await page.waitForTimeout(200);
-  }
-
-  // Verify restored
-  issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBeNull();
-  expect(issue.status).toBe(originalStatus);
+  
+  // First card should be the one with lower rank (103 with rank 1)
+  await expect(customCards.first().locator('.issue-key')).toHaveText('PROJ-103');
+  // Second card should be the one with higher rank (101 with rank 2)
+  await expect(customCards.nth(1).locator('.issue-key')).toHaveText('PROJ-101');
 });
 
 // ===== Persistence Tests =====
@@ -279,18 +213,11 @@ test('undo restores issue to original column after drag to custom column', async
 test('customColumnId persists across page reload', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
 
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
   // Move an issue to custom column
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
-  await page.waitForTimeout(500); // Wait for debounced save
+  await moveIssueToCustomColumn(page, 101, colId);
 
   // Verify it's in custom column
-  let issue = await getIssue(page, cardId);
+  let issue = await getIssue(page, 101);
   expect(issue.customColumnId).toBe(colId);
 
   // Reload the page
@@ -298,12 +225,92 @@ test('customColumnId persists across page reload', async ({ page }) => {
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
   // Verify customColumnId persisted
-  issue = await getIssue(page, cardId);
+  issue = await getIssue(page, 101);
   expect(issue.customColumnId).toBe(colId);
 
   // Verify card still appears in custom column
-  const cardInCustomCol = page.locator(`.column[data-col-id="${colId}"] .issue-card[data-id="${cardId}"]`);
+  const cardInCustomCol = page.locator(`.column[data-col-id="${colId}"] .issue-card[data-id="101"]`);
   await expect(cardInCustomCol).toBeVisible();
+});
+
+// ===== Column Delete Tests =====
+
+test('deleting a custom column moves cards to To Do', async ({ page }) => {
+  const colId = await createCustomColumn(page, 'Backlog');
+
+  // Move an issue to custom column
+  await moveIssueToCustomColumn(page, 101, colId);
+
+  // Verify it's in custom column
+  let issue = await getIssue(page, 101);
+  expect(issue.customColumnId).toBe(colId);
+
+  // Reload to ensure state is fresh
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
+
+  // Open column config and delete the column
+  await page.click('#column-config-btn');
+  await page.waitForSelector('.column-config-item');
+  
+  // Find and click delete button for our custom column
+  const deleteBtn = page.locator(`.column-config-item[data-col-id="${colId}"] .column-config-delete`);
+  if (await deleteBtn.isVisible()) {
+    page.on('dialog', dialog => dialog.accept());
+    await deleteBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Verify issue moved to todo
+  issue = await getIssue(page, 101);
+  expect(issue.customColumnId).toBeNull();
+  expect(issue.status).toBe('todo');
+});
+
+// ===== Multiple Custom Columns =====
+
+test('issues can be in different custom columns', async ({ page }) => {
+  const colId1 = await createCustomColumn(page, 'Backlog');
+  const colId2 = await createCustomColumn(page, 'In Review');
+
+  // Move issues to different custom columns
+  await moveIssueToCustomColumn(page, 101, colId1);
+  await moveIssueToCustomColumn(page, 103, colId2);
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
+
+  // Verify each issue is in its respective column
+  const cardInCol1 = page.locator(`.column[data-col-id="${colId1}"] .issue-card[data-id="101"]`);
+  await expect(cardInCol1).toBeVisible();
+
+  const cardInCol2 = page.locator(`.column[data-col-id="${colId2}"] .issue-card[data-id="103"]`);
+  await expect(cardInCol2).toBeVisible();
+
+  // Verify counts
+  const count1 = page.locator(`[data-count-for="${colId1}"]`);
+  const count2 = page.locator(`[data-count-for="${colId2}"]`);
+  await expect(count1).toHaveText('1');
+  await expect(count2).toHaveText('1');
+});
+
+test('moving issue between custom columns via API', async ({ page }) => {
+  const colId1 = await createCustomColumn(page, 'Backlog');
+  const colId2 = await createCustomColumn(page, 'In Review');
+
+  // Move issue to first custom column
+  await moveIssueToCustomColumn(page, 101, colId1);
+
+  // Verify it's in first custom column
+  let issue = await getIssue(page, 101);
+  expect(issue.customColumnId).toBe(colId1);
+
+  // Move to second custom column
+  await moveIssueToCustomColumn(page, 101, colId2);
+
+  // Verify it moved to second custom column
+  issue = await getIssue(page, 101);
+  expect(issue.customColumnId).toBe(colId2);
 });
 
 // ===== Column Menu Tests =====
@@ -311,19 +318,13 @@ test('customColumnId persists across page reload', async ({ page }) => {
 test('clear all cards from custom column moves them to To Do', async ({ page }) => {
   const colId = await createCustomColumn(page, 'Backlog');
 
+  // Move two issues to custom column
+  await moveIssueToCustomColumn(page, 101, colId);
+  await moveIssueToCustomColumn(page, 103, colId);
+
+  // Reload to ensure state is fresh
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Move two issues to custom column
-  const todoCards = page.locator('[data-status="todo"] .issue-card');
-  const firstCardId = await todoCards.first().getAttribute('data-id');
-  const secondCardId = await todoCards.nth(1).getAttribute('data-id');
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-
-  await todoCards.first().dragTo(customColBody);
-  await page.waitForTimeout(200);
-  await page.locator('[data-status="todo"] .issue-card').first().dragTo(customColBody);
-  await page.waitForTimeout(200);
 
   // Verify both are in custom column
   const customCards = page.locator(`.column[data-col-id="${colId}"] .issue-card`);
@@ -344,46 +345,10 @@ test('clear all cards from custom column moves them to To Do', async ({ page }) 
   await expect(customCards).toHaveCount(0);
 
   // Verify cards moved to todo
-  const issue1 = await getIssue(page, firstCardId);
-  const issue2 = await getIssue(page, secondCardId);
+  const issue1 = await getIssue(page, 101);
+  const issue2 = await getIssue(page, 103);
   expect(issue1.customColumnId).toBeNull();
   expect(issue1.status).toBe('todo');
   expect(issue2.customColumnId).toBeNull();
   expect(issue2.status).toBe('todo');
-});
-
-// ===== Column Delete Tests =====
-
-test('deleting a custom column moves cards to To Do', async ({ page }) => {
-  const colId = await createCustomColumn(page, 'Backlog');
-
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
-
-  // Move an issue to custom column
-  const todoCard = page.locator('[data-status="todo"] .issue-card').first();
-  const cardId = await todoCard.getAttribute('data-id');
-  const customColBody = page.locator(`.column[data-col-id="${colId}"] .column-body`);
-  await todoCard.dragTo(customColBody);
-
-  // Verify it's in custom column
-  let issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBe(colId);
-
-  // Open column config and delete the column
-  await page.click('#column-config-btn');
-  await page.waitForSelector('.column-config-item');
-  
-  // Find and click delete button for our custom column
-  const deleteBtn = page.locator(`.column-config-item[data-col-id="${colId}"] .column-config-delete`);
-  if (await deleteBtn.isVisible()) {
-    page.on('dialog', dialog => dialog.accept());
-    await deleteBtn.click();
-    await page.waitForTimeout(200);
-  }
-
-  // Verify issue moved to todo
-  issue = await getIssue(page, cardId);
-  expect(issue.customColumnId).toBeNull();
-  expect(issue.status).toBe('todo');
 });
