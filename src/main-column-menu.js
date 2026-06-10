@@ -19,10 +19,10 @@ function initColumnMenuButtons() {
         <button class="column-menu-item" data-action="add-card" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--text);cursor:pointer;">
           ${lucideIcon('Plus', {class:'icon-sm'})} Add card
         </button>
-        ${isCustom ? '' : `<button class="column-menu-item" data-action="clear-status" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--danger);cursor:pointer;">
+        <button class="column-menu-item" data-action="clear-column" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--danger);cursor:pointer;">
           ${lucideIcon('Trash', {class:'icon-sm'})} Clear all cards
-        </button>`}
-        ${isCustom ? '' : `<hr style="border:none;border-top:1px solid var(--border-light);margin:4px 0;">`}
+        </button>
+        <hr style="border:none;border-top:1px solid var(--border-light);margin:4px 0;">
         <button class="column-menu-item" data-action="close" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;text-align:left;font-size:13px;color:var(--text-muted);cursor:pointer;">
           ${lucideIcon('X', {class:'icon-sm'})} Close
         </button>
@@ -42,7 +42,7 @@ function initColumnMenuButtons() {
       menu.querySelectorAll('.column-menu-item').forEach(item => {
         item.addEventListener('click', () => {
           const action = item.dataset.action;
-          if (action === 'close' || action === 'rename' || action === 'add-card' || action === 'clear-status') {
+          if (action === 'close' || action === 'rename' || action === 'add-card' || action === 'clear-column') {
             menu.remove();
           }
           if (action === 'rename') {
@@ -59,18 +59,42 @@ function initColumnMenuButtons() {
           if (action === 'add-card') {
             openModal();
           }
-          if (action === 'clear-status' && status) {
-            const count = getIssues().filter(i => i.status === status).length;
+          if (action === 'clear-column') {
+            // Get issues in this column (by status or customColumnId)
+            const columnIssues = isCustom
+              ? getIssues().filter(i => i.customColumnId === colId)
+              : getIssues().filter(i => i.status === status);
+            const count = columnIssues.length;
             if (count === 0) return;
+            
+            const columnName = colDef?.name || status;
             if (confirm(`Delete all ${count} cards in this column?`)) {
-              const clearedIssues = getIssues().filter(i => i.status === status);
-              setIssues(getIssues().filter(i => i.status !== status));
+              // Store for undo
+              const clearedIssues = [...columnIssues];
+              
+              // Remove issues from the column
+              if (isCustom) {
+                columnIssues.forEach(i => { i.customColumnId = null; i.status = 'todo'; });
+              } else {
+                setIssues(getIssues().filter(i => i.status !== status));
+              }
+              
               saveStateImmediate();
               renderBoard();
               updateCounts();
-              addActivity('Trash', `Cleared ${count} cards from <strong>${labels[status]}</strong>`);
+              addActivity('Trash', `Cleared ${count} cards from <strong>${escapeHtml(columnName)}</strong>`);
               showUndoToast(`${count} cards cleared`, () => {
-                clearedIssues.forEach(i => getIssues().push(i));
+                // Restore issues to their original column
+                clearedIssues.forEach(i => {
+                  const issue = getIssues().find(iss => _matchesId(iss, i.id));
+                  if (issue) {
+                    if (isCustom) {
+                      issue.customColumnId = colId;
+                    } else {
+                      issue.status = i.status;
+                    }
+                  }
+                });
                 saveStateImmediate();
                 renderBoard();
                 updateCounts();

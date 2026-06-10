@@ -113,8 +113,8 @@ export async function create(req, res, body) {
     const now = new Date().toISOString();
 
     db.run(
-      `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, customColumnId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.title || '',
@@ -131,6 +131,7 @@ export async function create(req, res, body) {
         body.rank ?? 0,
         body.parentIssueId || null,
         body.dueDate || '',
+        body.customColumnId || null,
         now,
         now,
       ]
@@ -176,7 +177,7 @@ export async function update(req, res, id, body) {
     // Build dynamic UPDATE
     const updates = [];
     const params = [];
-    const fields = ['title', 'description', 'type', 'status', 'priority', 'labels', 'assignee', 'reporter', 'projectId', 'sprintId', 'storyPoints', 'rank', 'parentIssueId', 'dueDate'];
+    const fields = ['title', 'description', 'type', 'status', 'priority', 'labels', 'assignee', 'reporter', 'projectId', 'sprintId', 'storyPoints', 'rank', 'parentIssueId', 'dueDate', 'customColumnId'];
     for (const field of fields) {
       if (body[field] !== undefined) {
         updates.push(`${field} = ?`);

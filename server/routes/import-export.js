@@ -85,7 +85,7 @@ export async function importData(req, res, body) {
       const createdAt = issue.createdAt || now;
       const updatedAt = issue.updatedAt || now;
       db.run(
-        'INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, customColumnId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           String(issue.id),
           issue.title || '',
@@ -99,6 +99,7 @@ export async function importData(req, res, body) {
           issue.sprintId || null,
           issue.storyPoints || 0,
           issue.parentIssueId || null,
+          issue.customColumnId || null,
           createdAt,
           updatedAt,
         ]

@@ -30,6 +30,7 @@ export function initTables() {
   db.run('CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status)');
   db.run('CREATE INDEX IF NOT EXISTS idx_issues_projectId ON issues(projectId)');
   db.run('CREATE INDEX IF NOT EXISTS idx_issues_assignee ON issues(assignee)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_issues_customColumnId ON issues(customColumnId)');
 
   // Comments table
   db.run(`
@@ -161,6 +162,10 @@ export function migrateTables() {
     if (!columns.includes('dueDate')) {
       db.run("ALTER TABLE issues ADD COLUMN dueDate TEXT DEFAULT ''");
       console.log('Added dueDate column to issues table');
+    }
+    if (!columns.includes('customColumnId')) {
+      db.run("ALTER TABLE issues ADD COLUMN customColumnId TEXT DEFAULT NULL");
+      console.log('Added customColumnId column to issues table');
     }
   }
   
