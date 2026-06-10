@@ -22,6 +22,15 @@ let _trash = [];
 let _sprints = {};
 let _customColumns = {};
 let _markdownCache = {};
+// Coerce both sides to string for ID comparison. After the SQLite
+// migration, issue ids are stored as numbers but the DOM (data-id) and
+// URL params are always strings, so a strict === would always fail.
+function _matchesId(issue, id) {
+  if (issue == null || id == null) return false;
+  return String(issue.id) === String(id);
+}
+
+
 
 // ===== Getter / Setter Accessors =====
 
@@ -52,6 +61,16 @@ function setActivityLog(v) { _activityLog = v; }
 
 function getSelectedIds() { return _selectedIds; }
 
+// Loose check whether a given issue id is in the selected set.
+// After the SQLite migration, stored IDs may be strings (from dataset.id)
+// or numbers (from issue.id) depending on the path that added them.
+// Compare both forms.
+function isSelectedIssue(issueId) {
+  const set = _selectedIds;
+  if (set.has(issueId)) return true;
+  return set.has(String(issueId)) || set.has(Number(issueId));
+}
+
 function getTrash() { return _trash; }
 function setTrash(v) { _trash = v; }
 
@@ -75,90 +94,131 @@ function addActivity(icon, text) {
 }
 
 // ===== State Load / Save =====
+// Uses the storage abstraction layer (localStorage or server API).
 
-function loadState() {
-  const saved = localStorage.getItem('jirito-issues');
-  const savedComments = localStorage.getItem('jirito-comments');
-  const savedProjects = localStorage.getItem('jirito-projects');
-  const savedCurrentProject = localStorage.getItem('jirito-currentProject');
-  const savedFiltersRaw = localStorage.getItem('jirito-savedFilters');
-  const savedActivity = localStorage.getItem('jirito-activity');
-  const savedTrash = localStorage.getItem('jirito-trash');
-  const savedSprints = localStorage.getItem('jirito-sprints');
-  const savedCustomColumns = localStorage.getItem('jirito-customColumns');
-  if (saved) {
-    _issues = JSON.parse(saved);
+// storage is available globally from storage.js
+
+let _initialized = false;
+
+async function loadState() {
+  console.log('[loadState] called, _initialized:', _initialized);
+  // Initialize storage layer (detects online/offline mode)
+  if (!_initialized) {
+    await storage.initStorage();
+    _initialized = true;
+  }
+
+  // Load persisted data from storage layer (localStorage or server)
+  const data = await storage.getStorageData();
+
+  if (data && data.issues && data.issues.length > 0) {
+    _issues = data.issues.map(i => ({ ...i, desc: i.desc || i.description || '' }));
     _issueCounter = Math.max(..._issues.map(i => i.id), ISSUE_COUNTER_START);
+    console.log('[loadState] Loaded', _issues.length, 'issues from storage, first dueDate:', _issues[0]?.dueDate);
   } else {
     _issues = [...sampleIssues];
     _issueCounter = 106;
+    console.log('[loadState] Using sample issues, first dueDate:', _issues[0]?.dueDate);
   }
-  if (savedComments) _comments = JSON.parse(savedComments);
-  if (savedProjects) _projects = JSON.parse(savedProjects);
+
+  // Restore projects (storage layer uses object-per-key format)
+  if (data && data.projects) {
+    _projects = data.projects;
+  }
+
   // Ensure default project exists before checking currentProject
   if (!_projects['default']) {
     _projects['default'] = { name: 'Project Alpha', icon: '📋', key: 'PROJ', issues: _issues.length > 0 ? _issues : [...sampleIssues] };
   }
+
   // Validate currentProject exists in projects before restoring
-  if (savedCurrentProject && _projects[savedCurrentProject]) {
-    _currentProject = savedCurrentProject;
+  if (data && data.currentProject && _projects[data.currentProject]) {
+    _currentProject = data.currentProject;
   } else if (_projects['default']) {
     _currentProject = 'default';
   }
-  if (savedFiltersRaw) _savedFilters = JSON.parse(savedFiltersRaw);
-  if (savedActivity) {
-    _activityLog = JSON.parse(savedActivity).map(a => ({ ...a, time: new Date(a.time) }));
+
+  // Restore filters, activity, trash, sprints from storage layer
+  if (data && data.filters) {
+    _savedFilters = data.filters;
   }
-  if (savedTrash) {
-    _trash = JSON.parse(savedTrash).map(t => ({ ...t, date: new Date(t.date) }));
+  if (data && data.activity) {
+    _activityLog = data.activity.map(a => ({ ...a, time: new Date(a.time) }));
+  }
+  if (data && data.trash) {
+    _trash = data.trash.map(t => ({ ...t, date: new Date(t.date) }));
     purgeTrash();
   }
-  if (savedSprints) {
-    _sprints = JSON.parse(savedSprints);
+  if (data && data.sprints) {
+    _sprints = data.sprints;
   }
-  if (savedCustomColumns) {
-    _customColumns = JSON.parse(savedCustomColumns);
-  }
+
+  // Sync in-memory issues with current project
+  initializeData();
 }
 
 // Internal debounce timer
 let _saveStateTimer = null;
 
+// Expose a flag used by main.js's beforeunload handler to decide whether
+// a debounced save is queued. The flag is true only between a saveState()
+// call and the actual flush — preventing stale in-memory state from
+// overwriting newer server state on page reload.
+try {
+  if (typeof window !== 'undefined') {
+    window.__jiritoHasPendingSave = function () { return _saveStateTimer !== null; };
+  }
+} catch (e) { /* ignore */ }
+
 // saveState — debounced by default (300ms).
-// Batches rapid successive calls into a single localStorage write.
+// Batches rapid successive calls into a single persistence write.
 // Call saveStateImmediate() when you need guaranteed persistence right away.
-function saveState() {
+async function saveState() {
   if (_saveStateTimer) {
     clearTimeout(_saveStateTimer);
   }
-  _saveStateTimer = setTimeout(() => {
-    _doSaveState();
+  _saveStateTimer = setTimeout(async () => {
+    await _doSaveState();
     _saveStateTimer = null;
   }, LJ_CONSTANTS.SAVE_STATE_DEBOUNCE_MS);
 }
 
-// Internal: performs the actual localStorage writes (never call directly).
-function _doSaveState() {
-  localStorage.setItem('jirito-issues', JSON.stringify(_issues));
-  localStorage.setItem('jirito-comments', JSON.stringify(_comments));
-  localStorage.setItem('jirito-projects', JSON.stringify(_projects));
-  localStorage.setItem('jirito-currentProject', _currentProject);
-  localStorage.setItem('jirito-savedFilters', JSON.stringify(_savedFilters));
-  localStorage.setItem('jirito-activity', JSON.stringify(_activityLog.map(a => ({ ...a, time: a.time.toISOString() }))));
-  localStorage.setItem('jirito-trash', JSON.stringify(_trash.map(t => ({ ...t, date: t.date.toISOString() }))));
-  localStorage.setItem('jirito-sprints', JSON.stringify(_sprints));
+// Internal: performs the actual persistence writes (localStorage or server).
+async function _doSaveState() {
+  // Build the storage-layer data structure
+  const customCols = getCustomColumns();
+  const data = {
+    issues: _issues,
+    projects: { ..._projects },
+    currentProject: _currentProject,
+    filters: _savedFilters || [],
+    activity: _activityLog.map(a => ({ ...a, time: a.time.toISOString() })),
+    trash: _trash.map(t => ({ ...t, date: t.date.toISOString() })),
+    sprints: _sprints,
+    // Persist the local issue counter so the next client reload doesn't
+    // regress to ISSUE_COUNTER_START and collide with existing IDs.
+    issueCounter: _issueCounter,
+  };
+
+  // Include columns if there are actual custom columns (not the default {} sentinel)
+  if (Array.isArray(customCols) && customCols.length > 0) {
+    data.columns = customCols;
+  }
+
+  // Delegate to storage layer (handles localStorage or server API)
+  await storage.saveStorageData(data);
 }
 
 // Force immediate save (no debounce) — use for critical operations:
 // - before page unload
 // - after user-triggered export
 // - after the last operation in a batch where undo must work
-function saveStateImmediate() {
+async function saveStateImmediate() {
   if (_saveStateTimer) {
     clearTimeout(_saveStateTimer);
     _saveStateTimer = null;
   }
-  _doSaveState();
+  await _doSaveState();
 }
 
 // ===== Trash =====
@@ -189,8 +249,22 @@ function restoreFromTrash(idx) {
 // ===== Sprints =====
 
 function saveSprints() {
-  localStorage.setItem('jirito-sprints', JSON.stringify(getSprints()));
-  localStorage.setItem('jirito-customColumns', JSON.stringify(_customColumns));
+  // Delegate to storage layer — handles both server and localStorage modes
+  var data = {
+    issues: _issues,
+    projects: _projects,
+    currentProject: _currentProject,
+    filters: _savedFilters,
+    activity: _activityLog.map(function (a) { return { icon: a.icon, text: a.text, time: a.time.toISOString() }; }),
+    issueCounter: _issueCounter,
+    trash: _trash.map(function (t) { return { issues: t.issues, date: t.date.toISOString() }; }),
+    sprints: _sprints,
+    columns: getEffectiveColumns(),
+    customColumns: getCustomColumns()
+  };
+  if (typeof storage !== 'undefined' && storage.saveStorageData) {
+    storage.saveStorageData(data).catch(err => console.error('[state] saveSprints failed:', err));
+  }
 }
 
 function createSprint(name, startDate, endDate) {
@@ -239,30 +313,32 @@ function getActiveSprintId() {
 // ===== Dependencies =====
 
 function addDependency(issueId, targetId, type) {
-  const issue = _issues.find(i => i.id === issueId);
+  // Use _matchesId to tolerate string/number ID mismatches (the DOM
+  // and URL params give us strings; the server-loaded issues use numbers).
+  const issue = _issues.find(i => _matchesId(i, issueId));
   if (!issue) return;
   if (!issue.dependencies) issue.dependencies = [];
-  if (!issue.dependencies.find(d => d.targetId === targetId && d.type === type)) {
-    issue.dependencies.push({ targetId, type, created: new Date().toISOString() });
+  if (!issue.dependencies.find(d => String(d.targetId) === String(targetId) && d.type === type)) {
+    issue.dependencies.push({ targetId: String(targetId), type, created: new Date().toISOString() });
   }
   // Create reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = _issues.find(i => i.id === targetId);
+    const target = _issues.find(i => _matchesId(i, targetId));
     if (target && !target.dependencies) target.dependencies = [];
-    if (target && !target.dependencies.find(d => d.targetId === issueId && d.type === 'relates-to')) {
-      target.dependencies.push({ targetId: issueId, type: 'relates-to', created: new Date().toISOString() });
+    if (target && !target.dependencies.find(d => String(d.targetId) === String(issueId) && d.type === 'relates-to')) {
+      target.dependencies.push({ targetId: String(issueId), type: 'relates-to', created: new Date().toISOString() });
     }
   }
   saveState();
 }
 
 function removeDependency(issueId, targetId, type) {
-  const issue = _issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => _matchesId(i, issueId));
   if (!issue || !issue.dependencies) return;
-  issue.dependencies = issue.dependencies.filter(d => !(d.targetId === targetId && d.type === type));
+  issue.dependencies = issue.dependencies.filter(d => !(String(d.targetId) === String(targetId) && d.type === type));
   // Remove reverse link for "blocks" type
   if (type === 'blocks') {
-    const target = _issues.find(i => i.id === targetId);
+    const target = _issues.find(i => _matchesId(i, targetId));
     if (target && target.dependencies) {
       target.dependencies = target.dependencies.filter(d => !(d.targetId === issueId && d.type === 'relates-to'));
     }
@@ -271,23 +347,25 @@ function removeDependency(issueId, targetId, type) {
 }
 
 function hasCircularDependency(issueId, targetId, visited = new Set()) {
-  if (issueId === targetId) return true;
+  // Compare ids as strings so string/number mismatches don't let a
+  // self-loop sneak through.
+  if (String(issueId) === String(targetId)) return true;
   if (visited.has(targetId)) return false;
   visited.add(targetId);
-  const target = _issues.find(i => i.id === targetId);
+  const target = _issues.find(i => _matchesId(i, targetId));
   if (!target || !target.dependencies) return false;
   return target.dependencies.some(d => hasCircularDependency(issueId, d.targetId, visited));
 }
 
 function getDependencies(issueId) {
-  const issue = _issues.find(i => i.id === issueId);
+  const issue = _issues.find(i => _matchesId(i, issueId));
   return issue && issue.dependencies ? issue.dependencies : [];
 }
 
 function getDependents(issueId) {
   return _issues.filter(i => {
     if (!i.dependencies) return false;
-    return i.dependencies.some(d => d.targetId === issueId);
+    return i.dependencies.some(d => String(d.targetId) === String(issueId));
   });
 }
 
@@ -388,7 +466,15 @@ function initializeData() {
     _currentProject = 'default';
   }
   // 3. Sync global issues with current project
-  _issues = _projects[_currentProject].issues;
+  // Only sync if project.issues contains issue objects (not string IDs from server storage)
+  if (_projects[_currentProject].issues && _projects[_currentProject].issues.length > 0) {
+    const firstItem = _projects[_currentProject].issues[0];
+    if (typeof firstItem === 'object' && firstItem !== null && firstItem.id) {
+      // Project has issue objects — sync them
+      _issues = _projects[_currentProject].issues;
+    }
+    // If firstItem is a string, it's an ID list — keep _issues as-is (already set from storage)
+  }
   // 4. Ensure project key exists
   if (!_projects[_currentProject].key) {
     _projects[_currentProject].key = _currentProject.toUpperCase();

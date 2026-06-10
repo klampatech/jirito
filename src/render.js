@@ -56,11 +56,17 @@ function renderBoard() {
     // Render cards in column
     const colBody = col.querySelector('.column-body');
     colBody.innerHTML = '';
-    let colIssues = getIssues().filter(i => {
+    const allIssues = getIssues();
+    const currentProject = getCurrentProject();
+    let colIssues = allIssues.filter(i => {
       if (colDef.status) return i.status === colDef.status;
       // For custom columns without status mapping, show all (they're custom)
       return false;
     });
+    // Filter by current project. Issues without a projectId (e.g., legacy
+    // localStorage data, or pre-migration fixtures) fall back to the
+    // current project so they continue to show up.
+    colIssues = colIssues.filter(i => (i.projectId || currentProject) === currentProject);
     // Apply sprint filter
     const sprintFilter = document.getElementById('sprint-filter')?.value || 'all';
     if (sprintFilter !== 'all') {
@@ -638,7 +644,17 @@ function switchProject(key) {
   // Task 2.4: Validate key before use
   if (!getProjects()[key]) return;
   setCurrentProject(key);
-  setIssues(getProjects()[key].issues);
+  // Only adopt the project's issues when they are real issue objects
+  // (the legacy localStorage format). In server mode, projects track an
+  // array of issue ID strings and the global _issues list is the source
+  // of truth — replacing it with strings would wipe the board.
+  const projectIssues = getProjects()[key].issues;
+  if (Array.isArray(projectIssues) && projectIssues.length > 0) {
+    const firstItem = projectIssues[0];
+    if (typeof firstItem === 'object' && firstItem !== null && firstItem.id) {
+      setIssues(projectIssues);
+    }
+  }
   renderSidebar();
   renderBoard();
   populateAssigneeFilter();

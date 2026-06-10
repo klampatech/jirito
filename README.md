@@ -1,6 +1,6 @@
 # Jirito 🟢
 
-> A fully client-side Kanban board application — your personal project tracker, running entirely in the browser with **zero backend**.
+> A fully client-side Kanban board application — your personal project tracker, running in the browser with an optional SQLite backend.
 
 ![Jirito Logo](public/jirito_logo.png)
 
@@ -22,7 +22,7 @@
 - ⚡ **Bulk Actions** — Select and modify multiple issues at once
 - 🌙 **Dark Mode** — Toggle between warm beige light and GitHub-dark inspired themes
 - 📱 **Responsive** — Mobile-friendly layout
-- 🔒 **Offline** — Everything runs locally via `localStorage` — no server needed
+- 🔒 **Offline** — Everything runs locally via `localStorage` — falls back gracefully when server is unavailable
 - 📤 **Import/Export** — JSON import/export for data portability
 
 ## 📸 Screenshots
@@ -148,7 +148,28 @@
    # Using Node
    npx serve .
    ```
+
+# Or with the built-in backend server (SQLite + static file serving)
+   ```bash
+   npm run server  # Serves static files on port 3001 with SQLite backend
+   ```
 3. Start tracking your projects! 🎉
+
+### Running with Backend
+
+Jirito supports an optional SQLite backend for persistent, server-based data storage:
+
+1. Start the backend server:
+   ```bash
+   npm run server
+   ```
+   The server runs on port **3001** by default. Configure with `SERVER_PORT` env var. Database is stored at `./jirito.db` by default (`JIRITO_DB_PATH` env var).
+
+2. Open the app in your browser (same as above). The frontend auto-detects the server via a health check at `/api/health`.
+
+3. Data syncs automatically when the server is available. When the server is unavailable, the app falls back to `localStorage` — no data loss.
+
+> **Note**: The server must be running on the same origin as the frontend for the auto-detection to work. If serving from a different origin, set the `VITE_API_URL` environment variable.
 
 ### Running Tests
 ```bash
@@ -202,7 +223,7 @@ Jirito stores data in `localStorage` under 9 keys:
 | `jirito-sprints` | Sprint data |
 | `jirito-customColumns` | Custom column configurations |
 
-> ⚠️ **No schema validation or transactions** — data is stored as plain JSON.
+> ⚠️ **No schema validation** — data is stored as plain JSON. The optional SQLite backend uses transactions for import operations.
 
 ## 🔒 Security Notes
 

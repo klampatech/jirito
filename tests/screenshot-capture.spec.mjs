@@ -5,7 +5,7 @@ import { join, dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCREENSHOT_DIR = join(__dirname, '..', 'screenshots');
-const APP_PATH = join(__dirname, '..', 'index.html');
+const APP_URL = 'http://127.0.0.1:8080/';
 
 // Helper to clear localStorage safely
 async function clearStorage(page) {
@@ -19,7 +19,40 @@ async function clearStorage(page) {
 // Helper to navigate to the app
 async function navigate(page) {
   await clearStorage(page);
-  await page.goto('file://' + APP_PATH);
+  await page.goto(APP_URL);
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
+
+  // Seed sample data so the board renders with issue cards.
+  // Without this, the board is empty and tests that interact with cards
+  // (detail panel, drag preview, activity feed) will timeout.
+  await page.evaluate(() => {
+    const sampleData = {
+      issues: [
+        { id: 'PROJ-101', title: 'Design system tokens', description: 'Define color tokens', status: 'todo', priority: 'high', labels: ['design'], assignee: 'Alice', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'PROJ-102', title: 'Auth flow', description: 'Implement OAuth', status: 'todo', priority: 'high', labels: ['backend'], assignee: 'Charlie', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 8, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'PROJ-103', title: 'API endpoints', description: 'REST API design', status: 'inprogress', priority: 'medium', labels: ['backend'], assignee: 'Diana', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 3, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'PROJ-104', title: 'Unit tests', description: 'Core module tests', status: 'inprogress', priority: 'medium', labels: ['testing'], assignee: 'Eve', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'PROJ-105', title: 'Wireframes', description: 'Dashboard wireframes', status: 'inreview', priority: 'low', labels: ['design'], assignee: 'Alice', reporter: 'Charlie', projectId: 'default', sprintId: null, storyPoints: 2, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'PROJ-106', title: 'Deploy pipeline', description: 'CI/CD setup', status: 'done', priority: 'medium', labels: ['devops'], assignee: 'Frank', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ],
+      projects: {
+        default: { name: 'Project Alpha', key: 'PROJ', icon: '\uD83D\uDE80', color: '#0052CC', description: '', issues: ['PROJ-101','PROJ-102','PROJ-103','PROJ-104','PROJ-105','PROJ-106'] },
+      },
+      currentProject: 'default',
+      savedFilters: [],
+      activityLog: [],
+      issueCounter: 107,
+      trash: [],
+      sprints: {},
+      columns: [],
+      comments: {},
+    };
+    localStorage.setItem('jirito-state', JSON.stringify(sampleData));
+    localStorage.setItem('jirito-onboarding', 'true');
+  });
+  // Reload to load the seeded data
+  await page.reload();
+  await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
   // Dismiss onboarding if it appears
   const onboarding = page.locator('#onboarding-overlay');
   if (await onboarding.isVisible()) {
