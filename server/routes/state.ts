@@ -1,0 +1,326 @@
+/**
+ * State sync endpoint.
+ * GET  /api/state  — returns full application state
+ * PUT  /api/state  — replaces all state (import/sync)
+ */
+
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { getDb, saveDb } from "../db/index.js";
+import { sendJson, queryAll, mapRow, coerceNumericId } from "./_shared.js";
+
+/**
+ * Helper: read a single scalar value from the metadata table.
+ * Returns `defaultValue` if the key is missing.
+ */
+function readMetadata(key: string, defaultValue: string): string {
+  const db = getDb();
+  if (!db) return defaultValue;
+  const result = db.exec("SELECT value FROM metadata WHERE key = ?", [key]);
+  if (result.length === 0) return defaultValue;
+  return String(result[0].values[0][0] ?? defaultValue);
+}
+
+export async function getState(
+  _req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  try {
+    const db = getDb();
+    if (!db) {
+      sendJson(res, 500, { error: "DB not initialised" });
+      return;
+    }
+
+    // Projects
+    const projects = queryAll(
+      "SELECT * FROM projects ORDER BY createdAt ASC"
+    );
+    const currentProject = readMetadata("currentProject", "default");
+
+    // Issues
+    const issues = queryAll(
+      "SELECT * FROM issues ORDER BY createdAt ASC"
+    ).map(coerceNumericId);
+
+    // Sprints (object keyed by id, matching the frontend's expected shape)
+    const sprintsArr = queryAll(
+      "SELECT * FROM sprints ORDER BY createdAt ASC"
+    );
+    const sprints: Record<string, unknown> = {};
+    for (const s of sprintsArr) {
+      sprints[String((s as { id: unknown }).id)] = s;
+    }
+
+    // Activity log
+    const activity = queryAll(
+      "SELECT * FROM activity ORDER BY time DESC LIMIT 100"
+    );
+
+    // Saved filters
+    const savedFilters = queryAll(
+      "SELECT * FROM filters ORDER BY sortOrder ASC"
+    );
+
+    // Trash
+    const trash = queryAll("SELECT * FROM trash ORDER BY date DESC");
+
+    // Issue counter
+    const counterResult = db.exec(
+      "SELECT value FROM metadata WHERE key = 'issueCounter'"
+    );
+    const issueCounter =
+      counterResult.length > 0
+        ? parseInt(String(counterResult[0].values[0][0]), 10) || 1
+        : 1;
+
+    // Build the projects object that the frontend expects
+    const projectsObj: Record<string, unknown> = {};
+    for (const proj of projects) {
+      const id = String((proj as { id: unknown }).id);
+      projectsObj[id] = {
+        name: (proj as { name?: string }).name,
+        key: (proj as { key?: string }).key ?? id,
+        icon: (proj as { icon?: string }).icon ?? "🚀",
+        color: (proj as { color?: string }).color ?? "#0052CC",
+        description: (proj as { description?: string }).description ?? "",
+        issues: issues
+          .filter((i) => (i as { projectId?: string }).projectId === id)
+          .map((i) => (i as { id: unknown }).id),
+      };
+    }
+
+    // Comments
+    const comments = queryAll(
+      "SELECT * FROM comments ORDER BY createdAt ASC"
+    );
+
+    // Custom columns
+    const columns = queryAll("SELECT * FROM columns ORDER BY sortOrder ASC");
+
+    sendJson(res, 200, {
+      issues,
+      comments,
+      projects: projectsObj,
+      currentProject,
+      savedFilters,
+      activityLog: activity,
+      issueCounter,
+      trash,
+      sprints,
+      columns,
+    });
+  } catch (error) {
+    console.error("getState error:", error);
+    sendJson(res, 500, { error: (error as Error).message });
+  }
+}
+
+export async function setState(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  rawData: unknown
+): Promise<void> {
+  try {
+    const db = getDb();
+    if (!db) {
+      sendJson(res, 500, { error: "DB not initialised" });
+      return;
+    }
+    const data = rawData as Record<string, unknown>;
+
+    // Clear existing data (only for fields that are being updated)
+    if (data.activityLog !== undefined) db.run("DELETE FROM activity");
+    if (data.columns !== undefined) db.run("DELETE FROM columns");
+    if (data.comments !== undefined) db.run("DELETE FROM comments");
+    if (data.savedFilters !== undefined) db.run("DELETE FROM filters");
+    if (data.issues !== undefined) db.run("DELETE FROM issues");
+    if (data.projects !== undefined) db.run("DELETE FROM projects");
+    if (data.sprints !== undefined) db.run("DELETE FROM sprints");
+    if (data.trash !== undefined) db.run("DELETE FROM trash");
+
+    // Import projects
+    const dataProjects = data.projects as Record<string, Record<string, unknown>> | undefined;
+    if (dataProjects) {
+      const projectIds = Object.keys(dataProjects);
+      for (const projId of projectIds) {
+        const proj = dataProjects[projId];
+        db.run(
+          "INSERT INTO projects (id, name, key, icon, color, description) VALUES (?, ?, ?, ?, ?, ?)",
+          [
+            projId,
+            (proj.name as string) ?? "",
+            (proj.key as string) ?? projId,
+            (proj.icon as string) ?? "🚀",
+            (proj.color as string) ?? "#0052CC",
+            (proj.description as string) ?? "",
+          ]
+        );
+      }
+    }
+
+    // Import issues
+    // NOTE: Column list must stay in sync with server/db/init.js schema. The
+    // previous version of this INSERT was missing `dueDate`, which caused
+    // full-state syncs to silently drop the field (defaulting to ''). That
+    // broke overdue-notification tests and any feature that depends on
+    // dueDate being persisted end-to-end.
+    if (data.issues) {
+      for (const issue of data.issues as Array<Record<string, unknown>>) {
+        db.run(
+          `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            String(issue.id),
+            (issue.title as string) ?? "",
+            (issue.description as string) ?? "",
+            (issue.type as string) ?? "task",
+            (issue.status as string) ?? "backlog",
+            (issue.priority as string) ?? "medium",
+            JSON.stringify(issue.labels ?? []),
+            (issue.assignee as string) ?? "",
+            (issue.reporter as string) ?? "",
+            (issue.projectId as string) ?? "default",
+            (issue.sprintId as string) ?? null,
+            (issue.storyPoints as number) ?? 0,
+            (issue.rank as number) ?? 0,
+            (issue.parentIssueId as string) ?? null,
+            (issue.dueDate as string) ?? "",
+            (issue.createdAt as string) ?? new Date().toISOString(),
+            (issue.updatedAt as string) ?? new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // Import sprints
+    if (data.sprints && typeof data.sprints === "object") {
+      for (const [sprintId, sprint] of Object.entries(
+        data.sprints as Record<string, unknown>
+      )) {
+        const s = sprint as Record<string, unknown>;
+        db.run(
+          "INSERT INTO sprints (id, projectId, name, status, startDate, endDate, goal) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [
+            sprintId,
+            (s.projectId as string) ?? "default",
+            (s.name as string) ?? "",
+            (s.status as string) ?? "active",
+            (s.startDate as string) ?? null,
+            (s.endDate as string) ?? null,
+            (s.goal as string) ?? "",
+          ]
+        );
+      }
+    }
+
+    // Import activity log
+    if (data.activityLog) {
+      for (const activity of data.activityLog as Array<Record<string, unknown>>) {
+        db.run(
+          "INSERT INTO activity (id, issueId, action, details, time) VALUES (?, ?, ?, ?, ?)",
+          [
+            `activity_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            (activity.issueId as string) ?? null,
+            (activity.action as string) ?? "",
+            typeof activity.details === "string"
+              ? activity.details
+              : JSON.stringify(activity.details ?? {}),
+            (activity.time as string) ?? new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // Import saved filters
+    if (data.savedFilters) {
+      for (const filter of data.savedFilters as Array<Record<string, unknown>>) {
+        db.run(
+          "INSERT INTO filters (id, name, query, sortOrder) VALUES (?, ?, ?, ?)",
+          [
+            (filter.id as string) ?? `flt_${Date.now()}`,
+            (filter.name as string) ?? "",
+            typeof filter.query === "string"
+              ? filter.query
+              : JSON.stringify(filter.query ?? {}),
+            (filter.sortOrder as number) ?? 0,
+          ]
+        );
+      }
+    }
+
+    // Import trash
+    if (data.trash) {
+      for (const t of data.trash as Array<Record<string, unknown>>) {
+        db.run(
+          "INSERT INTO trash (id, type, data, date) VALUES (?, ?, ?, ?)",
+          [
+            (t.id as string) ??
+              `trash_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            (t.type as string) ?? "issue",
+            JSON.stringify(t.data ?? {}),
+            (t.date as string) ?? new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // Import comments
+    if (data.comments) {
+      for (const c of data.comments as Array<Record<string, unknown>>) {
+        db.run(
+          "INSERT INTO comments (id, issueId, content, author, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
+          [
+            (c.id as string) ?? `cmt_${Date.now()}`,
+            (c.issueId as string) ?? "",
+            (c.content as string) ?? "",
+            (c.author as string) ?? "",
+            (c.createdAt as string) ?? new Date().toISOString(),
+            (c.updatedAt as string) ?? new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // Import custom columns
+    if (data.columns) {
+      for (const col of data.columns as Array<Record<string, unknown>>) {
+        db.run(
+          "INSERT INTO columns (id, name, query, projectId, sortOrder) VALUES (?, ?, ?, ?, ?)",
+          [
+            (col.id as string) ?? `col_${Date.now()}`,
+            (col.name as string) ?? "",
+            typeof col.query === "string"
+              ? col.query
+              : JSON.stringify(col.query ?? {}),
+            (col.projectId as string) ?? null,
+            (col.sortOrder as number) ?? 0,
+          ]
+        );
+      }
+    }
+
+    // Set current project
+    if (data.currentProject) {
+      db.run(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)",
+        [String(data.currentProject)]
+      );
+    }
+
+    // Set issue counter
+    if (data.issueCounter) {
+      db.run(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES ('issueCounter', ?)",
+        [String(data.issueCounter)]
+      );
+    }
+
+    await saveDb();
+    sendJson(res, 200, { success: true, message: "State imported successfully" });
+  } catch (error) {
+    console.error("setState error:", error);
+    sendJson(res, 500, { error: (error as Error).message });
+  }
+}
+
+export default { getState, setState };

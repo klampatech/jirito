@@ -34,3 +34,6 @@ screenshot-before-fix.png
 *.db
 *.db-wal
 *.db-shm
+# TypeScript build output
+dist/
+*.tsbuildinfo

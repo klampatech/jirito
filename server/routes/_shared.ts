@@ -1,0 +1,161 @@
+/**
+ * Shared helpers used by every route module.
+ *
+ * Before this file existed, each route module had its own copy of
+ * `sendJson`, `parseJsonColumn`, and `queryAll`. They were byte-for-byte
+ * identical. This file is the single source of truth and is imported by
+ * all routes.
+ */
+
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Database, QueryExecResult } from "sql.js";
+import { getDb } from "../db/index.js";
+
+/**
+ * Which columns on which tables hold JSON-encoded strings that should be
+ * auto-parsed by `mapRow`. Lookup is case-insensitive on the column name.
+ */
+const JSON_COLUMNS_BY_TABLE: Readonly<Record<string, ReadonlySet<string>>> = {
+  issues: new Set(["labels"]),
+  filters: new Set(["query"]),
+  activity: new Set(["details"]),
+  trash: new Set(["data"]),
+  columns: new Set(["query"]),
+};
+
+const FALLBACK_JSON_COLUMNS: ReadonlySet<string> = new Set([
+  "labels",
+  "query",
+  "details",
+  "data",
+  "description",
+  "goal",
+]);
+
+function isJsonColumn(tableName: string, columnName: string): boolean {
+  const tableSet = JSON_COLUMNS_BY_TABLE[tableName];
+  const col = columnName.toLowerCase();
+  if (tableSet) return tableSet.has(col);
+  return FALLBACK_JSON_COLUMNS.has(col);
+}
+
+/** Send a JSON response. The body is serialised; status is 200 by default. */
+export function sendJson(
+  res: ServerResponse,
+  statusCode: number,
+  data: unknown
+): void {
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify(data));
+}
+
+/**
+ * Parse a JSON column value. SQLite returns the value as a string; we
+ * JSON.parse it. If parsing fails, the raw value is returned so the caller
+ * can still see what was stored.
+ */
+export function parseJsonColumn(value: unknown): unknown {
+  if (value == null) return null;
+  if (typeof value === "object") return value;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+/**
+ * Build a row object from a `QueryExecResult` row, parsing JSON columns
+ * for the given table name. Centralised so every route gets identical
+ * behaviour.
+ */
+export function mapRow(
+  tableName: string,
+  cols: string[],
+  row: unknown[]
+): Record<string, unknown> {
+  const obj: Record<string, unknown> = {};
+  for (let i = 0; i < cols.length; i++) {
+    const col = cols[i];
+    const value = row[i];
+    obj[col] = isJsonColumn(tableName, col) ? parseJsonColumn(value) : value;
+  }
+  return obj;
+}
+
+/**
+ * Run a SELECT-style query and return the rows as plain objects. Throws
+ * if the database has not been initialised.
+ */
+export function queryAll(
+  sql: string,
+  params: unknown[] = []
+): Record<string, unknown>[] {
+  const db: Database | null = getDb();
+  if (!db) {
+    throw new Error("Database not initialised");
+  }
+  const result: QueryExecResult[] = db.exec(sql, params);
+  if (result.length === 0 || result[0].values.length === 0) return [];
+
+  // We don't have a tableName here. Best-effort: use the FROM clause as a
+  // hint. For the routes that use `queryAll` directly, they pass the
+  // `mapRow` explicitly. Otherwise, we fall back to the legacy list.
+  const tableHint = extractTableName(sql);
+  return result[0].values.map((row) =>
+    mapRow(tableHint ?? "", result[0].columns, row)
+  );
+}
+
+/**
+ * Best-effort extraction of the table name from a SELECT's FROM clause.
+ * Returns `null` if it can't be parsed. Used only as a hint to pick the
+ * right JSON-column allowlist.
+ */
+function extractTableName(sql: string): string | null {
+  const match = sql.match(
+    /from\s+([a-zA-Z_][a-zA-Z0-9_]*)/i
+  );
+  return match ? match[1].toLowerCase() : null;
+}
+
+/**
+ * Convenience: coerce a string `id` column that is purely numeric to a
+ * number. The frontend expects `id: number` for newly-created issues but
+ * the database stores them as strings to keep IDs portable.
+ */
+export function coerceNumericId<T extends Record<string, unknown>>(row: T): T {
+  if (
+    row &&
+    typeof row.id === "string" &&
+    /^-?\d+$/.test(row.id)
+  ) {
+    return { ...row, id: Number(row.id) };
+  }
+  return row;
+}
+
+/** Read the request body as JSON. Throws on invalid JSON. */
+export function parseBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk: Buffer | string) => {
+      body += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    });
+    req.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
+        reject(new Error("Invalid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
