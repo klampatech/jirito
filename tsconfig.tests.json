@@ -8,7 +8,10 @@
       "ES2022"
     ],
     "outDir": "dist/tests",
-    "rootDir": "tests/unit",
+    "rootDirs": [
+      "tests/unit",
+      "src"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true
