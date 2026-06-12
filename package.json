@@ -10,7 +10,7 @@
     "watch:client": "tsc -p tsconfig.client.json --watch",
     "test": "playwright test --config=playwright/playwright.config.mjs",
     "test:unit": "vitest run",
-    "server": "node dist/server/index.js",
+    "server": "node dist/server/server/index.js",
     "dev": "tsx server/index.ts"
   },
   "devDependencies": {
