@@ -71,13 +71,19 @@ test('window.storage has saveStorageData method', async ({ page }) => {
   expect(hasSaveStorageData).toBe(true);
 });
 
-test('storage.js does not use ESM export syntax', async ({ page }) => {
-  // Verify the script tag loads storage.js (not as module)
+test('storage.js is loaded as an ES module', async ({ page }) => {
+  // After the phase-5 migration, every client script is loaded as an
+  // ES module (the legacy classic-script load would have polluted
+  // window.* and broken strict-mode type checks). This test replaced
+  // the previous 'storage.js does not use ESM export syntax' test,
+  // which was asserting the old architecture.
   await page.goto('http://127.0.0.1:8080/');
   await page.waitForTimeout(1000); // Let scripts load
   const content = await page.content();
-  expect(content).toContain('src="src/storage.js"');
-  expect(content).not.toContain('type="module"');
+  // The storage module script tag exists and is loaded as a module.
+  expect(content).toMatch(/<script[^>]+src="src\/storage\.js"[^>]*>/);
+  // Every <script> in the document is type="module" post-phase-5.
+  expect(content).toMatch(/<script type="module" src="src\/storage\.js"/);
 });
 
 // ===== Storage Mode Detection Tests =====
@@ -414,7 +420,11 @@ test('getStorageData returns empty state when no data exists', async ({ page }) 
   // Block server to force offline mode with no localStorage data
   await page.route('**/api/health', route => route.abort('failed'));
 
-  await page.goto('file://' + indexPath);
+  // After the phase-5 migration, the page uses <script type="module">,
+  // which Chromium refuses to load from file://. Use the http static
+  // server (same as the rest of the suite) instead.
+  await page.goto('http://127.0.0.1:8080/');
+  // The list-view nav item should be present once the page boots.
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
   const data = await page.evaluate(async () => {

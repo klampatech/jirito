@@ -108,8 +108,12 @@ export default async function globalSetup() {
   }
   log('Ports free, starting servers...');
 
-  // Start backend server on port 3001
-  backendProc = spawn('node', ['server/index.js'], {
+  // Start backend server on port 3001. Per phase 2, the server source of
+  // truth is server/index.ts. The committed server/*.js files are
+  // legacy artifacts (still tracked for now, but no longer run).
+  // `tsx` is the project's dev dep (per phase 1) for running TS files
+  // directly, so we use it here instead of the emit-then-node dance.
+  backendProc = spawn('npx', ['tsx', 'server/index.ts'], {
     cwd: rootDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, SERVER_PORT: '3001' },

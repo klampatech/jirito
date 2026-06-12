@@ -120,12 +120,12 @@
 
 | Aspect | Details |
 |--------|---------|
-| **Type** | Vanilla JS SPA (no build step) |
-| **Language** | JavaScript (ES Modules) |
+| **Type** | TypeScript SPA with optional Express-style Node server |
+| **Language** | TypeScript (ES2022, strict) |
 | **Styling** | CSS (light + dark themes) |
 | **Icons** | Lucide (CDN) |
-| **Storage** | `localStorage` (9 keys) |
-| **Testing** | Playwright (~150 E2E tests) |
+| **Storage** | `localStorage` (9 keys) + optional SQLite via `sql.js` |
+| **Testing** | Playwright (~236 E2E tests) + Vitest (66 unit tests) |
 | **Formatting** | ESLint + Prettier |
 | **CI** | GitHub Actions (`test.yml`) |
 
@@ -154,6 +154,18 @@
    npm run server  # Serves static files on port 3001 with SQLite backend
    ```
 3. Start tracking your projects! 🎉
+
+### Building
+
+Jirito's client and server are written in TypeScript. `tsc` emits ES modules next to the `.ts` sources (`src/*.ts` → `src/*.js`); the server is also emitted to `dist/server/`. Both are committed alongside the sources so the app runs without a build step in development.
+
+```bash
+npm install
+npm run typecheck   # tsc -b --noEmit
+npm run build       # tsc -b (emit src/*.js + dist/server/**)
+```
+
+The Playwright E2E tests launch the server via `npx tsx server/index.ts` (the `tsx` runtime), so they do not require a prior `npm run build`. `npm run server` instead serves the emitted `dist/server/index.js`.
 
 ### Running with Backend
 
@@ -236,10 +248,10 @@ Jirito stores data in `localStorage` under 9 keys:
 
 | Metric | Value |
 |--------|-------|
-| Total Lines | ~5,600 |
-| Source Files | 7 (index.html, styles.css, 6 JS modules) |
-| E2E Tests | ~150 |
-| Unit Tests | None |
+| Total Lines | ~9,000 (TypeScript + Playwright specs) |
+| Source Files | 36 TypeScript modules + 1 HTML + 1 CSS |
+| E2E Tests | ~236 |
+| Unit Tests | 66 (Vitest, `tests/unit/`) |
 | Dependencies | `@playwright/test` (dev only) |
 
 ## 🧭 Roadmap
@@ -251,7 +263,7 @@ Jirito stores data in `localStorage` under 9 keys:
 - [x] Add `saveState()` debouncing for bulk operations ✅
 
 ### Medium Priority
-- [ ] TypeScript migration for type safety
+- [x] TypeScript migration (type safety + build pipeline) ✅
 - [ ] Replace `LJ` global with proper state management
 - [ ] Add virtual scrolling for 100+ issues
 - [x] Add GitHub Actions CI for test automation ✅
@@ -277,4 +289,4 @@ MIT
 
 ---
 
-*Built with vanilla JS, CSS, and love. No frameworks harmed in the making.* 🏗️
+*Built with TypeScript, CSS, and love. No frameworks harmed in the making.* 🏗️
