@@ -1,8 +1,9 @@
 # Jirito — In-Depth Code Review
 
-> **Date:** 2026-05-10
-> **Scope:** Full codebase (JS, CSS, HTML, tests)
-> **Status:** Complete
+> **Original review:** 2026-05-10
+> **Last updated:** 2026-06-12 — annotated to reflect the TypeScript migration in `.plan/plan-003-typescript-migration.md` (phases 0–8 complete, branch `feature/backend`).
+> **Scope:** Full codebase (client + server, TypeScript, CSS, HTML, tests)
+> **Status:** Original findings retained; status of each item updated.
 
 ---
 
@@ -21,37 +22,44 @@
 
 ### Concerns
 
-**CRITICAL: LJ global namespace pollution**
+**CRITICAL (partial progress): LJ global namespace pollution**
 
-```javascript
-// state.js — 50+ global variables
-const LJ = { issues: [], issueCounter: 100, ... };
-let issues = LJ.issues;
-let issueCounter = LJ.issueCounter;
-// ... 16 more alias variables
+```typescript
+// src/state.ts — LJ object is preserved as the live state container
+const LJ = { issues: [], issueCounter: 100, /* ...50+ keys */ };
 ```
 
-The `LJ` object plus 16 bare-module-level aliases create a massive global state. Any script tag ordering issue or third-party library can collide. The aliases (`let issues = LJ.issues`) are redundant — they add no value beyond the `LJ.` prefix and create confusion about which variable to use.
+The `LJ` object plus 16 bare-module-level aliases (`let issues = LJ.issues; let issueCounter = LJ.issueCounter; ...`) still exist and are still mutated across the codebase. The TypeScript migration (`.plan/plan-003-typescript-migration.md` §10.2) flagged this as a follow-up: the migration's goal was to add types, not to refactor global state. The 16 alias variables are a clear cleanup target.
 
-**CRITICAL: main.js is a 300+ line God function**
+**Status:** the migration preserved `LJ` exactly; the proper fix is a typed store (singleton class with `getState()` / `setState(patch)` / `subscribe(listener)`). Tracked as a follow-up — see §10.2 of the migration plan and the roadmap in `docs/PROJECT.md`.
 
-The `DOMContentLoaded` handler in `main.js` registers 30+ event listeners, creates modals, handles project creation, sprint forms, column config, keyboard shortcuts, notification dropdowns, and theme toggling. This should be split into at least 3–4 modules (e.g., `main-projects.js`, `main-sprints.js`, `main-shortcuts.js`).
+**CRITICAL (partial progress): bootstrap was a 300+ line God function**
 
-**HIGH: render.js is ~400 lines with multiple concerns**
+The pre-migration `main.js` registered 30+ event listeners in a single `DOMContentLoaded` handler. The TypeScript migration split this into 19 `main-*.ts` files (one per feature area) plus a thin `main.ts` orchestrator, so the listener registration is now distributed. Each `main-*.ts` is still a fairly large function (the largest are sprint/project flows), but no single file carries the whole bootstrap.
 
-`renderBoard()`, `createCard()`, `renderSidebar()`, `renderProjects()`, `renderColumnConfig()`, `renderCalendarView()`, `renderCalendar()`, `renderDashboardView()`, `renderListView()`, `renderSavedFilters()`, `renderActivity()` — 11 functions with no single responsibility. `renderCalendarView()` and `renderCalendar()` are nearly identical (duplicate code).
+**Status:** partial progress — distribution done, per-feature simplification is a follow-up.
 
-**HIGH: events.js is ~500 lines**
+**HIGH (partial progress): render module is large with multiple concerns**
 
-Contains `openDetailPanel()` (200+ lines), `initDragDrop()`, `initMarkdownToggles()`, `cloneIssue()`, `deleteIssue()`, `addComment()`, bulk action handlers, filter logic, toast system, and sprint list rendering. This file mixes DOM event handling, business logic, and rendering.
+`renderBoard()`, `createCard()`, `renderSidebar()`, `renderProjects()`, `renderColumnConfig()`, `renderCalendarView()`, `renderCalendar()`, `renderDashboardView()`, `renderListView()`, `renderSavedFilters()`, `renderActivity()` — 11 functions, no single responsibility. The migration moved them into `src/render.ts` (~1,300 lines) with the same shape. `renderCalendarView()` and `renderCalendar()` remain nearly identical (the duplicate is still present).
+
+**Status:** the duplicate code is now in a single typed file, but the refactor itself is still owed. Tracked as a follow-up.
+
+**HIGH (partial progress): events module is large and mixes concerns**
+
+`src/events.ts` is now ~1,600 lines and contains the same mix: `openDetailPanel()`, `initDragDrop()`, `initMarkdownToggles()`, `cloneIssue()`, `deleteIssue()`, `addComment()`, bulk action handlers, filter logic, toast system, sprint list rendering, project CRUD, and undo. The migration preserved the structure verbatim — types and exports were added, behavior is unchanged.
+
+**Status:** the module is fully typed and behaviour-preserving; the split into per-feature event modules is still owed.
 
 **MEDIUM: No input validation on import**
 
 While `importData()` validates projects structure, it doesn't validate individual issue fields (e.g., `id` could be negative, `title` could be 10KB, `status` could be arbitrary). The `createProject()` function allows any key without sanitization.
 
-**MEDIUM: saveState() writes 9 localStorage keys synchronously on every call**
+**MEDIUM (partial progress): saveState() writes 9 localStorage keys synchronously**
 
-The `debounced saveStateDebounced()` exists but isn't consistently used. Many operations call `saveState()` directly (e.g., `trackHistory()`, `addDependency()`, `removeDependency()`). The debounce should be the default, with `saveStateImmediate()` as the opt-in for critical operations.
+The migration made `saveState()` the debounced entry point and removed the `saveStateDebounced()` alias. The events.ts sprint-activation paths that previously called a missing `saveSprints()` helper now correctly call `saveState()`. The direct-save call sites flagged here (`trackHistory()`, `addDependency()`, `removeDependency()`) are still direct — the migration's stated goal was to add types, not to revisit the save semantics.
+
+**Status:** API is unified (one debounced `saveState()`); per-site debounce discipline is a follow-up.
 
 ---
 
@@ -82,7 +90,7 @@ The `debounced saveStateDebounced()` exists but isn't consistently used. Many op
 ### Inconsistent Patterns
 
 - Some functions use `\|\|` for defaults, others use `??`, and some use `if (!x) return` guards inconsistently
-- `saveState()` vs `saveStateDebounced()` vs `saveStateImmediate()` — the API is confusing. The default should be debounced.
+- ~~`saveState()` vs `saveStateDebounced()` vs `saveStateImmediate()`~~ — resolved: `saveState()` is the only public name, and it is the debounced one. `saveStateImmediate()` is also exported for the rare cases that need to bypass the debounce.
 - `getSprints()` returns `LJ.sprints` but creates a default `{}` if undefined — should be initialized in `loadState()` instead
 - `trackHistory()` is called with string values but stores them as `String(from)` — inconsistent with numeric values
 
@@ -176,7 +184,7 @@ The `debounced saveStateDebounced()` exists but isn't consistently used. Many op
 
 | # | Gap | Impact |
 |---|-----|--------|
-| 1 | No unit tests — all testing is E2E. The markdown parser, duplicate detection, dependency cycle detection, and calendar helpers have zero test coverage. | High |
+| 1 | ~~No unit tests~~ — 66 Vitest cases across `tests/unit/{date,issue}-helpers.test.ts`, `markdown.test.ts`, `security.test.ts`. The markdown parser, `isSafeUrl`, date helpers, and issue helpers now have direct coverage. The calendar helpers and dependency-cycle detection are still uncovered. | Resolved (partial — see scope reduction) |
 | 2 | No visual regression testing — screenshots are manually captured, not diffed. | Medium |
 | 3 | `waitForTimeout()` used in tests — flaky timing instead of proper assertions (e.g., `page.locator('.toast').waitFor()`). | Medium |
 | 4 | `file://` protocol limitations — tests use `file://` which may block localStorage in some browsers. The try/catch silence is a concern. | Low |
@@ -216,7 +224,7 @@ The `debounced saveStateDebounced()` exists but isn't consistently used. Many op
 | C1 | LJ global + 16 alias variables — massive global pollution | `state.js` | Maintainability, collision risk |
 | C2 | main.js God function — 300+ lines of mixed concerns | `main.js` | Unmaintainable |
 | C3 | Duplicate `renderCalendarView()` / `renderCalendar()` | `render.js` | Code bloat, bug risk |
-| C4 | No unit tests — zero coverage of core logic | All | Regression risk |
+| C4 (resolved) | ~~No unit tests~~ — 66 Vitest cases across 4 files (`tests/unit/`) | `tests/unit/` | Regression risk for the new helpers is now bounded; core logic helpers (date, markdown, security, issue) have direct coverage |
 
 ### High (fix soon)
 
@@ -243,7 +251,7 @@ The `debounced saveStateDebounced()` exists but isn't consistently used. Many op
 
 | # | Issue | Impact |
 |---|-------|--------|
-| L1 | No TypeScript | Type safety |
+| L1 | ~~No TypeScript~~ — done in `.plan/plan-003-typescript-migration.md` | ~~Type safety~~ resolved |
 | L2 | No JSDoc | IDE support |
 | L3 | No virtual scrolling | Performance at scale |
 | L4 | No Web Vitals monitoring | Performance observability |
@@ -253,4 +261,18 @@ The `debounced saveStateDebounced()` exists but isn't consistently used. Many op
 
 ## 9. Recommendations — Prioritized Action Plan
 
-See the prioritized plan below.
+The prioritized plan in `docs/prioritized-fix-plan.md` predates the TypeScript migration. Items it lists that the migration resolved:
+
+- **C1 (TypeScript migration for type safety)** — done (`.plan/plan-003-typescript-migration.md`).
+- **C4 (No unit tests)** — partially done; the new `tests/unit/*.test.ts` files cover the helpers, but ~236 Playwright specs still carry the bulk of regression coverage.
+- **Add GitHub Actions CI for test automation** — done (`.github/workflows/test.yml`).
+
+Items the migration marked as out of scope (follow-ups in the migration plan §10):
+
+- **Remove the `attach()` indirection** in `src/_attach.ts` (the migration used `attach` to bridge classic-script callers during the cutover; once every consumer imports directly, the shim is redundant).
+- **Replace the `LJ` global state** with a typed store.
+- **Schema validation** at server boundaries (e.g. with `zod`).
+- **Convert Playwright specs to TypeScript** (currently `.mjs`).
+- **Bundle the client** for production (currently per-module emits).
+
+The remaining priorities in the original action plan (C2, C3, H1–H5, M1–M6) are unchanged. See `docs/prioritized-fix-plan.md` for the full list.

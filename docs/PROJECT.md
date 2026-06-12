@@ -8,9 +8,9 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 ### Technical Architecture
 | Aspect | Status |
 |--------|--------|
-| Type | Vanilla JS SPA (no build step) |
-| Modules | 6 JS files: state, render, events, data, utils, main |
-| State | `LJ` namespace + localStorage sync |
+| Type | TypeScript SPA (strict, ES2022) with optional Express-style Node server |
+| Modules | 36 `.ts` files in `src/` + 15 in `server/`; emitted `.js` and `dist/server/**` are committed and run unchanged |
+| State | `LJ` namespace (legacy) + localStorage sync; per-file ES-module exports via `src/_attach.ts` (cleanup tracked in code review) |
 | Icons | Lucide (CDN) |
 | Rendering | DOM manipulation (no framework) |
 
@@ -29,21 +29,21 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 ### Testing & Quality
 | | |
 |--|--|
-| E2E Tests | ✅ ~150 Playwright tests |
-| Unit Tests | ❌ None |
-| Linting | ❌ None |
-| CI/CD | ❌ Not configured |
+| E2E Tests | ✅ ~236 Playwright tests (run via `tsx` against the TypeScript server) |
+| Unit Tests | ✅ 66 Vitest cases across 4 files (`tests/unit/`) |
+| Linting | ✅ ESLint configured (status of integration not re-audited here) |
+| CI/CD | ✅ GitHub Actions (`.github/workflows/test.yml`) — runs `typecheck` then Playwright |
 
 ### Dependencies
-- **Runtime**: None (pure HTML/JS/CSS)
-- **Dev**: `@playwright/test` + `playwright` 1.59.1
-- ⚠️ **No lock file** — reproducibility not guaranteed
+- **Runtime**: `nanoid`, `uuid` (browser-side ID generation)
+- **Dev**: `@playwright/test` + `playwright` 1.59.1, `vitest`, `typescript`, `tsx`, `@types/node`, `jsdom`, `sql.js`
+- ✅ `package-lock.json` committed; lockfile is the source of truth for reproducible installs
 
 ### Code Quality
-- 5,198 lines across 7 files
-- Global state mutation (`LJ.*`), magic numbers, inconsistent formatting
-- No TypeScript, no JSDoc, no types
-- Duplicate `renderDashboard` functions
+- ~9,000 lines across the TypeScript source set (client + server) plus the Playwright spec set
+- Strict TypeScript across the entire codebase; canonical types in `src/types.ts`
+- `LJ` global still present (legacy, preserved during migration); cleanup tracked in `docs/code-review.md`
+- Magic numbers, duplicate `renderDashboard` functions, and most other concerns from the original review remain
 
 ### User Experience
 - **Views**: Board, List, Calendar, Dashboard
@@ -69,10 +69,10 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 4. Add `saveState()` debouncing for bulk operations
 
 **Medium Priority:**
-5. Consider TypeScript migration for type safety
-6. Replace `LJ` global with proper state management
+5. ~~Consider TypeScript migration for type safety~~ — **done** (see `.plan/plan-003-typescript-migration.md`)
+6. Replace `LJ` global with proper state management — partial progress (migration complete; cleanup is a follow-up)
 7. Add virtual scrolling for 100+ issues
-8. Add GitHub Actions CI for test automation
+8. ~~Add GitHub Actions CI for test automation~~ — **done** (`.github/workflows/test.yml` runs `typecheck` + Playwright)
 
 **Low Priority:**
 9. Extract duplicated `renderDashboard` code
