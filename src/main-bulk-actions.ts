@@ -19,7 +19,7 @@
  */
 
 import type { Issue } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initBulkActions(): void {
   document.getElementById("bulk-status")?.addEventListener("change", handleBulkStatusChange);

@@ -22,8 +22,9 @@
  *
  * Behavior is preserved 1:1; only types and exports are added.
  */
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
+import { typeIcons } from "./state.js";
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
 // Coerce both sides to string for ID comparison. After the server
@@ -1365,7 +1366,7 @@ export function renderSprintList() {
                     sprintsMap[k].active = false;
             });
             sprintsMap[id].active = true;
-            saveSprints();
+            void saveState();
             renderSprintList();
             // Update sprint bar
             const newActive = getActiveSprint();
@@ -1391,7 +1392,7 @@ export function renderSprintList() {
             const sprintsMap = getSprints();
             const archived = !sprintsMap[id].archived;
             sprintsMap[id].archived = archived;
-            saveSprints();
+            void saveState();
             renderSprintList();
             populateSprintFilter();
             populateSprintSelect();
@@ -1415,6 +1416,10 @@ export function renderSprintList() {
         });
     });
 }
+// `typeIcons` is imported from `state.js` at the top of this file
+// (see the `import { typeIcons }` line). It used to be a top-level
+// `const` in the classic-script `state.js`, polluting the global
+// scope; in the new module world it's an explicit export.
 // Attach every public export to `window` for legacy classic-script callers
 // (notably `main-*.js`) that still call these by bare name.
 void getDestinationIndex;

@@ -199,7 +199,7 @@ export async function setState(
       )) {
         const s = sprint as Record<string, unknown>;
         db.run(
-          "INSERT INTO sprints (id, projectId, name, status, startDate, endDate, goal) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO sprints (id, projectId, name, status, startDate, endDate, goal, active, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             sprintId,
             (s.projectId as string) ?? "default",
@@ -208,6 +208,8 @@ export async function setState(
             (s.startDate as string) ?? null,
             (s.endDate as string) ?? null,
             (s.goal as string) ?? "",
+            s.active ? 1 : 0,
+            s.archived ? 1 : 0,
           ]
         );
       }

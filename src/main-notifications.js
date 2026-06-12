@@ -8,7 +8,7 @@
  *     the bell icon; legacy `style.top` / `style.right` assignments
  *     preserved.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function updateNotificationDropdown() {
     const body = document.getElementById("notification-dropdown-body");
     if (!body)

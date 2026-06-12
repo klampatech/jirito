@@ -8,7 +8,7 @@
  *   - Issue-form submission itself is handled by `main-issue-form.ts`.
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function openModal(status?: string): void {
   const overlay = document.getElementById("modal-overlay");

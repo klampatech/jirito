@@ -6,7 +6,7 @@
  *     `updateCustomColumn`, `getCustomColumns`, `getCurrentProject`,
  *     `showToast` come from `render.ts` / `state.ts` / `events.ts`.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initColumnConfig() {
     document.getElementById("column-config-btn")?.addEventListener("click", () => {
         document.getElementById("column-config-overlay") &&

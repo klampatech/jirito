@@ -10,7 +10,7 @@
  *     it. Behaviour is preserved.
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initShortcuts(): void {
   // Global keyboard shortcuts

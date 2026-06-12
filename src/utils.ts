@@ -14,8 +14,8 @@
  */
 
 import type { Issue, Project, Sprint } from "./types";
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
 
 const { CALENDAR_MAX_ROWS, ALLOWED_URL_SCHEMES } = CONSTANTS;
 

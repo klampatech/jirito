@@ -35,7 +35,7 @@
  */
 
 import type { Project, Sprint } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 console.log("[main] main.ts loaded");
 

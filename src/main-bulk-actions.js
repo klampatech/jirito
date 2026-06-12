@@ -17,7 +17,7 @@
  *     it is declared but not guaranteed to be the same object as
  *     `getSelectedIds()`.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initBulkActions() {
     document.getElementById("bulk-status")?.addEventListener("change", handleBulkStatusChange);
     document.getElementById("bulk-delete")?.addEventListener("click", handleBulkDelete);

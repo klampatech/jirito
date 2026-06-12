@@ -14,8 +14,8 @@
  */
 
 import type { Issue, Project, SavedFilter, TrashEntry } from "./types";
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
 
 const { MAX_TITLE_LENGTH, MAX_PROJECT_KEY_LENGTH, VALID_STATUSES, VALID_ISSUE_TYPES, VALID_PRIORITIES } = CONSTANTS;
 

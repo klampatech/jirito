@@ -6,7 +6,7 @@
  *   - Theme is persisted in `localStorage` under `jirito-theme` (legacy key).
  *   - Respects the system `prefers-color-scheme: dark` on first visit.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initTheme() {
     const themeToggle = document.getElementById("theme-toggle");
     if (!themeToggle)

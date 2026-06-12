@@ -9,7 +9,7 @@
  */
 
 import type { TrashEntry } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function renderTrash(): void {
   const section = document.getElementById("trash-section");

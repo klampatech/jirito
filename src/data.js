@@ -12,8 +12,8 @@
  *     keep that style for now; the end-state refactor (plan §10.1) will
  *     route these through the typed setters.
  */
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
 const { MAX_TITLE_LENGTH, MAX_PROJECT_KEY_LENGTH, VALID_STATUSES, VALID_ISSUE_TYPES, VALID_PRIORITIES } = CONSTANTS;
 // ===== Data Operations =====
 export function exportData() {

@@ -19,7 +19,9 @@
  */
 
 import type { CustomColumn, Issue, Sprint } from "./types";
-import { attach } from "./_attach";
+import { typeIcons } from "./state.js";
+import { removeUndoToast } from "./events.js";
+import { attach } from "./_attach.js";
 
 // ===== Rendering =====
 
@@ -590,7 +592,7 @@ export function renderCalendarView(): void {
             );
           })
           .join("");
-        if (undoToast) undoToast.remove();
+        removeUndoToast();
         const toast = document.createElement("div");
         toast.className = "toast toast-undo";
         toast.style.cssText =
@@ -602,12 +604,13 @@ export function renderCalendarView(): void {
           lines +
           '<button class="btn btn-sm" style="margin-top:8px;background:var(--primary);color:#fff;border:none;cursor:pointer;" onclick="this.parentElement.remove();">Close</button>';
         document.body.appendChild(toast);
-        undoToast = toast;
+        // Self-contained auto-dismiss: removes THIS specific toast after
+        // 15s. We don't try to coordinate with the events.ts `undoToast`
+        // module-private state — the date-picker toast is unrelated to
+        // the undo-toast system, and a new toast (from showUndoToast or
+        // another date pick) will simply remove itself first.
         setTimeout(() => {
-          if (undoToast === toast) {
-            toast.remove();
-            undoToast = null;
-          }
+          if (toast.parentElement) toast.remove();
         }, 15000);
       }
     });
@@ -1268,15 +1271,14 @@ declare function deleteProject(key: string): void;
 declare function updateBulkBar(): void;
 declare function updateSprintProgress(): void;
 
-// `typeIcons` is a top-level `const` in `state.js`, which in classic
-// scripts pollutes the global scope. Once Phase 5 flips `index.html` to
-// `<script type="module">`, this will be replaced by an import from
-// `state.ts`.
-declare const typeIcons: Record<string, string>;
+// `typeIcons` is imported from `state.js` at the top of this file
+// (see the `import { typeIcons }` line). It used to be a top-level
+// `const` in the classic-script `state.js`, polluting the global
+// scope; in the new module world it's an explicit export.
 
-// `undoToast` is a top-level `let` in `events.js` — same global-pollution
-// pattern as `typeIcons`.
-declare let undoToast: HTMLElement | null;
+// `undoToast` is module-private to `events.ts`. We import
+// `removeUndoToast()` from there to dismiss the toast without
+// reaching into another module's state.
 
 // Attach every public export to `window` for legacy classic-script callers
 // (notably `main-*.js` and `data.js`) that still call these by bare name.

@@ -12,7 +12,7 @@
  */
 
 import type { AppState, StorageLayer, StorageType } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 // Detect server URL — use relative path for same-origin, or env override
 let SERVER_URL = "";

@@ -7,7 +7,7 @@
  *     calls it directly after first render. `restoreFromTrash` is
  *     provided by `state.ts`.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function renderTrash() {
     const section = document.getElementById("trash-section");
     const list = document.getElementById("trash-list");

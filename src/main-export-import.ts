@@ -6,7 +6,7 @@
  *     `data.ts` (attached via `attach()`).
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initExportImport(): void {
   document.getElementById("export-btn")?.addEventListener("click", exportData);

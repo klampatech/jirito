@@ -11,7 +11,7 @@
  *     the board can filter per-project (required after the SQLite move;
  *     in server mode the issues are global).
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initIssueForm() {
     const addIssueBtn = document.getElementById("add-issue-btn");
     if (addIssueBtn) {

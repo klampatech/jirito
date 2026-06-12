@@ -7,7 +7,7 @@
  *   - Search input is debounced at 200ms (legacy behaviour).
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initFilters(): void {
   // Debounce search input

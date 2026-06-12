@@ -11,7 +11,7 @@
  *     because each debounce window is independent).
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initFilterControls(): void {
   // Sprint filter

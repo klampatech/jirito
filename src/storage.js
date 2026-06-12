@@ -10,7 +10,7 @@
  * `getStorageData`, `saveStorageData`) match the `StorageLayer`
  * interface declared in `src/types.ts`.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 // Detect server URL — use relative path for same-origin, or env override
 let SERVER_URL = "";
 if (typeof process !== "undefined" && process.env && process.env.VITE_API_URL) {

@@ -90,6 +90,8 @@ export function initTables(): void {
       startDate TEXT,
       endDate TEXT,
       goal TEXT DEFAULT '',
+      active INTEGER DEFAULT 0,
+      archived INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
@@ -196,6 +198,28 @@ export function migrateTables(): void {
     if (!columns.includes("customColumnId")) {
       tryAddColumn(db, "issues", "customColumnId", "TEXT", "NULL");
       console.log("Added customColumnId column to issues table");
+    }
+  }
+
+  // The sprints table was missing the `active` and `archived` boolean
+  // columns before the phase-7 schema fix. The CREATE TABLE above
+  // already includes them for fresh DBs; this migration adds them
+  // to older DBs that were created before the fix. Both columns are
+  // INTEGER (0/1) in SQLite, matching the boolean semantics the
+  // frontend uses for `s.active` and `s.archived` in its sprint
+  // objects. The legacy localStorage-only persistence wrote the
+  // full object as JSON, so these fields existed in client state
+  // even when they had no server-side column.
+  const sprintInfo = db.exec("PRAGMA table_info(sprints)");
+  if (sprintInfo.length > 0) {
+    const sprintCols = sprintInfo[0].values.map((row) => String(row[1]));
+    if (!sprintCols.includes("active")) {
+      tryAddColumn(db, "sprints", "active", "INTEGER", "0");
+      console.log("Added active column to sprints table");
+    }
+    if (!sprintCols.includes("archived")) {
+      tryAddColumn(db, "sprints", "archived", "INTEGER", "0");
+      console.log("Added archived column to sprints table");
     }
   }
 

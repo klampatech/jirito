@@ -12,8 +12,8 @@
  *     `src/types.ts` (none yet — the original used an inferred shape; we
  *     add a local type to keep the file self-contained).
  */
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
 const { CALENDAR_MAX_ROWS, ALLOWED_URL_SCHEMES } = CONSTANTS;
 // ===== Markdown Parser (lightweight) =====
 export function isSafeUrl(url) {

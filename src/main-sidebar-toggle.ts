@@ -6,7 +6,7 @@
  *     to position the toggle button; preserved verbatim.
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initSidebarToggle(): void {
   document.getElementById("sidebar-toggle")?.addEventListener("click", () => {

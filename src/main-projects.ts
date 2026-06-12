@@ -7,7 +7,7 @@
  */
 
 import type { Project } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initProjects(): void {
   // New project button

@@ -13,7 +13,7 @@
  */
 
 import type { Issue } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initIssueForm(): void {
   const addIssueBtn = document.getElementById("add-issue-btn");

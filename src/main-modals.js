@@ -7,7 +7,7 @@
  *     `main-shortcuts.js`, `main-column-menu.js`) can call them by bare name.
  *   - Issue-form submission itself is handled by `main-issue-form.ts`.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function openModal(status) {
     const overlay = document.getElementById("modal-overlay");
     const statusEl = document.getElementById("issue-status");

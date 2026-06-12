@@ -14,7 +14,7 @@
  *     status-only, so custom-column cards are not visible on the
  *     board yet. The clear logic itself is correct.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initColumnMenuButtons() {
     document.querySelectorAll(".column-menu-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {

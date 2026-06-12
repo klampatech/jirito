@@ -6,7 +6,7 @@
  *     (attached to `window` via `attach()`).
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initDetailPanel(): void {
   document.getElementById("detail-close")?.addEventListener("click", closeDetailPanel);

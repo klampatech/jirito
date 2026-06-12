@@ -8,7 +8,7 @@
  */
 
 import type { Sprint } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initSprints(): void {
   // Manage sprints button

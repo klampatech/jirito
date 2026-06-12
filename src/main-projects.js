@@ -5,7 +5,7 @@
  *   - 1:1 translation. `createProject`, `getProjects`, `showToast` are
  *     provided by `data.ts`, `state.ts`, and `events.ts` respectively.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initProjects() {
     // New project button
     document.getElementById("add-project-btn")?.addEventListener("click", () => {

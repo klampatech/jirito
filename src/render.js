@@ -17,7 +17,9 @@
  *
  * Behavior is preserved 1:1; only types and exports are added.
  */
-import { attach } from "./_attach";
+import { typeIcons } from "./state.js";
+import { removeUndoToast } from "./events.js";
+import { attach } from "./_attach.js";
 // ===== Rendering =====
 export function renderBoard() {
     const columns = getEffectiveColumns();
@@ -550,8 +552,7 @@ export function renderCalendarView() {
                         "</span></div>");
                 })
                     .join("");
-                if (undoToast)
-                    undoToast.remove();
+                removeUndoToast();
                 const toast = document.createElement("div");
                 toast.className = "toast toast-undo";
                 toast.style.cssText =
@@ -563,12 +564,14 @@ export function renderCalendarView() {
                         lines +
                         '<button class="btn btn-sm" style="margin-top:8px;background:var(--primary);color:#fff;border:none;cursor:pointer;" onclick="this.parentElement.remove();">Close</button>';
                 document.body.appendChild(toast);
-                undoToast = toast;
+                // Self-contained auto-dismiss: removes THIS specific toast after
+                // 15s. We don't try to coordinate with the events.ts `undoToast`
+                // module-private state — the date-picker toast is unrelated to
+                // the undo-toast system, and a new toast (from showUndoToast or
+                // another date pick) will simply remove itself first.
                 setTimeout(() => {
-                    if (undoToast === toast) {
+                    if (toast.parentElement)
                         toast.remove();
-                        undoToast = null;
-                    }
                 }, 15000);
             }
         });
@@ -1154,6 +1157,13 @@ export function populateAssigneeFilter() {
         select.appendChild(labelOpt);
     }
 }
+// `typeIcons` is imported from `state.js` at the top of this file
+// (see the `import { typeIcons }` line). It used to be a top-level
+// `const` in the classic-script `state.js`, polluting the global
+// scope; in the new module world it's an explicit export.
+// `undoToast` is module-private to `events.ts`. We import
+// `removeUndoToast()` from there to dismiss the toast without
+// reaching into another module's state.
 // Attach every public export to `window` for legacy classic-script callers
 // (notably `main-*.js` and `data.js`) that still call these by bare name.
 attach({

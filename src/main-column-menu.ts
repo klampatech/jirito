@@ -16,7 +16,7 @@
  */
 
 import type { CustomColumn, Issue } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initColumnMenuButtons(): void {
   document.querySelectorAll<HTMLButtonElement>(".column-menu-btn").forEach((btn) => {

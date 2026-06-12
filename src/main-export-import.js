@@ -5,7 +5,7 @@
  *   - 1:1 translation. `exportData` / `importData` are provided by
  *     `data.ts` (attached via `attach()`).
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initExportImport() {
     document.getElementById("export-btn")?.addEventListener("click", exportData);
     const importInput = document.createElement("input");

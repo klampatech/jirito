@@ -10,7 +10,7 @@
  */
 
 import type { Issue } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function updateNotificationDropdown(): void {
   const body = document.getElementById("notification-dropdown-body");

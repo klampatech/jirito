@@ -9,7 +9,7 @@
  *     removal in `removeUndoToast()` is the only place that nulls
  *     it. Behaviour is preserved.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initShortcuts() {
     // Global keyboard shortcuts
     document.addEventListener("keydown", (e) => {

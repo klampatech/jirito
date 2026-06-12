@@ -9,7 +9,7 @@
  *     final step.
  */
 
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initOnboarding(): void {
   const seen = localStorage.getItem("jirito-onboarding");

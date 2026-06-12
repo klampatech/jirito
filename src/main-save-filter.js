@@ -5,7 +5,7 @@
  *   - 1:1 translation; `saveCurrentFilter` is provided by `render.ts`
  *     (attached to `window` via `attach()`).
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initSaveFilter() {
     document.getElementById("save-filter-btn")?.addEventListener("click", saveCurrentFilter);
 }

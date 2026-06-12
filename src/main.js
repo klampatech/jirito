@@ -33,7 +33,7 @@
  *     `saveStateImmediate()` only when there is a pending debounced
  *     save (to avoid clobbering fresher server state from other tabs).
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 console.log("[main] main.ts loaded");
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("[main] DOMContentLoaded, loadState exists:", typeof loadState);

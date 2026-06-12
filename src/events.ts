@@ -29,8 +29,9 @@ import type {
   Issue,
   Sprint,
 } from "./types";
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
+import { typeIcons } from "./state.js";
 
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
@@ -1457,7 +1458,7 @@ export function renderSprintList(): void {
         if (sprintsMap[k].id !== id) sprintsMap[k].active = false;
       });
       sprintsMap[id].active = true;
-      saveSprints();
+      void saveState();
       renderSprintList();
       // Update sprint bar
       const newActive = getActiveSprint();
@@ -1482,7 +1483,7 @@ export function renderSprintList(): void {
       const sprintsMap = getSprints();
       const archived = !sprintsMap[id].archived;
       sprintsMap[id].archived = archived;
-      saveSprints();
+      void saveState();
       renderSprintList();
       populateSprintFilter();
       populateSprintSelect();
@@ -1533,7 +1534,6 @@ declare function getCurrentDetailIssue(): Issue | null;
 declare function setCurrentDetailIssue(v: Issue | null): void;
 declare function addActivity(icon: string, text: string): void;
 declare function saveState(): Promise<void>;
-declare function saveSprints(): void;
 declare function moveToTrash(issue: Issue): void;
 declare function deleteSprint(id: string): void;
 declare function addDependency(
@@ -1572,11 +1572,10 @@ declare function createCard(issue: Issue): HTMLElement;
 declare function updateCounts(): void;
 declare function renderTrash(): void;
 
-// `typeIcons` is a top-level `const` in `state.js`, which in classic
-// scripts pollutes the global scope. Once Phase 5 flips `index.html` to
-// `<script type="module">`, this will be replaced by an import from
-// `state.ts`.
-declare const typeIcons: Record<string, string>;
+// `typeIcons` is imported from `state.js` at the top of this file
+// (see the `import { typeIcons }` line). It used to be a top-level
+// `const` in the classic-script `state.js`, polluting the global
+// scope; in the new module world it's an explicit export.
 
 // Attach every public export to `window` for legacy classic-script callers
 // (notably `main-*.js`) that still call these by bare name.

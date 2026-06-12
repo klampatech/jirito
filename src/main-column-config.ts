@@ -8,7 +8,7 @@
  */
 
 import type { CustomColumn } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 export function initColumnConfig(): void {
   document.getElementById("column-config-btn")?.addEventListener("click", () => {

@@ -23,10 +23,10 @@ import type {
   Sprint,
   TrashEntry,
 } from "./types";
-import { CONSTANTS } from "./constants";
+import { CONSTANTS } from "./constants.js";
 import type { SaveInput } from "./storage";
 import type { StorageLayer } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 const {
   ACTIVITY_LOG_MAX,
@@ -565,10 +565,11 @@ const sampleIssues: Issue[] = [
   { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null, labels: ["feature"], storyPoints: 3, rank: 5 },
 ];
 
-// Map issue type → phosphor icon name. Used by render.js; not
-// consumed by this file's logic, hence the `void` reference below.
-const typeIcons: Record<string, string> = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
-void typeIcons;
+// Map issue type → phosphor icon name. Exported for use by render.ts
+// and events.ts (which render issue cards/lists). In classic-script
+// mode this const was implicitly global; in the new module world we
+// export it explicitly.
+export const typeIcons: Record<string, string> = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
 
 // ===== Duplicate Detection =====
 

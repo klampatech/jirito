@@ -6,7 +6,7 @@
  *     `renderSprintList`, `populateSprintFilter`, etc.) are attached
  *     to `window` by their respective source files.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initSprints() {
     // Manage sprints button
     document.getElementById("manage-sprints-btn")?.addEventListener("click", () => {

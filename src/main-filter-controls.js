@@ -10,7 +10,7 @@
  *     preserved (multiple listeners do not double-fire `applyFilters`
  *     because each debounce window is independent).
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initFilterControls() {
     // Sprint filter
     const sprintFilter = document.getElementById("sprint-filter");

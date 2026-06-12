@@ -10,8 +10,8 @@
  *   - `loadState()` is the only `async` entry point and is what
  *     `main.js` awaits before the first render.
  */
-import { CONSTANTS } from "./constants";
-import { attach } from "./_attach";
+import { CONSTANTS } from "./constants.js";
+import { attach } from "./_attach.js";
 const { ACTIVITY_LOG_MAX, TRASH_RETENTION_MS, ISSUE_COUNTER_START, DUPLICATE_WORD_OVERLAP, SAVE_STATE_DEBOUNCE_MS, } = CONSTANTS;
 // Internal state storage
 let _issues = [];
@@ -468,10 +468,11 @@ const sampleIssues = [
     { id: 105, title: "Update dependencies", desc: "Bump all npm packages to latest", type: "task", priority: "low", assignee: "Bob", status: "done", dueDate: "2026-04-20", labels: [], storyPoints: 2, rank: 4 },
     { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null, labels: ["feature"], storyPoints: 3, rank: 5 },
 ];
-// Map issue type → phosphor icon name. Used by render.js; not
-// consumed by this file's logic, hence the `void` reference below.
-const typeIcons = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
-void typeIcons;
+// Map issue type → phosphor icon name. Exported for use by render.ts
+// and events.ts (which render issue cards/lists). In classic-script
+// mode this const was implicitly global; in the new module world we
+// export it explicitly.
+export const typeIcons = { story: "FileText", bug: "Bug", task: "CheckSquare", epic: "Mountain" };
 // ===== Duplicate Detection =====
 export function findDuplicateIssues(title) {
     if (!title || title.length < 3)

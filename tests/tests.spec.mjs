@@ -1722,12 +1722,23 @@ test('sprint can be activated from the manage modal', async ({ page }) => {
   // Click the button that says "Activate" (not "Active")
   const activateBtn = page.locator('.sprint-activate-btn').filter({ hasText: 'Activate' }).first();
   await activateBtn.click();
-  // Verify the activated sprint saved its active flag
-  const activeSprintId = await page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem('jirito-state') || '{}');
-    const sprints = data.sprints || {};
-    for (const s of Object.values(sprints)) {
-      if (s.active) return s.id;
+  // Verify the activated sprint saved its active flag. The test runs
+  // against a live server, so the click triggers saveState (debounced
+  // 300ms) which persists to the SQLite DB. Read back via the state
+  // API.
+  // (The previous version of this test read localStorage, which is
+  // only populated in offline mode — the migration to server mode
+  // changed the persistence layer. We also need a poll because the
+  // debounce + network round trip isn't instantaneous.)
+  const activeSprintId = await page.evaluate(async () => {
+    for (let i = 0; i < 30; i++) {
+      const resp = await fetch('/api/state');
+      const data = await resp.json();
+      const sprints = data.sprints || {};
+      for (const s of Object.values(sprints)) {
+        if (s.active) return s.id;
+      }
+      await new Promise((r) => setTimeout(r, 200));
     }
     return null;
   });

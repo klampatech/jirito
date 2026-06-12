@@ -10,7 +10,7 @@
  */
 
 import type { Issue, Project, Sprint, SavedFilter, ActivityEntry, TrashEntry, AppState } from "./types";
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 
 let SERVER_URL = "";
 if (typeof process !== "undefined" && process.env && process.env.VITE_API_URL) {

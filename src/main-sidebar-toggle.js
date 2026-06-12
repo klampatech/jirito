@@ -5,7 +5,7 @@
  *   - 1:1 translation. The legacy code uses `style.left = '0' | '260px'`
  *     to position the toggle button; preserved verbatim.
  */
-import { attach } from "./_attach";
+import { attach } from "./_attach.js";
 export function initSidebarToggle() {
     document.getElementById("sidebar-toggle")?.addEventListener("click", () => {
         const wrapper = document.getElementById("sidebar-wrapper");
