@@ -47,9 +47,11 @@ export function initTables(): void {
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_issues_assignee ON issues(assignee)"
   );
-  db.run(
-    "CREATE INDEX IF NOT EXISTS idx_issues_customColumnId ON issues(customColumnId)"
-  );
+  // NB: idx_issues_customColumnId is created by migrateTables(), not here.
+  // On an old DB that predates the customColumnId feature, the column is
+  // missing — creating the index on it here would throw
+  // "no such column: customColumnId" before migrateTables gets a chance
+  // to add the column. See migrateTables() for the index creation.
 
   // Comments table
   db.run(`
@@ -196,6 +198,15 @@ export function migrateTables(): void {
       console.log("Added customColumnId column to issues table");
     }
   }
+
+  // Indexes that depend on columns that migrateTables() may have just
+  // added. The customColumnId index in particular cannot be created
+  // inside initTables() because the column may not exist on an older DB
+  // (initTables uses CREATE TABLE IF NOT EXISTS, which is a no-op when
+  // the table already exists, so the column won't be there yet).
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_issues_customColumnId ON issues(customColumnId)"
+  );
 
   saveDb();
 }
