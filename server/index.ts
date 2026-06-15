@@ -20,6 +20,7 @@ import trashRouter from "./routes/trash.js";
 import commentsRouter from "./routes/comments.js";
 import { getState, setState } from "./routes/state.js";
 import { importData, exportData } from "./routes/import-export.js";
+import { serveStaticFile } from "./static.js";
 import { parseBody, sendJson } from "./routes/_shared.js";
 
 const PORT = Number(process.env.SERVER_PORT) || 3001;
@@ -262,7 +263,15 @@ async function start(): Promise<void> {
           req.method ?? "GET"
         );
         if (!handled) {
-          sendJson(res, 404, { error: "Not found" });
+          // No /api/* route matched. Try to serve a static file from the
+          // project root (index.html, src/*.js, styles.css, public/*, etc.).
+          // The static handler returns true if it handled the request (even
+          // for a 404 of a static path); only fall through to the JSON 404
+          // if it explicitly says "I don't handle this method".
+          const staticHandled = await serveStaticFile(req, res);
+          if (!staticHandled) {
+            sendJson(res, 404, { error: "Not found" });
+          }
         }
       } catch (error) {
         console.error("Request error:", error);
