@@ -1250,3 +1250,23 @@ export function populateAssigneeFilter(): void {
   }
 }
 
+
+// ===== Test contract =====
+//
+// `tests/tests.spec.mjs` calls `switchProject('nonexistent-key')` from
+// inside a `page.evaluate()` callback (the `switchProject with invalid
+// key is a no-op` test) and then reads `getCurrentProject()` to confirm
+// it stayed on `"default"`. The `page.evaluate` scope has no ES-module
+// imports, so `switchProject` has to be reachable on `window`.
+//
+// This is a narrow, test-only concession — *not* a revival of the
+// classic-script global. Real consumers should import from this
+// module. Mirrors the test-contract block at the bottom of
+// `src/state.ts` and the `window.storage` exposure in `src/storage.ts`.
+try {
+  if (typeof window !== "undefined") {
+    (window as unknown as { switchProject?: typeof switchProject }).switchProject = switchProject;
+  }
+} catch {
+  /* ignore — non-browser environment */
+}

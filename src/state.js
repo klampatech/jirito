@@ -585,4 +585,28 @@ export function initializeData() {
         _projects[_currentProject].key = _currentProject.toUpperCase();
     }
 }
+// ===== Test contract =====
+//
+// Playwright specs in `tests/*.spec.mjs` use `page.evaluate(() => ...)` to
+// read state directly from the page. That callback runs in a fresh global
+// scope that has no ES-module imports, so it can only reach symbols that
+// are also exposed on `window`. The previous `attach()` shim in
+// `_attach.ts` did this for every export; removing that indirection
+// (PR #19) means the few symbols tests actually need must be re-exposed
+// explicitly here.
+//
+// This is intentionally a narrow, test-only concession — *not* a
+// revival of the classic-script global. Real consumers should import
+// from this module. Mirror of the `window.storage` test contract
+// declared in `src/storage.ts`.
+try {
+    if (typeof window !== "undefined") {
+        const w = window;
+        w.getIssues = getIssues;
+        w.getCurrentProject = getCurrentProject;
+    }
+}
+catch {
+    /* ignore — non-browser environment */
+}
 //# sourceMappingURL=state.js.map
