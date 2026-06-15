@@ -10,7 +10,7 @@
     "watch:client": "tsc -p tsconfig.client.json --watch",
     "test": "playwright test --config=playwright/playwright.config.mjs",
     "test:unit": "vitest run",
-    "server": "node dist/server/index.js",
+    "server": "node dist/server/server/index.js",
     "dev": "tsx server/index.ts"
   },
   "devDependencies": {
@@ -18,13 +18,11 @@
     "@types/node": "^20",
     "jsdom": "^29.1.1",
     "playwright": "^1.59.1",
-    "sql.js": "^1.14.1",
     "tsx": "^4",
     "typescript": "^5.4",
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "nanoid": "^5.1.11",
-    "uuid": "^14.0.0"
+    "sql.js": "^1.14.1"
   }
 }
