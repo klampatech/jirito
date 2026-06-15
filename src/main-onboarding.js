@@ -8,7 +8,6 @@
  *     elements. The `Next` button doubles as `Get Started` on the
  *     final step.
  */
-import { attach } from "./_attach.js";
 export function initOnboarding() {
     const seen = localStorage.getItem("jirito-onboarding");
     if (seen)
@@ -46,5 +45,4 @@ export function initOnboarding() {
         localStorage.setItem("jirito-onboarding", "true");
     });
 }
-attach({ initOnboarding });
 //# sourceMappingURL=main-onboarding.js.map

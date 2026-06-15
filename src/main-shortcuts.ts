@@ -3,14 +3,14 @@
  *
  * Conversion notes from src/main-shortcuts.js:
  *   - 1:1 translation.
- *   - `currentUndoCallback` is a module-scope `let` in `events.ts`.
- *     In the legacy classic-script world it was a global; here it is
- *     declared as such and read by the (Ctrl/Cmd)+Z handler. The
- *     removal in `removeUndoToast()` is the only place that nulls
- *     it. Behaviour is preserved.
+ *   - `currentUndoCallback` is exposed as `getCurrentUndoCallback()`
+ *     from `events.ts`. The (Ctrl/Cmd)+Z handler reads it via that
+ *     accessor. The removal in `removeUndoToast()` is the only
+ *     place that nulls the underlying module-scope `let`.
  */
 
-import { attach } from "./_attach.js";
+import { closeDetailPanel, getCurrentUndoCallback, removeUndoToast } from "./events.js";
+import { closeModal, openModal } from "./main-modals.js";
 
 export function initShortcuts(): void {
   // Global keyboard shortcuts
@@ -72,14 +72,3 @@ export function initShortcuts(): void {
     }
   });
 }
-
-declare function closeDetailPanel(): void;
-declare function closeModal(): void;
-declare function openModal(status?: string): void;
-declare function removeUndoToast(): void;
-
-// Module-scope `let` in `events.ts`; read here as a global alias to
-// preserve the classic-script behaviour.
-declare function getCurrentUndoCallback(): (() => void) | null;
-
-attach({ initShortcuts });

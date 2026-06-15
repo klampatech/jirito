@@ -1,7 +1,7 @@
 # Jirito — In-Depth Code Review
 
 > **Original review:** 2026-05-10
-> **Last updated:** 2026-06-12 — annotated to reflect the TypeScript migration in `.plan/plan-003-typescript-migration.md` (phases 0–8 complete, branch `feature/backend`).
+> **Last updated:** 2026-06-15 — annotated to reflect the TypeScript migration in `.plan/plan-003-typescript-migration.md` (phases 0–8 complete, branch `feature/backend`).
 > **Scope:** Full codebase (client + server, TypeScript, CSS, HTML, tests)
 > **Status:** Original findings retained; status of each item updated.
 
@@ -269,7 +269,8 @@ The prioritized plan in `docs/prioritized-fix-plan.md` predates the TypeScript m
 
 Items the migration marked as out of scope (follow-ups in the migration plan §10):
 
-- **Remove the `attach()` indirection** in `src/_attach.ts` (the migration used `attach` to bridge classic-script callers during the cutover; once every consumer imports directly, the shim is redundant).
+- ~~**Remove the `attach()` indirection** in `src/_attach.ts`~~ — **done** (PR #19 / branch `chore/remove-attach-indirection`, 2026-06-15). `src/_attach.ts` deleted; all 27 client `.ts` files now use real `import` statements. `window.storage` exposure in `src/storage.ts` preserved for the storage-browser test contract. `LJ_CONSTANTS` augmentation in `src/global.d.ts` removed (no remaining consumers). **Follow-up (same PR):** the Playwright `page.evaluate()` callback in `tests/tests.spec.mjs` runs in a fresh global scope with no module graph, so a narrow `window.getIssues` / `window.getCurrentProject` / `window.switchProject` test-contract re-exposure was added at the bottom of `src/state.ts` and `src/render.ts` (mirroring the existing `window.storage` and `window.__jiritoHasPendingSave` shims). Real consumers continue to use real `import` statements — this is *not* a revival of the classic-script global.
+- ~~**Audit `src/main-*.ts` for ambient-vs-actual mismatches**~~ — **done** (same PR). Replaced the legacy `declare const storage: StorageLayer` ambient in `state.ts` with a real `import { storage } from "./storage.js"`. Removed the redundant `typeof storage !== "undefined"` defensive check. Removed the pre-existing duplicate listeners in `main-filter-controls.ts` (search-input, filter-type, filter-priority, filter-assignee) — `main-filters.ts` already wires them. Cleaned up unused `CustomColumn` / `Project` type imports in `events.ts` / `data.ts`. Replaced inline `import("./types").X` casts with named type imports.
 - **Replace the `LJ` global state** with a typed store.
 - **Schema validation** at server boundaries (e.g. with `zod`).
 - **Convert Playwright specs to TypeScript** (currently `.mjs`).

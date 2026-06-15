@@ -2,10 +2,10 @@
  * src/main-export-import.ts — Export / Import buttons.
  *
  * Conversion notes from src/main-export-import.js:
- *   - 1:1 translation. `exportData` / `importData` are provided by
- *     `data.ts` (attached via `attach()`).
+ *   - 1:1 translation. `exportData` / `importData` are imported from
+ *     `./data.js`.
  */
-import { attach } from "./_attach.js";
+import { exportData, importData } from "./data.js";
 export function initExportImport() {
     document.getElementById("export-btn")?.addEventListener("click", exportData);
     const importInput = document.createElement("input");
@@ -22,5 +22,4 @@ export function initExportImport() {
         }
     });
 }
-attach({ initExportImport });
 //# sourceMappingURL=main-export-import.js.map

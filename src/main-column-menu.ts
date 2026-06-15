@@ -15,8 +15,20 @@
  *     board yet. The clear logic itself is correct.
  */
 
-import type { CustomColumn, Issue } from "./types";
-import { attach } from "./_attach.js";
+import type { Issue } from "./types";
+import {
+  addActivity,
+  getEffectiveColumns,
+  getIssues,
+  pickIssue,
+  saveStateImmediate,
+  setIssues,
+  updateCustomColumn,
+} from "./state.js";
+import { renderBoard, updateCounts } from "./render.js";
+import { removeUndoToast, showToast, showUndoToast } from "./events.js";
+import { escapeHtml, lucideIcon } from "./utils.js";
+import { openModal } from "./main-modals.js";
 
 export function initColumnMenuButtons(): void {
   document.querySelectorAll<HTMLButtonElement>(".column-menu-btn").forEach((btn) => {
@@ -131,21 +143,3 @@ export function initColumnMenuButtons(): void {
     });
   });
 }
-
-declare function getEffectiveColumns(): CustomColumn[];
-declare function lucideIcon(name: string, attrs?: Record<string, string>): string;
-declare function getIssues(): Issue[];
-declare function escapeHtml(str: unknown): string;
-declare function addActivity(icon: string, text: string): void;
-declare function openModal(status?: string): void;
-declare function updateCustomColumn(id: string, updates: Partial<CustomColumn>): void;
-declare function setIssues(v: Issue[]): void;
-declare function saveStateImmediate(): Promise<void>;
-declare function renderBoard(): void;
-declare function updateCounts(): void;
-declare function showUndoToast(message: string, onUndo: () => void): void;
-declare function removeUndoToast(): void;
-declare function showToast(message: string, kind?: "info" | "success" | "error"): void;
-declare function pickIssue(id: Issue["id"] | null | undefined): Issue | undefined;
-
-attach({ initColumnMenuButtons });

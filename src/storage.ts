@@ -12,7 +12,6 @@
  */
 
 import type { AppState, StorageLayer, StorageType } from "./types";
-import { attach } from "./_attach.js";
 
 // Detect server URL — use relative path for same-origin, or env override
 let SERVER_URL = "";
@@ -300,7 +299,7 @@ function _saveToLocalStorage(data: Partial<AppState>): void {
   }
 }
 
-// ===== Public API object (also attached to window for legacy callers) =====
+// ===== Public API object =====
 
 export const storage: StorageLayer = {
   initStorage,
@@ -309,4 +308,8 @@ export const storage: StorageLayer = {
   saveStorageData,
 };
 
-attach({ storage });
+// Expose storage on window for the storage-browser test contract
+// (tests/storage-browser.spec.mjs calls window.storage.initStorage(), etc.).
+if (typeof window !== "undefined") {
+  (window as unknown as { storage: StorageLayer }).storage = storage;
+}

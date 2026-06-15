@@ -2,16 +2,11 @@
  * src/main-save-filter.ts — wires the "Save Current Filter" button.
  *
  * Conversion notes from src/main-save-filter.js:
- *   - 1:1 translation; `saveCurrentFilter` is provided by `render.ts`
- *     (attached to `window` via `attach()`).
+ *   - 1:1 translation; `saveCurrentFilter` is imported from `./render.js`.
  */
 
-import { attach } from "./_attach.js";
+import { saveCurrentFilter } from "./render.js";
 
 export function initSaveFilter(): void {
   document.getElementById("save-filter-btn")?.addEventListener("click", saveCurrentFilter);
 }
-
-declare function saveCurrentFilter(): void;
-
-attach({ initSaveFilter });

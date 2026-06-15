@@ -10,7 +10,6 @@
  * `getStorageData`, `saveStorageData`) match the `StorageLayer`
  * interface declared in `src/types.ts`.
  */
-import { attach } from "./_attach.js";
 // Detect server URL — use relative path for same-origin, or env override
 let SERVER_URL = "";
 if (typeof process !== "undefined" && process.env && process.env.VITE_API_URL) {
@@ -246,12 +245,16 @@ function _saveToLocalStorage(data) {
         console.error("[storage] Failed to save to localStorage:", message);
     }
 }
-// ===== Public API object (also attached to window for legacy callers) =====
+// ===== Public API object =====
 export const storage = {
     initStorage,
     getStorageType,
     getStorageData,
     saveStorageData,
 };
-attach({ storage });
+// Expose storage on window for the storage-browser test contract
+// (tests/storage-browser.spec.mjs calls window.storage.initStorage(), etc.).
+if (typeof window !== "undefined") {
+    window.storage = storage;
+}
 //# sourceMappingURL=storage.js.map

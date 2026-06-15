@@ -5,9 +5,11 @@
  *   - 1:1 translation. Unlike the other main-*.ts files, this one
  *     exports `renderTrash` (not an `init*`) because the orchestrator
  *     calls it directly after first render. `restoreFromTrash` is
- *     provided by `state.ts`.
+ *     imported from `./state.js`.
  */
-import { attach } from "./_attach.js";
+import { getTrash, restoreFromTrash } from "./state.js";
+import { showToast } from "./events.js";
+import { escapeHtml } from "./utils.js";
 export function renderTrash() {
     const section = document.getElementById("trash-section");
     const list = document.getElementById("trash-list");
@@ -39,5 +41,4 @@ export function renderTrash() {
         });
     });
 }
-attach({ renderTrash });
 //# sourceMappingURL=main-trash.js.map

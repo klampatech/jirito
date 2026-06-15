@@ -3,12 +3,10 @@
  *
  * Conversion notes from src/main-modals.js:
  *   - 1:1 translation. `openModal` / `closeModal` are exported and
- *     attached to `window` so other bootstrap modules (`main-issue-form.js`,
- *     `main-shortcuts.js`, `main-column-menu.js`) can call them by bare name.
+ *     imported by other bootstrap modules (`main-issue-form.ts`,
+ *     `main-shortcuts.ts`, `main-column-menu.ts`).
  *   - Issue-form submission itself is handled by `main-issue-form.ts`.
  */
-
-import { attach } from "./_attach.js";
 
 export function openModal(status?: string): void {
   const overlay = document.getElementById("modal-overlay");
@@ -38,5 +36,3 @@ export function initModals(): void {
     btn.addEventListener("click", () => openModal());
   });
 }
-
-attach({ openModal, closeModal, initModals });

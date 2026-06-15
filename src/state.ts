@@ -25,8 +25,8 @@ import type {
 } from "./types";
 import { CONSTANTS } from "./constants.js";
 import type { SaveInput } from "./storage";
-import type { StorageLayer } from "./types";
-import { attach } from "./_attach.js";
+import { storage } from "./storage.js";
+import { renderActivity, renderBoard, updateCounts } from "./render.js";
 
 const {
   ACTIVITY_LOG_MAX,
@@ -100,6 +100,9 @@ export function setCurrentDetailIssue(v: Issue | null): void {
 export function getComments(): Record<string, Comment[]> {
   return _comments;
 }
+export function setComments(v: Record<string, Comment[]>): void {
+  _comments = v;
+}
 
 export function getCurrentProject(): string {
   return _currentProject;
@@ -117,6 +120,9 @@ export function setCurrentView(v: "board" | "list" | "calendar" | "dashboard"): 
 
 export function getProjects(): Record<string, Project> {
   return _projects;
+}
+export function setProjects(v: Record<string, Project>): void {
+  _projects = v;
 }
 
 export function getSavedFilters(): SavedFilter[] {
@@ -186,8 +192,6 @@ export function addActivity(icon: string, text: string): void {
 // ===== State Load / Save =====
 // Uses the storage abstraction layer (localStorage or server API).
 
-// storage is available globally from storage.js
-declare const storage: StorageLayer;
 
 let _initialized = false;
 
@@ -405,12 +409,10 @@ function saveSprints(): void {
     columns: getEffectiveColumns(),
     customColumns: getCustomColumns(),
   };
-  if (typeof storage !== "undefined" && storage.saveStorageData) {
-    storage.saveStorageData(data).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("[state] saveSprints failed:", message);
-    });
-  }
+  storage.saveStorageData(data).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[state] saveSprints failed:", message);
+  });
 }
 
 export function createSprint(name: string, startDate?: string, endDate?: string): Sprint {
@@ -680,76 +682,29 @@ export function initializeData(): void {
   }
 }
 
-// Forward declarations of cross-module functions satisfied at runtime
-// by `render.js` (classic script) attaching the symbols to `window`;
-// the new `.ts` files do the same via `attach()`.
-declare function renderActivity(): void;
-declare function renderBoard(): void;
-declare function updateCounts(): void;
-
-// Attach every public export to `window` for legacy classic-script callers.
-attach({
-  // getters
-  getIssues,
-  getIssueCounter,
-  getCurrentDetailIssue,
-  getComments,
-  getCurrentProject,
-  getCurrentView,
-  getProjects,
-  getSavedFilters,
-  getActivityLog,
-  getSelectedIds,
-  getTrash,
-  getSprints,
-  getCustomColumns,
-  getMarkdownCache,
-  // setters
-  setIssues,
-  setIssueCounter,
-  setCurrentDetailIssue,
-  setCurrentProject,
-  setCurrentView,
-  setSavedFilters,
-  setActivityLog,
-  setTrash,
-  setSprints,
-  setCustomColumns,
-  // activity
-  addActivity,
-  // load / save
-  loadState,
-  saveState,
-  saveStateImmediate,
-  // trash
-  purgeTrash,
-  moveToTrash,
-  restoreFromTrash,
-  // sprints
-  createSprint,
-  updateSprint,
-  deleteSprint,
-  getActiveSprint,
-  getActiveSprintId,
-  // dependencies
-  addDependency,
-  removeDependency,
-  hasCircularDependency,
-  getDependencies,
-  getDependents,
-  // duplicate detection
-  findDuplicateIssues,
-  // custom columns
-  getDefaultColumns,
-  getEffectiveColumns,
-  addCustomColumn,
-  removeCustomColumn,
-  updateCustomColumn,
-  reorderColumns,
-  // selection
-  isSelectedIssue,
-  // lookup
-  pickIssue,
-  // data init
-  initializeData,
-});
+// ===== Test contract =====
+//
+// Playwright specs in `tests/*.spec.mjs` use `page.evaluate(() => ...)` to
+// read state directly from the page. That callback runs in a fresh global
+// scope that has no ES-module imports, so it can only reach symbols that
+// are also exposed on `window`. The previous `attach()` shim in
+// `_attach.ts` did this for every export; removing that indirection
+// (PR #19) means the few symbols tests actually need must be re-exposed
+// explicitly here.
+//
+// This is intentionally a narrow, test-only concession — *not* a
+// revival of the classic-script global. Real consumers should import
+// from this module. Mirror of the `window.storage` test contract
+// declared in `src/storage.ts`.
+try {
+  if (typeof window !== "undefined") {
+    const w = window as unknown as {
+      getIssues?: typeof getIssues;
+      getCurrentProject?: typeof getCurrentProject;
+    };
+    w.getIssues = getIssues;
+    w.getCurrentProject = getCurrentProject;
+  }
+} catch {
+  /* ignore — non-browser environment */
+}

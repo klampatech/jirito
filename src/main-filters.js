@@ -2,11 +2,10 @@
  * src/main-filters.ts — search-input + filter-select change handlers.
  *
  * Conversion notes from src/main-filters.js:
- *   - 1:1 translation. `applyFilters` is provided by `events.ts`
- *     (attached via `attach()`).
+ *   - 1:1 translation. `applyFilters` is imported from `./events.js`.
  *   - Search input is debounced at 200ms (legacy behaviour).
  */
-import { attach } from "./_attach.js";
+import { applyFilters } from "./events.js";
 export function initFilters() {
     // Debounce search input
     let filterTimeout;
@@ -31,5 +30,4 @@ export function initFilters() {
         filterAssignee.addEventListener("change", applyFilters);
     }
 }
-attach({ initFilters });
 //# sourceMappingURL=main-filters.js.map

@@ -3,11 +3,12 @@
  *
  * Conversion notes from src/main-projects.js:
  *   - 1:1 translation. `createProject`, `getProjects`, `showToast` are
- *     provided by `data.ts`, `state.ts`, and `events.ts` respectively.
+ *     imported from `./data.js`, `./state.js`, and `./events.js` respectively.
  */
 
-import type { Project } from "./types";
-import { attach } from "./_attach.js";
+import { getProjects } from "./state.js";
+import { createProject } from "./data.js";
+import { showToast } from "./events.js";
 
 export function initProjects(): void {
   // New project button
@@ -53,9 +54,3 @@ export function initProjects(): void {
     if (form) form.reset();
   });
 }
-
-declare function createProject(name: string, key: string): string | null;
-declare function getProjects(): Record<string, Project>;
-declare function showToast(message: string, kind?: "info" | "success" | "error"): void;
-
-attach({ initProjects });

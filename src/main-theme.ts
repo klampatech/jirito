@@ -2,12 +2,12 @@
  * src/main-theme.ts — theme toggle (light/dark).
  *
  * Conversion notes from src/main-theme.js:
- *   - 1:1 translation. Uses `lucideIcon` from `utils.ts` (attached via `attach()`).
+ *   - 1:1 translation. Uses `lucideIcon` imported from `./utils.js`.
  *   - Theme is persisted in `localStorage` under `jirito-theme` (legacy key).
  *   - Respects the system `prefers-color-scheme: dark` on first visit.
  */
 
-import { attach } from "./_attach.js";
+import { lucideIcon } from "./utils.js";
 
 export function initTheme(): void {
   const themeToggle = document.getElementById("theme-toggle");
@@ -28,7 +28,3 @@ export function initTheme(): void {
     themeToggle.innerHTML = next === "dark" ? lucideIcon("Sun", { class: "icon" }) : lucideIcon("Moon", { class: "icon" });
   });
 }
-
-declare function lucideIcon(name: string, attrs?: Record<string, string>): string;
-
-attach({ initTheme });

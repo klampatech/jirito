@@ -17,6 +17,7 @@
     "skipLibCheck": true
   },
   "include": [
-    "tests/unit/**/*.ts"
+    "tests/unit/**/*.ts",
+    "src/global.d.ts"
   ]
 }

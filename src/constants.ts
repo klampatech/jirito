@@ -1,10 +1,9 @@
 /**
  * Typed constants used throughout the client.
  *
- * During the migration the legacy `src/constants.js` file is still loaded by
- * `index.html`. Once phase 5 swaps that to `<script type="module">` and
- * populates the `window` namespace via the `attach()` helper, the `.js`
- * file is deleted.
+ * Each consumer imports `CONSTANTS` from this module. The legacy
+ * `src/constants.js` file and the `window.LJ_CONSTANTS` shim are no
+ * longer needed (the `attach()` indirection was removed in plan §10.1).
  */
 
 export const CONSTANTS = {

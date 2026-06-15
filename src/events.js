@@ -7,10 +7,8 @@
  *     from `./constants` instead of the legacy global. We destructure
  *     only the values used here.
  *   - All top-level functions get explicit return types (mostly `void`).
- *   - Cross-module function references (e.g. `getIssues`, `renderBoard`,
- *     `createCard`) are declared as ambient `declare function ...(args):
- *     ret;` blocks at the bottom of the file, mirroring the pattern used
- *     in `state.ts`. In Phase 5 these become real `import` statements.
+ *   - Cross-module function references are now real `import` statements
+ *     (the `attach()` indirection was removed in plan §10.1).
  *   - The `typeIcons` lookup and `undoToast` reference are top-level
  *     `const`/`let` in `state.js`/`render.js`; they pollute the global
  *     scope in classic-script mode. We declare them at the bottom of
@@ -23,8 +21,11 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
 import { typeIcons } from "./state.js";
+import { addActivity, addDependency, deleteSprint, getActiveSprint, getComments, getCurrentDetailIssue, getCurrentView, getEffectiveColumns, getIssueCounter, getIssues, getSelectedIds, getSprints, hasCircularDependency, isSelectedIssue, moveToTrash, removeDependency, saveState, setCurrentDetailIssue, setIssueCounter, setIssues, } from "./state.js";
+import { escapeHtml, formatDate, generateIssueKey, getProjectKey, lucideIcon, populateSprintFilter, populateSprintSelect, renderMarkdown, updateSprintBar, updateSprintProgressBar, } from "./utils.js";
+import { createCard, renderBoard, renderListView, updateCounts, } from "./render.js";
+import { renderTrash } from "./main-trash.js";
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
 // Coerce both sides to string for ID comparison. After the server
@@ -47,19 +48,6 @@ let draggedTarget = null;
 function getClosestEdge(mouseY, rect) {
     const midpoint = rect.top + rect.height / 2;
     return mouseY < midpoint ? "top" : "bottom";
-}
-function getDestinationIndex(args) {
-    const { sourceIndex, indexOfTarget, closestEdge } = args;
-    // If source and target are the same column and same card,
-    // the user is hovering near the card itself — skip reordering
-    if (sourceIndex === indexOfTarget)
-        return -1;
-    // If edge is 'bottom', the indicator is after this card
-    if (closestEdge === "bottom") {
-        return indexOfTarget + 1;
-    }
-    // Edge is 'top' — the indicator is before this card
-    return indexOfTarget;
 }
 function insertDropIndicator(col, targetCard, edge) {
     // Remove existing indicators
@@ -1416,31 +1404,4 @@ export function renderSprintList() {
         });
     });
 }
-// `typeIcons` is imported from `state.js` at the top of this file
-// (see the `import { typeIcons }` line). It used to be a top-level
-// `const` in the classic-script `state.js`, polluting the global
-// scope; in the new module world it's an explicit export.
-// Attach every public export to `window` for legacy classic-script callers
-// (notably `main-*.js`) that still call these by bare name.
-void getDestinationIndex;
-attach({
-    openDetailPanel,
-    trackHistory,
-    getCurrentUndoCallback,
-    deleteIssue,
-    closeDetailPanel,
-    addComment,
-    initMarkdownToggles,
-    cloneIssue,
-    initDragDrop,
-    updateBulkBar,
-    handleBulkStatusChange,
-    handleBulkDelete,
-    handleBulkClear,
-    applyFilters,
-    showToast,
-    showUndoToast,
-    removeUndoToast,
-    renderSprintList,
-});
 //# sourceMappingURL=events.js.map

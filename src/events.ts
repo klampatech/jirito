@@ -7,10 +7,8 @@
  *     from `./constants` instead of the legacy global. We destructure
  *     only the values used here.
  *   - All top-level functions get explicit return types (mostly `void`).
- *   - Cross-module function references (e.g. `getIssues`, `renderBoard`,
- *     `createCard`) are declared as ambient `declare function ...(args):
- *     ret;` blocks at the bottom of the file, mirroring the pattern used
- *     in `state.ts`. In Phase 5 these become real `import` statements.
+ *   - Cross-module function references are now real `import` statements
+ *     (the `attach()` indirection was removed in plan §10.1).
  *   - The `typeIcons` lookup and `undoToast` reference are top-level
  *     `const`/`let` in `state.js`/`render.js`; they pollute the global
  *     scope in classic-script mode. We declare them at the bottom of
@@ -23,15 +21,50 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 
-import type {
-  CustomColumn,
-  Dependency,
-  Issue,
-  Sprint,
-} from "./types";
+import type { Comment, Dependency, Issue } from "./types";
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
 import { typeIcons } from "./state.js";
+import {
+  addActivity,
+  addDependency,
+  deleteSprint,
+  getActiveSprint,
+  getComments,
+  getCurrentDetailIssue,
+  getCurrentView,
+  getEffectiveColumns,
+  getIssueCounter,
+  getIssues,
+  getSelectedIds,
+  getSprints,
+  hasCircularDependency,
+  isSelectedIssue,
+  moveToTrash,
+  removeDependency,
+  saveState,
+  setCurrentDetailIssue,
+  setIssueCounter,
+  setIssues,
+} from "./state.js";
+import {
+  escapeHtml,
+  formatDate,
+  generateIssueKey,
+  getProjectKey,
+  lucideIcon,
+  populateSprintFilter,
+  populateSprintSelect,
+  renderMarkdown,
+  updateSprintBar,
+  updateSprintProgressBar,
+} from "./utils.js";
+import {
+  createCard,
+  renderBoard,
+  renderListView,
+  updateCounts,
+} from "./render.js";
+import { renderTrash } from "./main-trash.js";
 
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
@@ -58,26 +91,6 @@ let draggedTarget: { columnId: string; index: number; edge: "top" | "bottom" } |
 function getClosestEdge(mouseY: number, rect: DOMRect): "top" | "bottom" {
   const midpoint = rect.top + rect.height / 2;
   return mouseY < midpoint ? "top" : "bottom";
-}
-
-function getDestinationIndex(args: {
-  sourceIndex: number;
-  indexOfTarget: number;
-  closestEdge: "top" | "bottom";
-  totalCards: number;
-}): number {
-  const { sourceIndex, indexOfTarget, closestEdge } = args;
-  // If source and target are the same column and same card,
-  // the user is hovering near the card itself — skip reordering
-  if (sourceIndex === indexOfTarget) return -1;
-
-  // If edge is 'bottom', the indicator is after this card
-  if (closestEdge === "bottom") {
-    return indexOfTarget + 1;
-  }
-
-  // Edge is 'top' — the indicator is before this card
-  return indexOfTarget;
 }
 
 function insertDropIndicator(
@@ -715,7 +728,7 @@ export function addComment(): void {
     author: "You",
     text,
     date: new Date().toISOString(),
-  } as unknown as import("./types").Comment);
+  } as unknown as Comment);
   saveState();
   openDetailPanel(issueId); // Refresh
   renderBoard(); // Update comment count badge
@@ -1506,97 +1519,3 @@ export function renderSprintList(): void {
     });
   });
 }
-
-// ===== Cross-module runtime dependencies =====
-//
-// The functions below are implemented in `state.js`, `utils.js`, and
-// `render.js` (all classic scripts loaded by `index.html`). They're
-// declared here as ambient so this file type-checks without circular
-// runtime imports. The end-state refactor (plan §10.1) will replace
-// these with real `import` statements.
-
-declare function getIssues(): Issue[];
-declare function setIssues(v: Issue[]): void;
-declare function getIssueCounter(): number;
-declare function setIssueCounter(v: number): void;
-declare function getComments(): Record<string, import("./types").Comment[]>;
-declare function getCurrentProject(): string;
-declare function getCurrentView(): "board" | "list" | "calendar" | "dashboard";
-declare function getProjects(): Record<string, import("./types").Project>;
-declare function getSavedFilters(): import("./types").SavedFilter[];
-declare function getActivityLog(): import("./types").ActivityEntry[];
-declare function getSelectedIds(): Set<Issue["id"]>;
-declare function isSelectedIssue(issueId: Issue["id"]): boolean;
-declare function getSprints(): Record<string, Sprint>;
-declare function getEffectiveColumns(): CustomColumn[];
-declare function getActiveSprint(): Sprint | null;
-declare function getCurrentDetailIssue(): Issue | null;
-declare function setCurrentDetailIssue(v: Issue | null): void;
-declare function addActivity(icon: string, text: string): void;
-declare function saveState(): Promise<void>;
-declare function moveToTrash(issue: Issue): void;
-declare function deleteSprint(id: string): void;
-declare function addDependency(
-  issueId: Issue["id"],
-  targetId: Issue["id"],
-  type: Dependency["type"]
-): void;
-declare function removeDependency(
-  issueId: Issue["id"],
-  targetId: Issue["id"],
-  type: Dependency["type"]
-): void;
-declare function hasCircularDependency(
-  issueId: Issue["id"],
-  targetId: Issue["id"]
-): boolean;
-
-declare function escapeHtml(str: unknown): string;
-declare function isOverdue(
-  dueDate: string | null | undefined,
-  status: string | undefined
-): boolean;
-declare function formatDate(dateStr: string | null | undefined): string;
-declare function renderMarkdown(text: string | null | undefined): string;
-declare function generateIssueKey(projectKey: string, id: Issue["id"]): string;
-declare function getProjectKey(): string;
-declare function lucideIcon(name: string, attrs?: Record<string, string>): string;
-declare function updateSprintBar(): void;
-declare function updateSprintProgressBar(activeSprint: Sprint): void;
-declare function populateSprintFilter(): void;
-declare function populateSprintSelect(): void;
-
-declare function renderBoard(): void;
-declare function renderListView(): void;
-declare function createCard(issue: Issue): HTMLElement;
-declare function updateCounts(): void;
-declare function renderTrash(): void;
-
-// `typeIcons` is imported from `state.js` at the top of this file
-// (see the `import { typeIcons }` line). It used to be a top-level
-// `const` in the classic-script `state.js`, polluting the global
-// scope; in the new module world it's an explicit export.
-
-// Attach every public export to `window` for legacy classic-script callers
-// (notably `main-*.js`) that still call these by bare name.
-void getDestinationIndex;
-attach({
-  openDetailPanel,
-  trackHistory,
-  getCurrentUndoCallback,
-  deleteIssue,
-  closeDetailPanel,
-  addComment,
-  initMarkdownToggles,
-  cloneIssue,
-  initDragDrop,
-  updateBulkBar,
-  handleBulkStatusChange,
-  handleBulkDelete,
-  handleBulkClear,
-  applyFilters,
-  showToast,
-  showUndoToast,
-  removeUndoToast,
-  renderSprintList,
-});
