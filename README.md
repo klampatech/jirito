@@ -1,6 +1,6 @@
 # Jirito 🟢
 
-> A fully client-side Kanban board application — your personal project tracker, running in the browser with an optional SQLite backend.
+> A Kanban board application — the client runs entirely in the browser with zero runtime dependencies; the optional Node/Express server adds SQLite persistence via `sql.js`.
 
 ![Jirito Logo](public/jirito_logo.png)
 
@@ -124,7 +124,7 @@
 | **Language** | TypeScript (ES2022, strict) |
 | **Styling** | CSS (light + dark themes) |
 | **Icons** | Lucide (CDN) |
-| **Storage** | `localStorage` (9 keys) + optional SQLite via `sql.js` |
+| **Storage** | `localStorage` (9 keys) + optional SQLite via `sql.js` (server) |
 | **Testing** | Playwright (~236 E2E tests) + Vitest (66 unit tests) |
 | **Formatting** | ESLint + Prettier |
 | **CI** | GitHub Actions (`test.yml`) |
@@ -219,6 +219,18 @@ jirito/
 └── package-lock.json
 ```
 
+## 📦 Dependencies
+
+The honest version of the dependency story:
+
+| Layer | Runtime deps | Dev / build deps |
+|---|---|---|
+| **Browser (the `src/*.js` files loaded by `index.html`)** | **0** — the client never imports anything from `node_modules` | — |
+| **Node server** | `sql.js` (1) — for SQLite | — |
+| **Build / test tooling** | — | `typescript`, `tsx`, `vitest`, `jsdom`, `@playwright/test`, `playwright`, `@types/node` (7 direct, ~76 transitive) |
+
+So `npm install` brings ~76 packages, but **none of them are ever shipped to the browser**. The "zero runtime dependencies" claim was always about the client; it remains true.
+
 ## 🗄️ Data Model
 
 Jirito stores data in `localStorage` under 9 keys:
@@ -252,7 +264,7 @@ Jirito stores data in `localStorage` under 9 keys:
 | Source Files | 36 TypeScript modules + 1 HTML + 1 CSS |
 | E2E Tests | ~236 |
 | Unit Tests | 66 (Vitest, `tests/unit/`) |
-| Dependencies | `@playwright/test` (dev only) |
+| Browser Runtime Deps | 0 (the client has no imports from `node_modules`) |
 
 ## 🧭 Roadmap
 
@@ -289,4 +301,4 @@ MIT
 
 ---
 
-*Built with TypeScript, CSS, and love. No frameworks harmed in the making.* 🏗️
+*Built with TypeScript and CSS. No browser frameworks; no runtime dependencies shipped to the client.* 🏗️
