@@ -35,7 +35,7 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 | CI/CD | ✅ GitHub Actions (`.github/workflows/test.yml`) — runs `typecheck` then Playwright |
 
 ### Dependencies
-- **Runtime**: `nanoid`, `uuid` (browser-side ID generation)
+- **Runtime**: `sql.js` (server-side SQLite; the client has zero runtime deps)
 - **Dev**: `@playwright/test` + `playwright` 1.59.1, `vitest`, `typescript`, `tsx`, `@types/node`, `jsdom`, `sql.js`
 - ✅ `package-lock.json` committed; lockfile is the source of truth for reproducible installs
 
