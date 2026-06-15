@@ -2,8 +2,8 @@
  * src/main-issue-form.ts — Create-issue form submission + duplicate detection.
  *
  * Conversion notes from src/main-issue-form.js:
- *   - 1:1 translation. All state helpers come from `state.ts` (attached),
- *     except `openModal` / `closeModal` from `main-modals.ts`.
+ *   - 1:1 translation. All state helpers come from `./state.ts`;
+ *     `openModal` / `closeModal` are imported from `./main-modals.ts`.
  *   - `findDuplicateIssues` is provided by `state.ts`; the live-warning
  *     DOM element is created inline rather than via a styled component
  *     (preserves legacy behaviour).
@@ -11,7 +11,12 @@
  *     the board can filter per-project (required after the SQLite move;
  *     in server mode the issues are global).
  */
-import { attach } from "./_attach.js";
+import { addActivity, findDuplicateIssues, getComments, getCurrentProject, getIssueCounter, getIssues, saveStateImmediate, setIssueCounter, } from "./state.js";
+import { renderBoard, updateCounts } from "./render.js";
+import { removeUndoToast, showToast, showUndoToast } from "./events.js";
+import { generateIssueKey, getProjectKey } from "./utils.js";
+import { closeModal, openModal } from "./main-modals.js";
+import { renderTrash } from "./main-trash.js";
 export function initIssueForm() {
     const addIssueBtn = document.getElementById("add-issue-btn");
     if (addIssueBtn) {
@@ -114,5 +119,4 @@ export function initIssueForm() {
         });
     }
 }
-attach({ initIssueForm });
 //# sourceMappingURL=main-issue-form.js.map

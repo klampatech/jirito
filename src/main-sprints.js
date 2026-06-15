@@ -3,10 +3,12 @@
  *
  * Conversion notes from src/main-sprints.js:
  *   - 1:1 translation. All sprint-related helpers (`createSprint`,
- *     `renderSprintList`, `populateSprintFilter`, etc.) are attached
- *     to `window` by their respective source files.
+ *     `renderSprintList`, `populateSprintFilter`, etc.) are imported
+ *     from their respective source files.
  */
-import { attach } from "./_attach.js";
+import { createSprint, getActiveSprint } from "./state.js";
+import { renderSprintList, showToast } from "./events.js";
+import { populateSprintFilter, populateSprintSelect, updateSprintBar, updateSprintProgressBar, } from "./utils.js";
 export function initSprints() {
     // Manage sprints button
     document.getElementById("manage-sprints-btn")?.addEventListener("click", () => {
@@ -57,5 +59,4 @@ export function initSprints() {
         showToast("Sprint created", "success");
     });
 }
-attach({ initSprints });
 //# sourceMappingURL=main-sprints.js.map

@@ -2,8 +2,8 @@
  * src/main-issue-form.ts — Create-issue form submission + duplicate detection.
  *
  * Conversion notes from src/main-issue-form.js:
- *   - 1:1 translation. All state helpers come from `state.ts` (attached),
- *     except `openModal` / `closeModal` from `main-modals.ts`.
+ *   - 1:1 translation. All state helpers come from `./state.ts`;
+ *     `openModal` / `closeModal` are imported from `./main-modals.ts`.
  *   - `findDuplicateIssues` is provided by `state.ts`; the live-warning
  *     DOM element is created inline rather than via a styled component
  *     (preserves legacy behaviour).
@@ -13,7 +13,21 @@
  */
 
 import type { Issue } from "./types";
-import { attach } from "./_attach.js";
+import {
+  addActivity,
+  findDuplicateIssues,
+  getComments,
+  getCurrentProject,
+  getIssueCounter,
+  getIssues,
+  saveStateImmediate,
+  setIssueCounter,
+} from "./state.js";
+import { renderBoard, updateCounts } from "./render.js";
+import { removeUndoToast, showToast, showUndoToast } from "./events.js";
+import { generateIssueKey, getProjectKey } from "./utils.js";
+import { closeModal, openModal } from "./main-modals.js";
+import { renderTrash } from "./main-trash.js";
 
 export function initIssueForm(): void {
   const addIssueBtn = document.getElementById("add-issue-btn");
@@ -119,24 +133,3 @@ export function initIssueForm(): void {
     });
   }
 }
-
-declare function openModal(status?: string): void;
-declare function closeModal(): void;
-declare function findDuplicateIssues(title: string): Issue[];
-declare function generateIssueKey(projectKey: string, id: Issue["id"]): string;
-declare function getProjectKey(): string;
-declare function setIssueCounter(v: number): void;
-declare function getIssueCounter(): number;
-declare function getCurrentProject(): string;
-declare function getIssues(): Issue[];
-declare function getComments(): Record<string, unknown[]>;
-declare function saveStateImmediate(): Promise<void>;
-declare function renderBoard(): void;
-declare function addActivity(icon: string, text: string): void;
-declare function showUndoToast(message: string, onUndo: () => void): void;
-declare function removeUndoToast(): void;
-declare function showToast(message: string, kind?: "info" | "success" | "error"): void;
-declare function updateCounts(): void;
-declare function renderTrash(): void;
-
-attach({ initIssueForm });

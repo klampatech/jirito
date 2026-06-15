@@ -11,7 +11,8 @@
  *     `main.js` awaits before the first render.
  */
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
+import { storage } from "./storage.js";
+import { renderActivity, renderBoard, updateCounts } from "./render.js";
 const { ACTIVITY_LOG_MAX, TRASH_RETENTION_MS, ISSUE_COUNTER_START, DUPLICATE_WORD_OVERLAP, SAVE_STATE_DEBOUNCE_MS, } = CONSTANTS;
 // Internal state storage
 let _issues = [];
@@ -71,6 +72,9 @@ export function setCurrentDetailIssue(v) {
 export function getComments() {
     return _comments;
 }
+export function setComments(v) {
+    _comments = v;
+}
 export function getCurrentProject() {
     return _currentProject;
 }
@@ -85,6 +89,9 @@ export function setCurrentView(v) {
 }
 export function getProjects() {
     return _projects;
+}
+export function setProjects(v) {
+    _projects = v;
 }
 export function getSavedFilters() {
     return _savedFilters;
@@ -143,6 +150,8 @@ export function addActivity(icon, text) {
         _activityLog.pop();
     renderActivity();
 }
+// ===== State Load / Save =====
+// Uses the storage abstraction layer (localStorage or server API).
 let _initialized = false;
 export async function loadState() {
     console.log("[loadState] called, _initialized:", _initialized);
@@ -338,12 +347,10 @@ function saveSprints() {
         columns: getEffectiveColumns(),
         customColumns: getCustomColumns(),
     };
-    if (typeof storage !== "undefined" && storage.saveStorageData) {
-        storage.saveStorageData(data).catch((err) => {
-            const message = err instanceof Error ? err.message : String(err);
-            console.error("[state] saveSprints failed:", message);
-        });
-    }
+    storage.saveStorageData(data).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[state] saveSprints failed:", message);
+    });
 }
 export function createSprint(name, startDate, endDate) {
     const sprints = getSprints();
@@ -578,70 +585,4 @@ export function initializeData() {
         _projects[_currentProject].key = _currentProject.toUpperCase();
     }
 }
-// Attach every public export to `window` for legacy classic-script callers.
-attach({
-    // getters
-    getIssues,
-    getIssueCounter,
-    getCurrentDetailIssue,
-    getComments,
-    getCurrentProject,
-    getCurrentView,
-    getProjects,
-    getSavedFilters,
-    getActivityLog,
-    getSelectedIds,
-    getTrash,
-    getSprints,
-    getCustomColumns,
-    getMarkdownCache,
-    // setters
-    setIssues,
-    setIssueCounter,
-    setCurrentDetailIssue,
-    setCurrentProject,
-    setCurrentView,
-    setSavedFilters,
-    setActivityLog,
-    setTrash,
-    setSprints,
-    setCustomColumns,
-    // activity
-    addActivity,
-    // load / save
-    loadState,
-    saveState,
-    saveStateImmediate,
-    // trash
-    purgeTrash,
-    moveToTrash,
-    restoreFromTrash,
-    // sprints
-    createSprint,
-    updateSprint,
-    deleteSprint,
-    getActiveSprint,
-    getActiveSprintId,
-    // dependencies
-    addDependency,
-    removeDependency,
-    hasCircularDependency,
-    getDependencies,
-    getDependents,
-    // duplicate detection
-    findDuplicateIssues,
-    // custom columns
-    getDefaultColumns,
-    getEffectiveColumns,
-    addCustomColumn,
-    removeCustomColumn,
-    updateCustomColumn,
-    reorderColumns,
-    // selection
-    isSelectedIssue,
-    // lookup
-    pickIssue,
-    // data init
-    initializeData,
-});
 //# sourceMappingURL=state.js.map

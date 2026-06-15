@@ -14,7 +14,11 @@
  *     status-only, so custom-column cards are not visible on the
  *     board yet. The clear logic itself is correct.
  */
-import { attach } from "./_attach.js";
+import { addActivity, getEffectiveColumns, getIssues, pickIssue, saveStateImmediate, setIssues, updateCustomColumn, } from "./state.js";
+import { renderBoard, updateCounts } from "./render.js";
+import { removeUndoToast, showToast, showUndoToast } from "./events.js";
+import { escapeHtml, lucideIcon } from "./utils.js";
+import { openModal } from "./main-modals.js";
 export function initColumnMenuButtons() {
     document.querySelectorAll(".column-menu-btn").forEach((btn) => {
         btn.addEventListener("click", (e) => {
@@ -129,5 +133,4 @@ export function initColumnMenuButtons() {
         });
     });
 }
-attach({ initColumnMenuButtons });
 //# sourceMappingURL=main-column-menu.js.map

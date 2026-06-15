@@ -3,12 +3,18 @@
  *
  * Conversion notes from src/main-sprints.js:
  *   - 1:1 translation. All sprint-related helpers (`createSprint`,
- *     `renderSprintList`, `populateSprintFilter`, etc.) are attached
- *     to `window` by their respective source files.
+ *     `renderSprintList`, `populateSprintFilter`, etc.) are imported
+ *     from their respective source files.
  */
 
-import type { Sprint } from "./types";
-import { attach } from "./_attach.js";
+import { createSprint, getActiveSprint } from "./state.js";
+import { renderSprintList, showToast } from "./events.js";
+import {
+  populateSprintFilter,
+  populateSprintSelect,
+  updateSprintBar,
+  updateSprintProgressBar,
+} from "./utils.js";
 
 export function initSprints(): void {
   // Manage sprints button
@@ -57,14 +63,3 @@ export function initSprints(): void {
     showToast("Sprint created", "success");
   });
 }
-
-declare function createSprint(name: string, startDate?: string, endDate?: string): Sprint;
-declare function renderSprintList(): void;
-declare function populateSprintFilter(): void;
-declare function populateSprintSelect(): void;
-declare function updateSprintBar(): void;
-declare function getActiveSprint(): Sprint | null;
-declare function updateSprintProgressBar(activeSprint: Sprint): void;
-declare function showToast(message: string, kind?: "info" | "success" | "error"): void;
-
-attach({ initSprints });

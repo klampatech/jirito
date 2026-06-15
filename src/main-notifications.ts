@@ -2,15 +2,15 @@
  * src/main-notifications.ts — overdue-issues notification dropdown.
  *
  * Conversion notes from src/main-notifications.js:
- *   - 1:1 translation. `openDetailPanel` is provided by `events.ts`
- *     (attached via `attach()`).
+ *   - 1:1 translation. `openDetailPanel` is imported from `./events.js`.
  *   - The dropdown is positioned with fixed coordinates relative to
  *     the bell icon; legacy `style.top` / `style.right` assignments
  *     preserved.
  */
 
-import type { Issue } from "./types";
-import { attach } from "./_attach.js";
+import { getIssues } from "./state.js";
+import { openDetailPanel } from "./events.js";
+import { escapeHtml, formatDate, generateIssueKey, getProjectKey, isOverdue } from "./utils.js";
 
 export function updateNotificationDropdown(): void {
   const body = document.getElementById("notification-dropdown-body");
@@ -65,13 +65,3 @@ export function initNotifications(): void {
     }
   });
 }
-
-declare function getIssues(): Issue[];
-declare function isOverdue(dueDate: string | null | undefined, status: string | undefined): boolean;
-declare function generateIssueKey(projectKey: string, id: Issue["id"]): string;
-declare function getProjectKey(): string;
-declare function escapeHtml(str: unknown): string;
-declare function formatDate(dateStr: string | null | undefined): string;
-declare function openDetailPanel(issueId: Issue["id"]): void;
-
-attach({ initNotifications, updateNotificationDropdown });

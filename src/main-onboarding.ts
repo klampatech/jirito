@@ -9,8 +9,6 @@
  *     final step.
  */
 
-import { attach } from "./_attach.js";
-
 export function initOnboarding(): void {
   const seen = localStorage.getItem("jirito-onboarding");
   if (seen) return;
@@ -47,5 +45,3 @@ export function initOnboarding(): void {
     localStorage.setItem("jirito-onboarding", "true");
   });
 }
-
-attach({ initOnboarding });

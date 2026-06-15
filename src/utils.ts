@@ -13,9 +13,15 @@
  *     add a local type to keep the file self-contained).
  */
 
-import type { Issue, Project, Sprint } from "./types";
+import type { Issue, Sprint } from "./types";
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
+import {
+  getActiveSprint,
+  getCurrentProject,
+  getIssues,
+  getProjects,
+  getSprints,
+} from "./state.js";
 
 const { CALENDAR_MAX_ROWS, ALLOWED_URL_SCHEMES } = CONSTANTS;
 
@@ -311,48 +317,3 @@ export function updateSprintProgress(): void {
     updateSprintProgressBar(activeSprint);
   }
 }
-
-// ===== Undo helpers (deprecated — undo logic is inlined in event handlers) =====
-// These functions are kept temporarily for reference. Remove after confirming no callers.
-
-// Forward declarations of the global state functions used by this file.
-// They are satisfied at runtime by `state.js` (classic script) attaching
-// the symbols to `window`; the new `.ts` files do the same via `attach()`.
-declare function getIssues(): Issue[];
-declare function getProjects(): Record<string, Project>;
-declare function getCurrentProject(): string;
-declare function getSprints(): Record<string, Sprint>;
-declare function getActiveSprint(): Sprint | null;
-
-// Attach every public export to `window` for legacy classic-script callers.
-// Phase 5 will switch `index.html` to `<script type="module">` and these
-// `attach()` calls become redundant (the import graph takes over).
-attach({
-  // markdown
-  isSafeUrl,
-  parseMarkdown,
-  renderMarkdown,
-  // calendar
-  getCalendarDays,
-  getMonthName,
-  // icons
-  lucideIcon,
-  // formatting
-  escapeHtml,
-  truncateDesc,
-  isOverdue,
-  formatDate,
-  timeAgo,
-  // keys
-  generateIssueKey,
-  getProjectKey,
-  // filters
-  getFilteredIssues,
-  getAllLabels,
-  // sprint UI
-  populateSprintFilter,
-  populateSprintSelect,
-  updateSprintBar,
-  updateSprintProgressBar,
-  updateSprintProgress,
-});

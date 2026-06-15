@@ -4,10 +4,8 @@
  *
  * Conversion notes (from src/render.js):
  *   - All top-level functions get explicit return types (mostly `void`).
- *   - Cross-module function references (e.g. `getIssues`, `renderActivity`)
- *     are declared as ambient `declare function ...(args): ret;` blocks
- *     at the bottom of the file, mirroring the pattern used in
- *     `state.ts`. In Phase 5 these become real `import` statements.
+ *   - Cross-module function references are now real `import` statements
+ *     (the `attach()` indirection was removed in plan §10.1).
  *   - The `typeIcons` lookup is a top-level `const` in `state.js` and
  *     becomes a global `const` in classic-script mode; we declare it
  *     once at the bottom of this file.
@@ -18,8 +16,10 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { typeIcons } from "./state.js";
-import { removeUndoToast } from "./events.js";
-import { attach } from "./_attach.js";
+import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
+import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
+import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
+import { deleteProject } from "./data.js";
 // ===== Rendering =====
 export function renderBoard() {
     const columns = getEffectiveColumns();
@@ -1157,36 +1157,4 @@ export function populateAssigneeFilter() {
         select.appendChild(labelOpt);
     }
 }
-// `typeIcons` is imported from `state.js` at the top of this file
-// (see the `import { typeIcons }` line). It used to be a top-level
-// `const` in the classic-script `state.js`, polluting the global
-// scope; in the new module world it's an explicit export.
-// `undoToast` is module-private to `events.ts`. We import
-// `removeUndoToast()` from there to dismiss the toast without
-// reaching into another module's state.
-// Attach every public export to `window` for legacy classic-script callers
-// (notably `main-*.js` and `data.js`) that still call these by bare name.
-attach({
-    renderBoard,
-    createCard,
-    updateCounts,
-    updateNotifications,
-    renderSidebar,
-    startInlineRename,
-    renderProjects,
-    renderViews,
-    renderColumnConfig,
-    initCalendar,
-    renderCalendarView,
-    renderCalendarGrid,
-    renderDashboardView,
-    renderSavedFilters,
-    renderActivity,
-    switchProject,
-    switchView,
-    renderListView,
-    applySavedFilter,
-    saveCurrentFilter,
-    populateAssigneeFilter,
-});
 //# sourceMappingURL=render.js.map

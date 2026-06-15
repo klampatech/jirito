@@ -5,19 +5,19 @@
  *   - 1:1 translation. The bulk-status / bulk-delete handlers are
  *     wired in `events.ts` (handleBulkStatusChange / handleBulkDelete
  *     / handleBulkClear).
- *   - The legacy file uses `saveStateDebounced()` on lines 15 and 29.
- *     That function does not exist anywhere in the codebase — those
- *     two event listeners are bound to `bulk-priority` and
- *     `bulk-assignee`, which are hidden in the HTML (`display:none`).
- *     The bug is therefore dormant; the calls are preserved verbatim
- *     so that a future unhide triggers the same (broken) behaviour.
- *   - `selectedIds` is a module-scope `Set` alias that pre-dates the
- *     LJ-namespace cleanup. It is also unused in practice (the only
- *     `selectedIds.has(i.id)` calls live behind hidden elements), so
- *     it is declared but not guaranteed to be the same object as
- *     `getSelectedIds()`.
+ *   - The legacy file used `saveStateDebounced()` and a module-scope
+ *     `selectedIds` alias. Both were pre-existing dead code (those
+ *     elements are hidden in the HTML with `display:none`). As of
+ *     plan §10.1, the `saveStateDebounced()` calls are replaced with
+ *     `saveState()` (the only public save function) and `selectedIds`
+ *     is replaced with `getSelectedIds()` (the typed accessor).
+ *     The elements are still hidden, so the listeners never fire;
+ *     the corrected code is in place in case the elements are
+ *     re-shown.
  */
-import { attach } from "./_attach.js";
+import { getIssues, getSelectedIds, saveState } from "./state.js";
+import { handleBulkClear, handleBulkDelete, handleBulkStatusChange, trackHistory } from "./events.js";
+import { renderBoard, updateCounts } from "./render.js";
 export function initBulkActions() {
     document.getElementById("bulk-status")?.addEventListener("change", handleBulkStatusChange);
     document.getElementById("bulk-delete")?.addEventListener("click", handleBulkDelete);
@@ -27,12 +27,12 @@ export function initBulkActions() {
         if (!priority)
             return;
         getIssues().forEach((i) => {
-            if (selectedIds.has(i.id)) {
+            if (getSelectedIds().has(i.id)) {
                 trackHistory(i, "priority", i.priority, priority);
                 i.priority = priority;
             }
         });
-        saveStateDebounced();
+        void saveState();
         renderBoard();
         updateCounts();
         e.target.value = "";
@@ -42,16 +42,15 @@ export function initBulkActions() {
         if (!assignee)
             return;
         getIssues().forEach((i) => {
-            if (selectedIds.has(i.id)) {
+            if (getSelectedIds().has(i.id)) {
                 trackHistory(i, "assignee", i.assignee || "", assignee);
                 i.assignee = assignee;
             }
         });
-        saveStateDebounced();
+        void saveState();
         renderBoard();
         updateCounts();
         e.target.value = "";
     });
 }
-attach({ initBulkActions });
 //# sourceMappingURL=main-bulk-actions.js.map

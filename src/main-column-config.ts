@@ -4,11 +4,13 @@
  * Conversion notes from src/main-column-config.js:
  *   - 1:1 translation. `renderColumnConfig`, `addCustomColumn`,
  *     `updateCustomColumn`, `getCustomColumns`, `getCurrentProject`,
- *     `showToast` come from `render.ts` / `state.ts` / `events.ts`.
+ *     `showToast` are imported from `./render.ts` / `./state.ts` /
+ *     `./events.ts`.
  */
 
-import type { CustomColumn } from "./types";
-import { attach } from "./_attach.js";
+import { addCustomColumn, saveState, setCustomColumns, updateCustomColumn } from "./state.js";
+import { renderBoard, renderColumnConfig } from "./render.js";
+import { showToast } from "./events.js";
 
 export function initColumnConfig(): void {
   document.getElementById("column-config-btn")?.addEventListener("click", () => {
@@ -29,7 +31,7 @@ export function initColumnConfig(): void {
   // Reset columns to defaults
   document.getElementById("reset-columns-btn")?.addEventListener("click", () => {
     if (confirm("Reset columns to defaults? Custom columns will be removed.")) {
-      delete getCustomColumns()[getCurrentProject()];
+      setCustomColumns([]);  // reset to defaults (the custom array is global; clearing it triggers getEffectiveColumns fallback)
       saveState();
       renderColumnConfig();
       renderBoard();
@@ -54,14 +56,3 @@ export function initColumnConfig(): void {
     showToast("Column added", "success");
   });
 }
-
-declare function renderColumnConfig(): void;
-declare function addCustomColumn(name: string, color?: string): string;
-declare function updateCustomColumn(id: string, updates: Partial<CustomColumn>): void;
-declare function getCustomColumns(): Record<string, CustomColumn[]>;
-declare function getCurrentProject(): string;
-declare function saveState(): Promise<void>;
-declare function renderBoard(): void;
-declare function showToast(message: string, kind?: "info" | "success" | "error"): void;
-
-attach({ initColumnConfig });

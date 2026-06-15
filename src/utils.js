@@ -13,7 +13,7 @@
  *     add a local type to keep the file self-contained).
  */
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
+import { getActiveSprint, getCurrentProject, getIssues, getProjects, getSprints, } from "./state.js";
 const { CALENDAR_MAX_ROWS, ALLOWED_URL_SCHEMES } = CONSTANTS;
 // ===== Markdown Parser (lightweight) =====
 export function isSafeUrl(url) {
@@ -300,36 +300,4 @@ export function updateSprintProgress() {
         updateSprintProgressBar(activeSprint);
     }
 }
-// Attach every public export to `window` for legacy classic-script callers.
-// Phase 5 will switch `index.html` to `<script type="module">` and these
-// `attach()` calls become redundant (the import graph takes over).
-attach({
-    // markdown
-    isSafeUrl,
-    parseMarkdown,
-    renderMarkdown,
-    // calendar
-    getCalendarDays,
-    getMonthName,
-    // icons
-    lucideIcon,
-    // formatting
-    escapeHtml,
-    truncateDesc,
-    isOverdue,
-    formatDate,
-    timeAgo,
-    // keys
-    generateIssueKey,
-    getProjectKey,
-    // filters
-    getFilteredIssues,
-    getAllLabels,
-    // sprint UI
-    populateSprintFilter,
-    populateSprintSelect,
-    updateSprintBar,
-    updateSprintProgressBar,
-    updateSprintProgress,
-});
 //# sourceMappingURL=utils.js.map

@@ -6,8 +6,6 @@
  *     to position the toggle button; preserved verbatim.
  */
 
-import { attach } from "./_attach.js";
-
 export function initSidebarToggle(): void {
   document.getElementById("sidebar-toggle")?.addEventListener("click", () => {
     const wrapper = document.getElementById("sidebar-wrapper");
@@ -19,4 +17,3 @@ export function initSidebarToggle(): void {
   });
 }
 
-attach({ initSidebarToggle });

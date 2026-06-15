@@ -23,17 +23,37 @@
  *   main-save-filter.ts     — save-current-filter button
  *
  * Conversion notes from src/main.js:
- *   - 1:1 translation of the DOMContentLoaded body. Calls into the
- *     module functions are made by bare name; each module's
- *     `attach({ … })` populates the symbols on `window` so this works
- *     with classic-script ordering (until phase 5's index.html flip)
- *     and with module-script ordering (after the flip).
+ *   - 1:1 translation of the DOMContentLoaded body.
+ *   - All cross-module references are real `import` statements; no
+ *     `attach()` indirection (plan §10.1).
  *   - `window.__jiritoStateReady` / `window.__jiritoHasPendingSave`
  *     are exposed by `state.ts`; the `beforeunload` flush calls
  *     `saveStateImmediate()` only when there is a pending debounced
  *     save (to avoid clobbering fresher server state from other tabs).
  */
-import { attach } from "./_attach.js";
+import { getActiveSprint, getCurrentProject, getProjects, initializeData, loadState, saveStateImmediate, } from "./state.js";
+import { initCalendar, populateAssigneeFilter, renderBoard, renderSidebar } from "./render.js";
+import { initDragDrop } from "./events.js";
+import { populateSprintSelect, updateSprintBar, updateSprintProgressBar } from "./utils.js";
+import { initBulkActions } from "./main-bulk-actions.js";
+import { initColumnConfig } from "./main-column-config.js";
+import { initColumnMenuButtons } from "./main-column-menu.js";
+import { initDetailPanel } from "./main-detail-panel.js";
+import { initExportImport } from "./main-export-import.js";
+import { initFilterControls } from "./main-filter-controls.js";
+import { initFilters } from "./main-filters.js";
+import { initIssueForm } from "./main-issue-form.js";
+import { initModals } from "./main-modals.js";
+import { initNotifications } from "./main-notifications.js";
+import { initOnboarding } from "./main-onboarding.js";
+import { initProjects } from "./main-projects.js";
+import { initSaveFilter } from "./main-save-filter.js";
+import { initShortcuts } from "./main-shortcuts.js";
+import { initSidebar } from "./main-sidebar.js";
+import { initSidebarToggle } from "./main-sidebar-toggle.js";
+import { initSprints } from "./main-sprints.js";
+import { initTheme } from "./main-theme.js";
+import { renderTrash } from "./main-trash.js";
 console.log("[main] main.ts loaded");
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("[main] DOMContentLoaded, loadState exists:", typeof loadState);
@@ -113,5 +133,4 @@ document.addEventListener("DOMContentLoaded", async () => {
         /* ignore */
     }
 });
-attach({});
 //# sourceMappingURL=main.js.map

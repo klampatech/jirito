@@ -8,7 +8,6 @@
  * The `checkServer()` call is cached in `_serverAvailable` so the
  * health probe runs at most once per page load.
  */
-import { attach } from "./_attach.js";
 let SERVER_URL = "";
 if (typeof process !== "undefined" && process.env && process.env.VITE_API_URL) {
     SERVER_URL = process.env.VITE_API_URL;
@@ -173,6 +172,4 @@ export const api = {
     syncState,
     pushState,
 };
-// Make available globally for non-module scripts
-attach({ api });
 //# sourceMappingURL=api.js.map

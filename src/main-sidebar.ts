@@ -7,10 +7,7 @@
  *     and to give future sidebar event wiring a home.
  */
 
-import { attach } from "./_attach.js";
-
 export function initSidebar(): void {
   // Sidebar toggle is handled by main-sidebar-toggle.js
 }
 
-attach({ initSidebar });

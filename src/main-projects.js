@@ -3,9 +3,11 @@
  *
  * Conversion notes from src/main-projects.js:
  *   - 1:1 translation. `createProject`, `getProjects`, `showToast` are
- *     provided by `data.ts`, `state.ts`, and `events.ts` respectively.
+ *     imported from `./data.js`, `./state.js`, and `./events.js` respectively.
  */
-import { attach } from "./_attach.js";
+import { getProjects } from "./state.js";
+import { createProject } from "./data.js";
+import { showToast } from "./events.js";
 export function initProjects() {
     // New project button
     document.getElementById("add-project-btn")?.addEventListener("click", () => {
@@ -59,5 +61,4 @@ export function initProjects() {
             form.reset();
     });
 }
-attach({ initProjects });
 //# sourceMappingURL=main-projects.js.map

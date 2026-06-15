@@ -4,10 +4,8 @@
  *
  * Conversion notes (from src/render.js):
  *   - All top-level functions get explicit return types (mostly `void`).
- *   - Cross-module function references (e.g. `getIssues`, `renderActivity`)
- *     are declared as ambient `declare function ...(args): ret;` blocks
- *     at the bottom of the file, mirroring the pattern used in
- *     `state.ts`. In Phase 5 these become real `import` statements.
+ *   - Cross-module function references are now real `import` statements
+ *     (the `attach()` indirection was removed in plan §10.1).
  *   - The `typeIcons` lookup is a top-level `const` in `state.js` and
  *     becomes a global `const` in classic-script mode; we declare it
  *     once at the bottom of this file.
@@ -18,10 +16,55 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 
-import type { CustomColumn, Issue, Sprint } from "./types";
+import type { Issue, SavedFilter } from "./types";
 import { typeIcons } from "./state.js";
-import { removeUndoToast } from "./events.js";
-import { attach } from "./_attach.js";
+import {
+  addActivity,
+  getActiveSprint,
+  getActivityLog,
+  getComments,
+  getCurrentProject,
+  getCurrentView,
+  getDefaultColumns,
+  getDependents,
+  getDependencies,
+  getEffectiveColumns,
+  getIssues,
+  getProjects,
+  getSavedFilters,
+  getSelectedIds,
+  getSprints,
+  saveState,
+  setCurrentProject,
+  setCurrentView,
+  setIssues,
+  removeCustomColumn,
+  setCustomColumns,
+  updateCustomColumn,
+} from "./state.js";
+import {
+  escapeHtml,
+  formatDate,
+  generateIssueKey,
+  getAllLabels,
+  getCalendarDays,
+  getMonthName,
+  getProjectKey,
+  isOverdue,
+  lucideIcon,
+  timeAgo,
+  truncateDesc,
+  updateSprintProgress,
+} from "./utils.js";
+import {
+  applyFilters,
+  initDragDrop,
+  openDetailPanel,
+  removeUndoToast,
+  showToast,
+  updateBulkBar,
+} from "./events.js";
+import { deleteProject } from "./data.js";
 
 // ===== Rendering =====
 
@@ -1168,7 +1211,7 @@ export function saveCurrentFilter(): void {
   const typeEl = document.getElementById("filter-type") as HTMLSelectElement | null;
   const prioEl = document.getElementById("filter-priority") as HTMLSelectElement | null;
   const assigneeEl = document.getElementById("filter-assignee") as HTMLSelectElement | null;
-  const f: import("./types").SavedFilter = {
+  const f: SavedFilter = {
     name,
     type: typeEl?.value || "all",
     priority: prioEl?.value || "all",
@@ -1207,101 +1250,3 @@ export function populateAssigneeFilter(): void {
   }
 }
 
-// ===== Cross-module runtime dependencies =====
-//
-// The functions below are implemented in `state.js`, `utils.js`, and
-// `events.js` (all classic scripts loaded by `index.html`). They're
-// declared here as ambient so this file type-checks without circular
-// runtime imports. The end-state refactor (plan §10.1) will replace
-// these with real `import` statements.
-
-declare function getIssues(): Issue[];
-declare function setIssues(v: Issue[]): void;
-declare function getIssueCounter(): number;
-declare function setIssueCounter(v: number): void;
-declare function getComments(): Record<string, import("./types").Comment[]>;
-declare function getCurrentProject(): string;
-declare function setCurrentProject(v: string): void;
-declare function getCurrentView(): "board" | "list" | "calendar" | "dashboard";
-declare function setCurrentView(v: "board" | "list" | "calendar" | "dashboard"): void;
-declare function getProjects(): Record<string, import("./types").Project>;
-declare function getSavedFilters(): import("./types").SavedFilter[];
-declare function getActivityLog(): import("./types").ActivityEntry[];
-declare function getSelectedIds(): Set<Issue["id"]>;
-declare function getSprints(): Record<string, Sprint>;
-declare function getDefaultColumns(): CustomColumn[];
-declare function getEffectiveColumns(): CustomColumn[];
-declare function removeCustomColumn(id: string): void;
-declare function updateCustomColumn(id: string, updates: Partial<CustomColumn>): void;
-declare function setCustomColumns(v: CustomColumn[]): void;
-declare function getActiveSprint(): Sprint | null;
-declare function addActivity(icon: string, text: string): void;
-declare function saveState(): Promise<void>;
-
-declare function getDependents(issueId: Issue["id"]): Issue[];
-declare function getDependencies(issueId: Issue["id"]): import("./types").Dependency[];
-
-declare function escapeHtml(str: unknown): string;
-declare function truncateDesc(str: unknown, maxChars: number): string;
-declare function isOverdue(
-  dueDate: string | null | undefined,
-  status: string | undefined
-): boolean;
-declare function formatDate(dateStr: string | null | undefined): string;
-declare function timeAgo(date: Date | string): string;
-declare function generateIssueKey(projectKey: string, id: Issue["id"]): string;
-declare function getProjectKey(): string;
-declare function getAllLabels(): string[];
-declare function getCalendarDays(
-  year: number,
-  month: number
-): import("./utils").CalendarDay[];
-declare function getMonthName(month: number): string;
-declare function lucideIcon(name: string, attrs?: Record<string, string>): string;
-
-declare function showToast(
-  message: string,
-  type?: "info" | "success" | "error"
-): void;
-declare function initDragDrop(): void;
-declare function initMarkdownToggles(): void;
-declare function applyFilters(): void;
-declare function openDetailPanel(issueId: Issue["id"]): void;
-declare function deleteProject(key: string): void;
-declare function updateBulkBar(): void;
-declare function updateSprintProgress(): void;
-
-// `typeIcons` is imported from `state.js` at the top of this file
-// (see the `import { typeIcons }` line). It used to be a top-level
-// `const` in the classic-script `state.js`, polluting the global
-// scope; in the new module world it's an explicit export.
-
-// `undoToast` is module-private to `events.ts`. We import
-// `removeUndoToast()` from there to dismiss the toast without
-// reaching into another module's state.
-
-// Attach every public export to `window` for legacy classic-script callers
-// (notably `main-*.js` and `data.js`) that still call these by bare name.
-attach({
-  renderBoard,
-  createCard,
-  updateCounts,
-  updateNotifications,
-  renderSidebar,
-  startInlineRename,
-  renderProjects,
-  renderViews,
-  renderColumnConfig,
-  initCalendar,
-  renderCalendarView,
-  renderCalendarGrid,
-  renderDashboardView,
-  renderSavedFilters,
-  renderActivity,
-  switchProject,
-  switchView,
-  renderListView,
-  applySavedFilter,
-  saveCurrentFilter,
-  populateAssigneeFilter,
-});

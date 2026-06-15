@@ -7,13 +7,18 @@
  *     guarded by `if (issue.X != null)`. We keep the same shape; the only
  *     typed change is the `as Issue[]` cast on the final assignment so
  *     `setIssues` accepts the validated list.
- *   - `importData` mutates several module-scope vars in `state.js`
- *     (`_comments`, `_activityLog`, `_trash`, `_sprints`) directly. We
- *     keep that style for now; the end-state refactor (plan §10.1) will
- *     route these through the typed setters.
+ *   - `importData` previously mutated module-scope vars in `state.js`
+ *     (`_comments`, `_activityLog`, `_trash`, `_sprints`) directly. As
+ *     of plan §10.1 (the `attach()` removal), it routes everything
+ *     through the typed setters (`setComments`, `setActivityLog`,
+ *     `setTrash`, `setSprints`) defined in `state.ts`. The new
+ *     `setComments` and `setProjects` setters were added in this commit.
  */
 import { CONSTANTS } from "./constants.js";
-import { attach } from "./_attach.js";
+import { addActivity, getActivityLog, getCurrentProject, getIssueCounter, getIssues, getComments, getProjects, getSavedFilters, getSprints, getTrash, purgeTrash, saveState, setActivityLog, setComments, setCurrentProject, setIssueCounter, setIssues, setProjects, setSavedFilters, setSprints, setTrash, } from "./state.js";
+import { escapeHtml } from "./utils.js";
+import { populateAssigneeFilter, renderBoard, renderSidebar, switchProject, updateCounts, } from "./render.js";
+import { showToast } from "./events.js";
 const { MAX_TITLE_LENGTH, MAX_PROJECT_KEY_LENGTH, VALID_STATUSES, VALID_ISSUE_TYPES, VALID_PRIORITIES } = CONSTANTS;
 // ===== Data Operations =====
 export function exportData() {
@@ -110,24 +115,22 @@ export function importData(file) {
                 }
             }
             setIssues(data.issues);
-            _comments = data.comments;
+            setComments((data.comments ?? {}));
             setProjects(data.projects);
             setCurrentProject(data.currentProject || "default");
             setSavedFilters(data.savedFilters || []);
-            _activityLog = (data.activityLog || []).map((a) => ({ ...a, time: new Date(a.time) }));
+            setActivityLog((data.activityLog || []).map((a) => ({ ...a, time: new Date(a.time) })));
             // Prevent ID collision: ensure issueCounter is higher than any imported ID
             const maxId = Math.max(...getIssues().map((i) => Number(i.id) || 0), 0);
             setIssueCounter(Math.max(data.issueCounter || 106, maxId + 1));
             if (data.trash) {
-                _trash = data.trash.map((t) => ({ ...t, date: new Date(t.date) }));
+                setTrash(data.trash.map((t) => ({ ...t, date: new Date(t.date) })));
                 purgeTrash();
             }
             if (data.sprints) {
-                _sprints = data.sprints;
+                setSprints((data.sprints ?? {}));
             }
             // State synced via setters above
-            selectedIds = getSelectedIds();
-            trash = getTrash();
             saveState();
             renderBoard();
             renderSidebar();
@@ -179,10 +182,4 @@ export function deleteProject(key) {
     saveState();
     switchProject(remaining);
 }
-attach({
-    exportData,
-    importData,
-    createProject,
-    deleteProject,
-});
 //# sourceMappingURL=data.js.map
