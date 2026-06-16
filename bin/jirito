@@ -1,0 +1,464 @@
+#!/usr/bin/env python3
+"""
+jirito — CLI for the jirito ticket system.
+Single Python 3.10+ file, stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import sqlite3
+import sys
+import urllib.request
+import urllib.error
+import urllib.parse
+import time
+import shutil
+
+# ── constants ────────────────────────────────────────────────────────────────
+
+JIRITO_URL = os.getenv("JIRITO_URL", "http://localhost:3001")
+TIMEOUT = 5
+CONFIG_DIR = pathlib.Path(os.getenv("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "jirito"
+CACHE_BLOCKED = CONFIG_DIR / "blocked-column-id"
+CACHE_STATUS = CONFIG_DIR / "issue-status-cache.json"
+VALID_STATUSES = ("backlog", "todo", "in_progress", "review", "done", "trash")
+VALID_AGENTS = ("elmo", "bert", "ernie", "grover")
+DB_PATH = pathlib.Path(os.getenv("JIRITO_DB_PATH", str(pathlib.Path(__file__).resolve().parent.parent / "jirito.db")))
+
+# ANSI colours
+_NO_COLOR = os.getenv("NO_COLOR")
+_IS_TTY = sys.stdout.isatty()
+_USE_COLOR = not _NO_COLOR and _IS_TTY
+
+_C = {
+    "done":       "\033[32m",   # green
+    "in_progress":"\033[33m",   # yellow
+    "review":     "\033[34m",   # blue
+    "backlog":    "\033[90m",   # gray
+    "todo":       "\033[90m",   # gray
+    "reset":      "\033[0m",
+}
+
+
+# ── low-level request helper ───────────────────────────────────────────────────
+
+def _req(method: str, path: str, body: dict | list | None = None) -> tuple[int, dict | list]:
+    url = f"{JIRITO_URL}{path}"
+    data = json.dumps(body).encode() if body is not None else None
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            raw = resp.read()
+            parsed = json.loads(raw) if raw else {}
+            return resp.status, parsed
+    except urllib.error.HTTPError as e:
+        try:
+            parsed = json.loads(e.read())
+        except Exception:
+            parsed = {"error": e.reason}
+        return e.code, parsed
+    except urllib.error.URLError as e:
+        sys.stderr.write(f"jirito: error: jirito is not reachable ({e.reason})\n")
+        sys.exit(1)
+
+
+# ── colour helpers ────────────────────────────────────────────────────────────
+
+def _col(key: str, text: str) -> str:
+    if not _USE_COLOR:
+        return text
+    c = _C.get(key, "")
+    r = _C["reset"]
+    return f"{c}{text}{r}"
+
+
+# ── config helpers ───────────────────────────────────────────────────────────
+
+def _load_status_cache() -> dict:
+    if CACHE_STATUS.exists():
+        try:
+            return json.loads(CACHE_STATUS.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_status_cache(cache: dict) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_STATUS.write_text(json.dumps(cache))
+
+
+# ── subcommands ───────────────────────────────────────────────────────────────
+
+def cmd_show(args: argparse.Namespace) -> None:
+    status, data = _req("GET", f"/api/issues/{args.id}")
+    if status == 404:
+        sys.stderr.write(f"jirito: error: issue {args.id} not found\n")
+        sys.exit(1)
+    if status != 200:
+        sys.stderr.write(f"jirito: error: API returned {status}\n")
+        sys.exit(1)
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        # Human-readable single-issue view
+        print(f"  id      : {data['id']}")
+        print(f"  title   : {data['title']}")
+        print(f"  status  : {data['status']}")
+        print(f"  priority: {data['priority']}")
+        print(f"  type    : {data['type']}")
+        print(f"  assignee: {data['assignee']}")
+        print(f"  reporter: {data['reporter']}")
+        print(f"  prUrl   : {data.get('prUrl', '')}")
+        print(f"  customCol: {data.get('customColumnId', '')}")
+        print(f"  labels  : {data.get('labels', [])}")
+        print(f"  created : {data.get('createdAt', '')}")
+
+
+def cmd_list(args: argparse.Namespace) -> None:
+    status, data = _req("GET", "/api/issues")
+    if status != 200:
+        sys.stderr.write(f"jirito: error: API returned {status}\n")
+        sys.exit(1)
+    # Client-side filtering (server ignores ?status/assignee params)
+    if args.status:
+        data = [x for x in data if x.get("status") == args.status]
+    if args.assignee:
+        data = [x for x in data if x.get("assignee") == args.assignee]
+    if args.json:
+        print(json.dumps(data, indent=2))
+        return
+    for issue in data:
+        sid = str(issue["id"]).rjust(4)
+        status_str = _col(issue["status"], issue["status"].ljust(12))
+        assignee = (issue.get("assignee") or "").ljust(8)
+        title = issue.get("title") or ""
+        print(f"[{sid}] {status_str} {assignee} {title}")
+
+
+def cmd_create(args: argparse.Namespace) -> None:
+    body: dict = {"title": args.title}
+    if args.issue_type:
+        body["type"] = args.issue_type
+    if args.priority:
+        body["priority"] = args.priority
+    if args.assignee:
+        body["assignee"] = args.assignee
+    if args.reporter:
+        body["reporter"] = args.reporter
+    if args.labels:
+        body["labels"] = args.labels.split(",")
+    status, data = _req("POST", "/api/issues", body)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        print(f"Created issue {data['id']}: {data['title']}")
+
+
+def cmd_move(args: argparse.Namespace) -> None:
+    status_val = args.status
+    if status_val not in VALID_STATUSES:
+        sys.stderr.write(f"jirito: error: invalid status '{status_val}'. Valid: {', '.join(VALID_STATUSES)}\n")
+        sys.exit(2)
+
+    # Idempotency check (MUST R8)
+    _, issue = _req("GET", f"/api/issues/{args.id}")
+    if issue.get("status") == status_val and args.pr_url is None:
+        print(f"jirito: no-op: issue {args.id} already {status_val}")
+        return
+
+    # Cache prior status before move (for unblock)
+    cache = _load_status_cache()
+    if str(args.id) not in cache:
+        cache[str(args.id)] = issue.get("status", "backlog")
+        _save_status_cache(cache)
+
+    body: dict = {"status": status_val}
+    if args.assignee:
+        body["assignee"] = args.assignee
+    if args.pr_url is not None:
+        body["prUrl"] = args.pr_url
+
+    status, data = _req("PUT", f"/api/issues/{args.id}", body)
+    if status == 404:
+        sys.stderr.write(f"jirito: error: issue {args.id} not found\n")
+        sys.exit(1)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+    print(f"jirito: moved issue {args.id} → {status_val}")
+
+
+def cmd_comment(args: argparse.Namespace) -> None:
+    body = {"issueId": args.id, "content": args.text, "author": args.author}
+    status, data = _req("POST", "/api/comments", body)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+    print(f"jirito: commented on issue {args.id}")
+
+
+def cmd_activity(args: argparse.Namespace) -> None:
+    body: dict = {"issueId": args.id, "action": args.action}
+    if args.details:
+        body["details"] = args.details
+    status, data = _req("POST", "/api/activity", body)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+    print(f"jirito: logged activity on issue {args.id}")
+
+
+def cmd_mine(args: argparse.Namespace) -> None:
+    _, data = _req("GET", "/api/issues")
+    data = [x for x in data if x.get("assignee") == args.agent]
+    if args.json:
+        print(json.dumps(data, indent=2))
+        return
+    if not data:
+        print(f"jirito: no tickets assigned to {args.agent}")
+        return
+    for issue in data:
+        print(f"[{issue['id']}] {issue['status'].ljust(12)} {issue.get('title', '')}")
+
+
+def cmd_triage(args: argparse.Namespace) -> None:
+    agent = args.agent.lower()
+    if agent not in VALID_AGENTS:
+        sys.stderr.write(f"jirito: error: unknown agent '{agent}'. Valid: {', '.join(VALID_AGENTS)}\n")
+        sys.exit(2)
+
+    # Update assignee
+    status, data = _req("PUT", f"/api/issues/{args.id}", {"assignee": agent})
+    if status == 404:
+        sys.stderr.write(f"jirito: error: issue {args.id} not found\n")
+        sys.exit(1)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+
+    # Post synthetic ticket.created comment
+    body = {
+        "issueId": args.id,
+        "content": f"[auto] Triaged to {agent}.",
+        "author": "system",
+    }
+    _req("POST", "/api/comments", body)
+    print(f"jirito: triaged issue {args.id} → {agent}")
+
+
+def _blocked_column_id() -> str | None:
+    """Look up the 'Blocked' custom column id, caching it."""
+    if CACHE_BLOCKED.exists():
+        cached = CACHE_BLOCKED.read_text().strip()
+        if cached:
+            return cached
+    status, data = _req("GET", "/api/columns?name=Blocked")
+    if status == 200 and isinstance(data, list) and len(data) > 0:
+        col_id = data[0]["id"]
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CACHE_BLOCKED.write_text(col_id)
+        return col_id
+    return None
+
+
+def cmd_block(args: argparse.Namespace) -> None:
+    col_id = _blocked_column_id()
+    if col_id is None:
+        sys.stderr.write(
+            'jirito: error: no custom column named "Blocked" found.\n'
+            'Create it with: curl -X POST http://localhost:3001/api/columns '
+            '-H "Content-Type: application/json" -d \'{"name":"Blocked"}\'\n'
+        )
+        sys.exit(1)
+
+    # Cache prior status before blocking
+    _, issue = _req("GET", f"/api/issues/{args.id}")
+    cache = _load_status_cache()
+    if str(args.id) not in cache:
+        cache[str(args.id)] = issue.get("status", "backlog")
+        _save_status_cache(cache)
+
+    body: dict = {"customColumnId": col_id}
+    if args.reason:
+        body["description"] = args.reason
+
+    status, data = _req("PUT", f"/api/issues/{args.id}", body)
+    if status == 404:
+        sys.stderr.write(f"jirito: error: issue {args.id} not found\n")
+        sys.exit(1)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+    print(f"jirito: blocked issue {args.id}")
+
+
+def cmd_unblock(args: argparse.Namespace) -> None:
+    cache = _load_status_cache()
+    prior = cache.pop(str(args.id), None)
+    _save_status_cache(cache)
+
+    body: dict = {"customColumnId": None}
+    if prior:
+        body["status"] = prior
+        print(f"jirito: unblocked issue {args.id}, status restored to {prior}")
+    else:
+        print(f"jirito: unblocked issue {args.id} (no prior status cached)")
+
+    status, data = _req("PUT", f"/api/issues/{args.id}", body)
+    if status == 404:
+        sys.stderr.write(f"jirito: error: issue {args.id} not found\n")
+        sys.exit(1)
+    if status not in (200, 201):
+        sys.stderr.write(f"jirito: error: API returned {status}: {data}\n")
+        sys.exit(1)
+
+
+def cmd_outbox(args: argparse.Namespace) -> None:
+    """Read webhook_outbox directly from jirito.db (offline-friendly)."""
+    if not DB_PATH.exists():
+        sys.stderr.write(f"jirito: error: database not found at {DB_PATH}\n")
+        sys.exit(1)
+    wanted = args.status or "pending"
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            "SELECT id, event_id, event_type, status, attempts, last_error, created_at, delivered_at "
+            "FROM webhook_outbox WHERE status=? ORDER BY id DESC LIMIT 50",
+            (wanted,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+    except Exception as e:
+        sys.stderr.write(f"jirito: error: {e}\n")
+        sys.exit(1)
+
+    if not rows:
+        print(f"jirito: no {wanted} rows in outbox")
+        return
+
+    for r in rows:
+        print(
+            f"id={r['id']} event_id={r['event_id']} type={r['event_type']} "
+            f"status={r['status']} attempts={r['attempts']} "
+            f"last_error={r['last_error'] or ''} created={r['created_at']} delivered={r['delivered_at'] or ''}"
+        )
+
+
+# ── argument parser ───────────────────────────────────────────────────────────
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="jirito", description="jirito CLI")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    # show
+    p = sub.add_parser("show", help="show a ticket")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("--json", action="store_true", help="JSON output")
+
+    # list
+    p = sub.add_parser("list", help="list tickets")
+    p.add_argument("--status", help="filter by status")
+    p.add_argument("--assignee", help="filter by assignee")
+    p.add_argument("--json", action="store_true", help="JSON output")
+
+    # create
+    p = sub.add_parser("create", help="create a ticket")
+    p.add_argument("--title", required=True, help="title")
+    p.add_argument("--type", dest="issue_type", help="type (task, bug, …)")
+    p.add_argument("--priority")
+    p.add_argument("--assignee")
+    p.add_argument("--reporter")
+    p.add_argument("--labels", help="comma-separated")
+    p.add_argument("--json", action="store_true", help="JSON output")
+
+    # move
+    p = sub.add_parser("move", help="move a ticket to a status")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("status", help=f"one of: {', '.join(VALID_STATUSES)}")
+    p.add_argument("--assignee")
+    p.add_argument("--pr-url", dest="pr_url", help="PR URL")
+
+    # comment
+    p = sub.add_parser("comment", help="add a comment")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("--text", required=True, help="comment text")
+    p.add_argument("--author", required=True)
+
+    # activity
+    p = sub.add_parser("activity", help="log an activity")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("--action", required=True)
+    p.add_argument("--details")
+
+    # mine
+    p = sub.add_parser("mine", help="my tickets")
+    p.add_argument("agent", help="agent name")
+    p.add_argument("--json", action="store_true", help="JSON output")
+
+    # triage
+    p = sub.add_parser("triage", help="reassign a ticket")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("--agent", required=True, help="agent name")
+
+    # block
+    p = sub.add_parser("block", help="block a ticket")
+    p.add_argument("id", type=int, help="ticket id")
+    p.add_argument("--reason")
+
+    # unblock
+    p = sub.add_parser("unblock", help="unblock a ticket")
+    p.add_argument("id", type=int, help="ticket id")
+
+    # outbox
+    p = sub.add_parser("outbox", help="show webhook outbox (reads DB directly)")
+    p.add_argument("--status", help="filter by status (pending, delivered, dead)")
+
+    return parser
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    # Dispatch
+    cmd_map = {
+        "show":      cmd_show,
+        "list":      cmd_list,
+        "create":    cmd_create,
+        "move":      cmd_move,
+        "comment":   cmd_comment,
+        "activity":  cmd_activity,
+        "mine":      cmd_mine,
+        "triage":    cmd_triage,
+        "block":     cmd_block,
+        "unblock":   cmd_unblock,
+        "outbox":    cmd_outbox,
+    }
+
+    start = time.monotonic()
+    try:
+        cmd_map[args.cmd](args)
+    except SystemExit:
+        raise
+    except Exception as e:
+        sys.stderr.write(f"jirito: error: {e}\n")
+        sys.exit(1)
+
+    elapsed_ms = (time.monotonic() - start) * 1000
+    if elapsed_ms > 200:
+        sys.stderr.write(f"jirito: warning: took {elapsed_ms:.0f}ms (>200ms target)\n")
+
+
+if __name__ == "__main__":
+    main()
