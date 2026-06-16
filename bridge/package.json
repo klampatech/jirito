@@ -1,0 +1,13 @@
+{
+  "name": "jirito-webhook-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "redis": "^4.7.0"
+  }
+}
