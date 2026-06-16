@@ -120,14 +120,14 @@
 
 | Aspect | Details |
 |--------|---------|
-| **Type** | TypeScript SPA with optional Express-style Node server |
-| **Language** | TypeScript (ES2022, strict) |
+| **Type** | TypeScript SPA with optional Node `http` server |
+| **Language** | TypeScript (ES2022, strict) — emitted `.js` artifacts are committed alongside the `.ts` sources |
 | **Styling** | CSS (light + dark themes) |
-| **Icons** | Lucide (CDN) |
-| **Storage** | `localStorage` (9 keys) + optional SQLite via `sql.js` (server) |
-| **Testing** | Playwright (~236 E2E tests) + Vitest (66 unit tests) |
-| **Formatting** | ESLint + Prettier |
-| **CI** | GitHub Actions (`test.yml`) |
+| **Icons** | [Phosphor Icons](https://phosphoricons.com/) (CDN, CSS-only, font-based). The `lucideIcon()` helper in `src/utils.ts` is a legacy name from a pre-Phosphor era — it emits `<i class="ph ph-…">` Phosphor markup. |
+| **Storage** | `localStorage` (1 state blob + 4 UI keys) + optional SQLite via `sql.js` (server). When the server is reachable, data round-trips through `/api/*` and is mirrored to `localStorage` for fast re-hydration and offline fallback. |
+| **Testing** | Playwright (236 E2E tests) + Vitest (66 unit tests) |
+| **Formatting** | ESLint + Prettier (configured; ESLint is not currently wired to a CI step) |
+| **CI** | GitHub Actions (`test.yml`) — `npm run typecheck` then Playwright |
 
 ## 🚀 Getting Started
 
@@ -174,7 +174,7 @@ The Playwright E2E tests launch the server via `npx tsx server/index.ts` (the `t
 
 ### Running with Backend
 
-Jirito's Node/Express server is a single process that serves both the static
+Jirito's Node server (built on the standard `node:http` module — no framework) is a single process that serves both the static
 client and the `/api/*` REST routes. There is no separate static server to run.
 
 1. Start the backend (which also serves the app):
@@ -196,39 +196,62 @@ client and the `/api/*` REST routes. There is no separate static server to run.
 > port 8080), set `VITE_API_URL` to point the client at the backend.
 
 ### Running Tests
+
 ```bash
-npm test
+npm test            # Playwright E2E suite (236 tests; launches the server via tsx)
+npm run test:unit   # Vitest unit suite (66 tests across 4 files in tests/unit/)
+npm run typecheck   # tsc -b --noEmit; the first step in CI
 ```
+
+The Playwright suite requires a Chromium browser (`npx playwright install --with-deps chromium`); the Vitest unit suite has no such dependency.
 
 ## 📁 Project Structure
 
 ```
 jirito/
-├── index.html              # Single-page application entry
+├── index.html              # Single-page application entry (CSP, Phosphor CDN link)
 ├── styles.css              # All styles (light + dark themes)
 ├── public/
 │   └── jirito_logo.png     # Project logo
-├── src/
-│   ├── state.js            # State management (LJ namespace) + localStorage sync
-│   ├── render.js           # DOM rendering functions
-│   ├── events.js           # Event handlers
-│   ├── data.js             # Import/export data operations
-│   ├── utils.js            # Utility functions
-│   └── main.js             # Application bootstrap
-├── tests/                  # Playwright E2E tests (~150 tests)
-├── screenshots/            # Application screenshots
-├── docs/
-│   └── PROJECT.md          # Project study document
-├── playwright/
-│   ├── playwright.config.mjs
-│   └── playwright-global-setup.mjs
+├── src/                    # Client (29 .ts modules + 2 .d.ts; emitted .js committed)
+│   ├── types.ts            # Canonical data model (Issue, Project, Sprint, …)
+│   ├── constants.ts        # Typed CONSTANTS object (replaces legacy LJ_CONSTANTS)
+│   ├── global.d.ts         # Ambient Window augmentation (test contracts)
+│   ├── state.ts            # Module-scoped state + typed getters/setters
+│   ├── storage.ts          # localStorage sync + server REST mirror (`window.storage` test contract)
+│   ├── render.ts           # Board / list / calendar / dashboard / sidebar rendering
+│   ├── events.ts           # DOM event wiring (drag-drop, keyboard, etc.)
+│   ├── data.ts             # Import/export + sample data
+│   ├── utils.ts            # Markdown, date, icon, helper utilities
+│   ├── api.ts              # REST client (thin wrapper around fetch)
+│   ├── main.ts             # Application bootstrap (DOMContentLoaded orchestrator)
+│   └── main-*.ts           # 19 focused bootstrap modules (theme, sprints, filters, …)
+├── server/                 # Node http server (17 .ts modules; emitted to dist/server/ at build)
+│   ├── index.ts            # HTTP entry — same process serves static + /api/*
+│   ├── static.ts           # Static file serving (no framework)
+│   ├── webhooks.ts         # Webhook delivery (outbox + bridge)
+│   ├── _types-shim.ts      # Re-exports client types for the server
+│   ├── db/
+│   │   ├── index.ts        # sql.js wrapper
+│   │   └── init.ts         # CREATE TABLE + idempotent migrations
+│   └── routes/             # 11 REST route modules (issues, projects, sprints, …)
+├── tests/                  # Playwright E2E specs (.spec.mjs) + Vitest unit tests (tests/unit/*.test.ts)
+├── playwright/             # Playwright config + global setup/teardown + shared helpers
+├── screenshots/            # Light + dark screenshots for every view
+├── docs/                   # Project study, code review, fix plans
 ├── .github/
 │   └── workflows/
-│       └── test.yml        # GitHub Actions CI
-├── .eslintrc.json          # ESLint configuration
-├── .prettierrc             # Prettier configuration
+│       └── test.yml        # GitHub Actions CI (typecheck + Playwright)
+├── tsconfig.json           # Solution file referencing the 3 sub-projects
+├── tsconfig.client.json    # Client tsconfig (DOM lib, outDir = src)
+├── tsconfig.server.json    # Server tsconfig (Node lib, outDir = dist/server)
+├── tsconfig.tests.json     # Vitest tsconfig (DOM + src rootDirs)
+├── vitest.config.ts        # Vitest config
+├── .eslintrc.json          # ESLint config (not currently wired to a CI step)
+├── .prettierrc             # Prettier config
 ├── package.json
-└── package-lock.json
+├── package-lock.json
+└── tsconfig.*.tsbuildinfo  # TS incremental build cache
 ```
 
 ## 📦 Dependencies
@@ -245,57 +268,78 @@ So `npm install` brings ~76 packages, but **none of them are ever shipped to the
 
 ## 🗄️ Data Model
 
-Jirito stores data in `localStorage` under 9 keys:
+### Client (`localStorage`)
 
-| Key | Content |
-|-----|---------|
-| `jirito-issues` | Issue objects (title, status, assignee, priority, due date, etc.) |
-| `jirito-comments` | Issue comments |
-| `jirito-projects` | Project definitions |
-| `jirito-currentProject` | Currently selected project |
-| `jirito-savedFilters` | Saved filter configurations |
-| `jirito-activity` | Activity log |
-| `jirito-trash` | Soft-deleted issues |
-| `jirito-sprints` | Sprint data |
-| `jirito-customColumns` | Custom column configurations |
+The client uses **one state blob** (`jirito-state`) that contains the entire app state as JSON, plus four small UI / preference keys. The state shape is declared in `src/types.ts` (`AppState`).
 
-> ⚠️ **No schema validation** — data is stored as plain JSON. The optional SQLite backend uses transactions for import operations.
+| Key | Shape | Notes |
+|-----|-------|-------|
+| `jirito-state` | `AppState` (JSON) | Holds `issues`, `comments`, `projects`, `currentProject`, `savedFilters`, `activity`, `activityLog`, `issueCounter`, `trash`, `sprints`, `columns`, `customColumns` — the whole app. |
+| `jirito-theme` | `"light" \| "dark"` | User's theme preference (mirrored to `data-theme` on `<html>`). |
+| `jirito-onboarding` | `"true"` | Set after the onboarding wizard is dismissed. |
+| `listview-sort` | column key (e.g. `"key"`) | List view sort column. |
+| `listview-dir` | `"asc" \| "desc"` | List view sort direction. |
+
+When the server is reachable, the same `AppState` shape round-trips through `/api/state` and is persisted in SQLite. The localStorage copy is a fast-rehydration cache and offline fallback — `src/storage.ts` keeps the two in sync.
+
+### Server (SQLite)
+
+`server/db/init.ts` creates the tables; `server/db/index.ts` wraps `sql.js`. Schema highlights:
+
+- `issues` — main table; `customColumnId` was added in a migration.
+- `comments` — keyed by issue id.
+- `projects`, `sprints`, `activity` — supplementary tables.
+- `webhook_outbox` — durable retry queue for the optional webhook bridge (see `server/webhooks.ts`).
+
+> ⚠️ **No runtime schema validation** at server boundaries yet — the TypeScript types are compile-time only. Adding `zod` (or similar) to the request handlers is a follow-up (see the Roadmap below).
 
 ## 🔒 Security Notes
 
-- **No authentication** — this is a personal, offline tool
-- **Plain-text localStorage** — do not store sensitive data
-- **Markdown rendering** — `javascript:` URLs are a potential XSS vector; consider sanitizing user input
-- **No Content Security Policy** — consider adding one for production use
+- **No authentication** — this is a personal/localhost tool. The server has no auth layer; do not expose it beyond `127.0.0.1` without adding one.
+- **Plain-text localStorage / SQLite** — do not store sensitive data. Both layers store the same `AppState` JSON; nothing is encrypted at rest.
+- **Markdown XSS — mitigated.** `isSafeUrl()` in `src/utils.ts` allowlists URL schemes (`http:`, `https:`, `mailto:`, `tel:`); `javascript:`, `data:`, `vbscript:` and unknown schemes are dropped. The `tests/unit/security.test.js` suite (18 cases) locks this in.
+- **Content Security Policy — present.** `index.html` ships a strict CSP: `default-src 'self'`; `script-src 'self'`; `style-src 'self' 'unsafe-inline' https://unpkg.com`; `img-src 'self' data: blob:`; `font-src https://unpkg.com`; `connect-src 'self'`. The `unsafe-inline` on styles is required by Phosphor's font-based icon CSS.
+- **No runtime schema validation** — request payloads are trusted to match the `AppState` TypeScript shape. Adding `zod` to `server/routes/*.ts` is a follow-up.
 
 ## 📊 Stats
 
 | Metric | Value |
 |--------|-------|
-| Total Lines | ~9,000 (TypeScript + Playwright specs) |
-| Source Files | 36 TypeScript modules + 1 HTML + 1 CSS |
-| E2E Tests | ~236 |
-| Unit Tests | 66 (Vitest, `tests/unit/`) |
-| Browser Runtime Deps | 0 (the client has no imports from `node_modules`) |
+| TypeScript modules | 30 in `src/` (29 source + `global.d.ts`) + 17 in `server/` = **47 total** |
+| Hand-written source lines | ~9,100 client + ~5,500 test specs = **~14,500** (excludes generated `.js` and `.js.map` artifacts) |
+| E2E Tests | **236** (Playwright, `tests/*.spec.mjs`) |
+| Unit Tests | **66** (Vitest, `tests/unit/*.test.ts`) |
+| Browser Runtime Deps | **0** (the client has no imports from `node_modules`; all assets are served from `index.html` / `styles.css` / `src/*.js`) |
+| Build artifacts | `src/*.js` and `dist/server/**` are emitted by `tsc -b` and committed |
 
 ## 🧭 Roadmap
 
-### High Priority
-- [x] Add ESLint + Prettier (lock in formatting) ✅
-- [x] Add lock file (`package-lock.json`) ✅
-- [x] Fix markdown XSS (block `javascript:` URLs) ✅
-- [x] Add `saveState()` debouncing for bulk operations ✅
+### ✅ Done
+- [x] ESLint + Prettier configuration (lock in formatting)
+- [x] `package-lock.json` committed (reproducible installs)
+- [x] Markdown XSS mitigation (URL scheme allowlist in `isSafeUrl`)
+- [x] `saveState()` debouncing + `saveStateImmediate()` for bulk operations
+- [x] GitHub Actions CI (`typecheck` + Playwright)
+- [x] TypeScript migration — all 47 client + server modules are `.ts`; emitted `.js` artifacts committed; strict mode on. Landed across PRs #17, #18, #19.
+- [x] `attach()` indirection removed — the `src/_attach.ts` shim that bridged ES-module exports to classic-script `window` callers is gone (PR #19).
+- [x] Content Security Policy in `index.html`
 
-### Medium Priority
-- [x] TypeScript migration (type safety + build pipeline) ✅
-- [ ] Replace `LJ` global with proper state management
-- [ ] Add virtual scrolling for 100+ issues
-- [x] Add GitHub Actions CI for test automation ✅
+### 🔜 Next (Tier 1 + 2)
 
-### Low Priority
-- [ ] Extract duplicated `renderDashboard` code
-- [ ] Add Web Vitals monitoring
-- [ ] Implement optional PIN/password lock
+- [ ] **Deduplicate the static server** — `playwright/playwright-global-setup.mjs` and `server/static.ts` both serve the same files; the Playwright harness should hit port 3001 like everything else.
+- [ ] **Replace the `LJ` global with a typed store** — the migration left the `LJ` namespace in place as legacy state; a singleton class with `getState()` / `setState(patch)` / `subscribe(listener)` is the next refactor. See `docs/code-review.md` for the full motivation.
+- [ ] **Add runtime schema validation at server boundaries** (`zod` or `valibot`) — the TypeScript types are compile-time only; runtime guards would catch malformed input.
+- [ ] **Wire ESLint into CI** — config exists in `.eslintrc.json`; no `lint` script and no CI step runs it.
+- [ ] **Add virtual scrolling** for boards / lists with 100+ issues.
+
+### 🌱 Stretch (Tier 3)
+
+- [ ] **Convert Playwright specs to TypeScript** (~10 `.spec.mjs` files, ~5,400 LOC).
+- [ ] **Bundle the client for production** — current emit is per-module (28 separate HTTP requests on first load). A `tsc + esbuild --bundle` step would give a single hashed file.
+- [ ] **JSDoc → TSDoc sweep** for the legacy comments.
+- [ ] **Extract duplicated `renderDashboard` code** (code review C3).
+- [ ] **Add Web Vitals monitoring.**
+- [ ] **Implement optional PIN/password lock.**
 
 ## 🤝 Contributing
 

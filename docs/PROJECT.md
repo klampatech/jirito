@@ -10,7 +10,7 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 |--------|--------|
 | Type | TypeScript SPA (strict, ES2022) with optional Express-style Node server |
 | Modules | 36 `.ts` files in `src/` + 15 in `server/`; emitted `.js` and `dist/server/**` are committed and run unchanged |
-| State | `LJ` namespace (legacy) + localStorage sync; per-file ES-module exports (the `attach()` indirection was removed in PR #19; cleanup of the `LJ` namespace itself is a follow-up) |
+| State | `LJ` namespace (legacy) + localStorage sync; per-file ES-module exports (the `attach()` indirection was removed and merged in **PR #19, 2026-06-15**; cleanup of the `LJ` namespace itself is a follow-up) |
 | Icons | Lucide (CDN) |
 | Rendering | DOM manipulation (no framework) |
 
@@ -42,7 +42,7 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 ### Code Quality
 - ~9,000 lines across the TypeScript source set (client + server) plus the Playwright spec set
 - Strict TypeScript across the entire codebase; canonical types in `src/types.ts`
-- `LJ` global still present (legacy, preserved during migration); the `attach()` shim that bridged it to ES modules was removed in PR #19; the `LJ` namespace itself is a follow-up tracked in `docs/code-review.md`
+- `LJ` global still present (legacy, preserved during migration); the `attach()` shim that bridged it to ES modules was removed in **PR #19, merged 2026-06-15**; the `LJ` namespace itself is a follow-up tracked in `docs/code-review.md`
 - Magic numbers, duplicate `renderDashboard` functions, and most other concerns from the original review remain
 
 ### User Experience
@@ -70,7 +70,7 @@ A **fully client-side Kanban board** ("Jirito") with localStorage persistence, b
 
 **Medium Priority:**
 5. ~~Consider TypeScript migration for type safety~~ — **done** (see `.plan/plan-003-typescript-migration.md`)
-6. Replace `LJ` global with proper state management — partial progress (migration complete; the `attach()` shim that bridged classic-script callers to the new module graph was removed in PR #19; the `LJ` namespace itself is a follow-up tracked in `docs/code-review.md`)
+6. Replace `LJ` global with proper state management — partial progress (TS migration complete across PRs #17, #18, #19; the `attach()` shim that bridged classic-script callers to the new module graph was removed and merged in **PR #19, 2026-06-15**; the `LJ` namespace itself is a follow-up tracked in `docs/code-review.md`)
 7. Add virtual scrolling for 100+ issues
 8. ~~Add GitHub Actions CI for test automation~~ — **done** (`.github/workflows/test.yml` runs `typecheck` + Playwright)
 

@@ -52,5 +52,5 @@
 | H4 | ❌ | Add `aria-label` to issue checkboxes | 1 hour |
 | H5 | ❌ | Add mobile viewport functional tests | 2–3 days |
 | H6 | ❌ | Add stress tests | 100+ issues |
-| H7 | ❌ | Consider TypeScript migration | Ongoing |
+| H7 | ✅ | Consider TypeScript migration | **Done** — full JS → TS migration landed across PRs #17, #18, #19 (see `.plan/plan-003-typescript-migration.md`). All 36 client modules + 15 server modules are `.ts`; committed `.js` artifacts are emitted by `tsc -b`. |
 | H8 | ❌ | Add JSDoc to public API functions | 2–3 days |
