@@ -19,11 +19,20 @@ export async function getAll(
 ): Promise<void> {
   try {
     const projectId = url.searchParams.get("projectId");
+    const search = url.searchParams.get("search");
     let sql = "SELECT * FROM issues";
     const params: unknown[] = [];
+    const conditions: string[] = [];
     if (projectId) {
-      sql += " WHERE projectId = ?";
+      conditions.push("projectId = ?");
       params.push(projectId);
+    }
+    if (search) {
+      conditions.push("LOWER(title) LIKE LOWER(?)");
+      params.push(`%${search}%`);
+    }
+    if (conditions.length > 0) {
+      sql += " WHERE " + conditions.join(" AND ");
     }
     sql += " ORDER BY createdAt DESC";
     const issues = queryAll(sql, params).map(coerceNumericId);
