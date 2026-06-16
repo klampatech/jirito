@@ -870,10 +870,16 @@ export function renderActivity() {
         const item = document.createElement("div");
         item.className = "activity-item";
         const ago = timeAgo(a.time);
-        // Skip emoji/non-Phosphor icon names to avoid console warnings
-        const iconHtml = /^[a-z0-9-]+$/.test(a.icon)
-            ? lucideIcon(a.icon, { class: "icon-sm" })
-            : "";
+        // Skip emoji/non-Phosphor icon names to avoid console warnings.
+        // Also guard against null/undefined (legacy activity entries from
+        // before the icon field was always set can still be in storage
+        // — the regex alone doesn't catch them because `String(null)`
+        // and `String(undefined)` are "null"/"undefined", which match
+        // the kebab-case pattern but then crash lucideIcon on `.replace`).
+        const iconName = (typeof a.icon === "string" && /^[a-z0-9-]+$/.test(a.icon))
+            ? a.icon
+            : null;
+        const iconHtml = iconName ? lucideIcon(iconName, { class: "icon-sm" }) : "";
         item.innerHTML = `
       <span class="activity-icon">${iconHtml}</span>
       <span class="activity-text">${a.text}</span>

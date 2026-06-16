@@ -162,14 +162,26 @@ export async function loadState() {
     }
     // Load persisted data from storage layer (localStorage or server)
     const data = await storage.getStorageData();
+    // Only seed sampleIssues on a *genuine* first run — offline mode with no
+    // localStorage cache. The previous "if empty → samples" fallback re-seeded
+    // the hardcoded 101-106 on every page load when the server was empty,
+    // silently clobbering a user's "I deleted everything" intent. In server
+    // mode the server is the source of truth, even when empty.
+    const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
     if (data && data.issues && data.issues.length > 0) {
         _issues = data.issues.map((i) => ({ ...i, desc: i.desc || i.description || "" }));
         _issueCounter = Math.max(..._issues.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
+        console.log("[loadState] Loaded", _issues.length, "issues from storage, first dueDate:", _issues[0]?.dueDate);
     }
-    else {
+    else if (isFirstRun) {
         _issues = [...sampleIssues];
         _issueCounter = 106;
-        console.log("[loadState] Using sample issues, first dueDate:", _issues[0]?.dueDate);
+        console.log("[loadState] First run, seeding sample issues");
+    }
+    else {
+        _issues = [];
+        _issueCounter = Math.max(ISSUE_COUNTER_START, _issueCounter ?? 0);
+        console.log("[loadState] Empty state, no issues to load");
     }
     // Restore projects (storage layer uses object-per-key format)
     if (data && data.projects) {
@@ -343,9 +355,7 @@ function saveSprints() {
         issueCounter: _issueCounter,
         trash: _trash.map((t) => ({ issues: t.issues || [], date: t.date })),
         sprints: _sprints,
-        // Server only stores the custom subset. The defaults are hardcoded
-        // in getDefaultColumns() and rebuilt client-side on load.
-        columns: getCustomColumns(),
+        columns: getEffectiveColumns(),
         customColumns: getCustomColumns(),
     };
     storage.saveStorageData(data).catch((err) => {
