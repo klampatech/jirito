@@ -104,6 +104,45 @@ Per `mem/infra/squad-cli-mode-tmux.md`:
 - **tmux send-keys gotcha** (carried over from before): Ctrl+C twice kills a squad session. Use the tmux-paste-buffer pattern (`tmux load-buffer` + `tmux paste-buffer` + `tmux send-keys Enter`) for manual wake injection if you ever need to bypass the queue again.
 - **908 commits behind** warning on the squad CLIs (probably related to the 0.16.0 hermes update from June 5). Out of scope for this fix; worth scheduling a squad restart on a fresh hermes version.
 
+## Phase 10 follow-up: upstream jirito bug (2026-06-16)
+
+After this E2E, Kyle tried to use the UI as a human — created ticket #101 via the "Add Issue" form, assigned to elmo, expected a wake. **Nothing happened.**
+
+### Root cause
+
+The UI's primary create path is **not** `POST /api/issues` (which calls `emitEvent`). It's `saveStateImmediate()` → `PUT /api/state` → server's `setState` handler in `routes/state.ts`, which does a bulk `DELETE FROM issues` + `INSERT INTO issues` for each issue. **`setState` did not call `emitEvent` at all.** So every UI form submission was silent.
+
+Two other non-emitting INSERT paths also got patched for defense-in-depth:
+- `routes/trash.ts` — `restore` re-inserts a trashed issue, no emit
+- `routes/import-export.ts` — `importData` bulk-inserts, no emit
+
+### Fix (commit `5753454`)
+
+`state.ts setState` now:
+1. Captures existing issues BEFORE the DELETE (for diff)
+2. After the INSERT loop + `saveDb`, emits:
+   - `ticket.created` for issues in the new state but not the old
+   - `ticket.updated` for issues in both with meaningful field changes (title, status, priority, assignee, etc. — not `updatedAt` or `rank`)
+   - `ticket.deleted` for issues in the old but not the new
+
+The diff approach avoids the N-events-per-sync spam that a naive per-insert emit would produce. A 1-ticket move fires exactly 1 event, not 100.
+
+`trash.ts` restores emit `ticket.created` with `restoredFromTrash: true` + `restoredAt` metadata. `import-export.ts` emits per imported issue with `fromImport: true`.
+
+### Verification (state-sync path, the actual UI path)
+
+| Op | Outbox row | Event | Notes |
+|---|---|---|---|
+| Create id 998 via PUT /api/state | 46 | `ticket.created` | Initial create — the case that was broken |
+| Move 998 todo→in_progress | 47 | `ticket.updated` | Status move fires |
+| Reassign 998 elmo→bert | 48 | `ticket.updated` | Assignee change fires |
+| Delete 998 | 49 | `ticket.deleted` | Removal fires |
+| Replay lost #101 event manually | — | `queued_inbox_fallback` in wiretap | The original bug ticket, manually replayed |
+
+### What this means going forward
+
+Any UI form submission (create, edit, move, delete) now produces events that flow through the bridge → Redis → plugin. With the Phase 10 plugin v0.4.0 (in flight via Elmo), those events get routed to the right inbox (Evo or the assignee) automatically. The "I created a ticket in the UI and nothing happened" bug is structurally gone.
+
 ## What Kyle can do now
 
 1. **End this session and start a new one** to load the now-enabled plugin in the default profile CLI.
