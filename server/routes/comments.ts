@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { saveDb } from "../db/index.js";
 import { sendJson } from "./_shared.js";
 import { getDb } from "../db/index.js";
+import { emitEvent } from "../webhooks.js";
 
 export async function getAll(
   req: IncomingMessage,
@@ -69,13 +70,22 @@ export async function create(
       ]
     );
     await saveDb();
-    sendJson(res, 201, {
+
+    const comment = {
       id,
       issueId: input.issueId ?? "",
       content: input.content ?? "",
       author: input.author ?? "",
       createdAt: now,
       updatedAt: now,
+    };
+    sendJson(res, 201, comment);
+
+    void emitEvent("ticket.commented", {
+      issueId: input.issueId ?? "",
+      commentId: id,
+      author: input.author ?? "",
+      preview: ((input.content as string) ?? "").slice(0, 100),
     });
   } catch (error) {
     console.error("create comment error:", error);
