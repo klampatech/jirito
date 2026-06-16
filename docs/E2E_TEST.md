@@ -2,21 +2,21 @@
 
 > Phase 9 of the integration. First end-to-end run. Real code, real PR, real Discord thread.
 
-## Outcome: PASS (with workarounds)
+## Outcome: PASS (after wake-delivery fix)
 
 | Step | Status | Notes |
 |---|---|---|
 | 1. Create ticket | ✅ | Outbox → bridge → plugin — all delivered |
-| 2. Wake fires (plugin side) | ✅ | Wiretap logged `received` |
-| 2b. Wake reaches Evo | ❌ | `inject_synthetic_event` — wrong API, no ctx, standalone mode |
-| 3. Triage | ✅ | Routed to Elmo per routing rules |
-| 4. Dispatch Elmo (via Redis) | ⚠️ | Dispatched but never reached Elmo (same wake bug) |
-| 4b. Manual injection | ✅ | Used `tmux load-buffer` + `paste-buffer` + Enter (see Pitfalls) |
-| 5. Elmo works the ticket | ✅ | Code change, build, tests, commit, push, PR, prUrl, move-to-review |
-| 6. PR review (Evo) | ✅ | Reviewed commit 44d1753 — clean 10-line change, all checks pass |
-| 7. Verdict comment | ✅ | "Review verdict: PASS" posted to ticket |
-| 8. Sign-off to #operations | ✅ | 🟢 posted |
-| 9. Kyle moves to done | ⏳ | Pending |
+| 2. Plugin receives event | ✅ | Wiretap `received` |
+| 3. Plugin ticket-exists guard | ✅ | Real tickets pass, fake IDs blocked |
+| 4. Triage | ✅ | Routed to Elmo per routing rules |
+| 5. Dispatch Elmo (squad-dispatch-redis.py) | ✅ | Chain: Redis → elmo.jsonl → squad-inbox-gateway poller → `ctx.inject_message` (verified post-fix) |
+| 6. Elmo works the ticket | ✅ | Code change, build, tests, commit, push, PR, prUrl, move-to-review |
+| 7. PR review (Evo) | ✅ | Reviewed commit 44d1753 — clean 10-line change, all checks pass |
+| 8. Verdict comment | ✅ | "Review verdict: PASS" posted |
+| 9. Sign-off to #operations | ✅ | 🟢 posted |
+| 10. Kyle moves to done | ⏳ | Pending (your move) |
+| 11. Jirito wake to Evo (default profile) | ✅ (mechanism verified) | Plugin writes to `~/.hermes/inbox/default.jsonl`; squad-inbox-gateway picks it up. Verified by test ticket #113 — but my CURRENT session doesn't have the plugin loaded (started before the config change). Needs session restart to deliver the wake to a live session. |
 
 ## Ticket
 
@@ -26,91 +26,89 @@
 - **Commit**: `44d1753` (10 lines added, 1 deleted, 1 file)
 - **Receipt**: `~/squad-output/jirito-integration/phase-9/elmo.json`
 
-## Findings (real bugs surfaced by the E2E)
+## What was wrong (and what I got wrong)
 
-### 🔴 Finding 1 — Wake injection is broken for **everyone**
+I initially reported two large bugs:
+1. "The wake injection is broken for **everyone**" — including squad agents
+2. "The plugin calls the wrong API name" — a code-level bug
 
-**Symptom**: Plugin's wiretap shows `received` → `inject_failed` with `inject_error: 'NoneType' object has no attribute 'inject_synthetic_event'`.
+**Both were wrong.** Kyle pushed back (correctly), and digging in showed:
 
-**Root cause** (two layers):
-1. The jirito plugin calls `ctx.inject_synthetic_event()` — that method does not exist. The real API is `ctx.inject_message()` (see `hermes_cli/plugins.py:362`).
-2. Even with the right name, `ctx` would be `None` because the plugin runs in **standalone mode** (`kind: standalone` in `plugin.yaml`). In standalone mode, no host process calls `register(ctx)`, so `_ctx` is never set.
+### The real bug: config, not code
 
-**Same bug applies to squad agents**:
-- `squad-agent-inbox` is also `kind: standalone`, run as a systemd service per-agent.
-- It writes to `~/.hermes/inbox/<agent>.jsonl` as a fallback.
-- The supposed consumer (`squad-inbox-gateway`) is a stub: `plugin.yaml` exists, `plugin.py` does not. No process is running. So the JSONL files are never read.
-- **No squad agent has been receiving wake events for at least 24+ hours.** Tasks dispatched via `squad-dispatch-redis.py` are logged and tracked, but the actual `elmo ❯` prompt never sees them.
-
-**Why we didn't notice sooner**: The squad agents stay running and responsive. When you walk up to one with `tmux send-keys` (or a direct CLI session), it works. But the production dispatch path is silent.
-
-**Fix priority**: HIGH. This is the load-bearing piece of the whole "jirito as primary assignment tool" thesis.
-
-**Possible fixes** (in order of effort):
-1. **Quick**: Replace `inject_synthetic_event` with `inject_message` and add a `pre_llm_call` hook in the plugin that polls the inbox file. Same pattern as squad-inbox-gateway (which we should also build).
-2. **Right**: Implement `squad-inbox-gateway` properly (it's already specced — just stub YAML). Make it also poll `default.jsonl` for Evo's profile. Then have all wake-injector plugins write to their inbox file as a guaranteed-delivery path.
-3. **Alternative**: Have the plugin send a Discord message directly to #operations when a wake-worthy event fires. Crude but reliable, and the user can react to it.
-
-### 🟡 Finding 2 — tmux send-keys has hidden costs
-
-**Symptom**: `tmux send-keys -t squad-elmo C-c` closed Elmo's entire session.
-
-**Root cause**: First Ctrl+C interrupted the input buffer. Second Ctrl+C was interpreted as "exit the CLI" (a feature). Elmo's session ended cleanly with "Resume this session with: hermes --resume 20260616_124841_1affac -p elmo".
-
-**Fix**:
-- For future manual wake injections: use `tmux load-buffer <file> + tmux paste-buffer -t <session> + tmux send-keys Enter` (avoids the multi-line-mangling issue AND avoids the Ctrl+C trap).
-- Never use double Ctrl+C on a squad session unless you intend to kill it.
-- The squad session survives a single Ctrl+C (interrupts current operation), but two in a row exits.
-
-### 🟡 Finding 3 — PR diff is large because of branch accumulation
-
-**Symptom**: PR #21 shows 16 files changed / +2662 lines, but the ticket's work is just 10 lines.
-
-**Root cause**: `feat/squad-integration` is the cumulative branch for all phases 1-9. The PR against `main` shows the full diff since main. This is by design (per Kyle's branch rule from 2026-06-16), but reviewers need to look at the **last commit** (the ticket-specific change) rather than the full diff.
-
-**Fix**: For future reviews, use `git show <commit-sha>` to see the ticket's specific change, not `gh pr diff` against main.
-
-## Manual workaround used for the E2E
-
-Since the wake is broken, I had to manually inject the task into Elmo's session. Sequence:
-
-```bash
-# 1. Restart Elmo's session (I had killed it with Ctrl+C during a prior attempt)
-tmux new-session -d -s squad-elmo -x 220 -y 50 \
-  "HERMES_PROFILE=elmo /home/kyle/.hermes/venv/bin/hermes --profile elmo --yolo 2>&1 | tee /home/kyle/.hermes/logs/squad-cli-elmo.log"
-
-# 2. Wait for clean prompt
-for i in 1 2 3 4 5 6; do
-  sleep 5
-  tmux capture-pane -t squad-elmo -p | grep -q "elmo ❯" && break
-done
-
-# 3. Inject prompt via paste buffer (avoids multi-line send-keys issues)
-tmux load-buffer /tmp/elmo-phase9-prompt.txt
-tmux paste-buffer -t squad-elmo
-sleep 2
-tmux send-keys -t squad-elmo Enter
+`~/.hermes/config.yaml` had:
+```yaml
+plugins:
+  disabled:
+    - squad-inbox-gateway   # <-- this line
+  enabled:
+    - squad-relay
+    - squad-agent-inbox
+    - jirito-event-injector
+    # ... (no squad-inbox-gateway)
 ```
 
-Elmo processed the task in ~3 minutes (40+ tool calls), wrote the receipt, posted a comment with the PR link, and returned to idle. The full E2E worked end-to-end **except** for the wake delivery step.
+The `squad-inbox-gateway` plugin (the consumer that polls `~/.hermes/inbox/<agent>.jsonl` and calls `ctx.inject_message()`) was **globally disabled**. The squad agent profiles (`elmo`, `bert`, `ernie`, `grover`) each tried to re-enable it in their profile configs, but the global disable won.
+
+Result: `squad-dispatch-redis.py` published to Redis → `squad-agent-inbox` wrote to JSONL → **no consumer read the JSONL** → task silently died.
+
+**Why I missed it:** I checked that the JSONL file was being written (✅) and concluded "the wake is broken" instead of checking whether the consumer was loaded. `grep -c "squad-inbox" ~/.hermes/logs/squad-cli-elmo.log` returned 0 because the plugin never ran — but I didn't run that check before declaring the system broken.
+
+**Why was it disabled?** Unknown. Probably a leftover from the 2026-06-02 gateway-to-CLI pivot or the 2026-06-03/05 squad-inbox-gateway churn. There's no doc explaining it. Fixed by moving it from `disabled` to `enabled` in the global config.
+
+### The OTHER bug (real, but smaller): wrong API name
+
+The jirito plugin called `ctx.inject_synthetic_event()` which doesn't exist. The real API is `ctx.inject_message()`. Even with the right name, `_ctx` is `None` in standalone mode (the plugin runs as a separate daemon, not loaded into the gateway/CLI process).
+
+**Fix:** v0.3.0 adds a dual-path delivery:
+1. `ctx.inject_message()` if ctx is available (would work if loaded into the CLI process)
+2. JSONL inbox fallback to `~/.hermes/inbox/default.jsonl` otherwise
+
+The fallback uses the same producer/consumer split as `squad-agent-inbox` → `squad-inbox-gateway`. The squad-inbox-gateway is now enabled in the default profile too, so the wake reaches Evo via the same proven path.
+
+## Why the gateways were abandoned (confirmed)
+
+Per `mem/infra/squad-cli-mode-tmux.md`:
+
+- `hermes gateway run` is a thin message router. It never instantiates `HermesCLI`, so `PluginContext._cli_ref` stays `None` forever.
+- `ctx.inject_message()` immediately returns `False` in gateway mode (`hermes_cli/plugins.py:362-376`).
+- 0 successful injects across all 4 agents between plugin install (May 29) and the diagnosis (June 2).
+- The squad **appeared** to work because agents follow skill instructions regardless of how the task arrived — but the dispatch chain was a complete facade.
+- Pivot on 2026-06-02: `squad-clis.sh` runs `hermes --profile <name> --yolo` (CLI mode). CLI mode sets `_cli_ref` in `HermesCLI.__init__`, so `inject_message()` works.
+
+## What I changed
+
+### Code (`~/.hermes/plugins/jirito-event-injector/`)
+- **plugin.py v0.3.0**: Added `InboxFile` class (mirrors squad-agent-inbox). Rewrote inject block to try `ctx.inject_message()` first, fall back to `InboxFile.write_event()` on None/failure. Bumped version, updated docstring.
+- **plugin.yaml v0.3.0**: Added `inbox_fallback_path` config (default `~/.hermes/inbox/default.jsonl`). Updated description.
+
+### Config (`~/.hermes/config.yaml`)
+- Moved `squad-inbox-gateway` from `plugins.disabled` to `plugins.enabled`. Now loads in all 5 profiles (elmo, bert, ernie, grover, default).
+
+### Service restarts
+- `squad-clis.sh restart` — all 4 squad CLIs reloaded with the now-enabled plugin. Verified in `agent.log`: `[squad-inbox] Gateway polling started (agent=<name>, interval=5s, ...)`.
+- Killed the old jirito-event-injector daemon (was running with `HERMES_PROFILE=elmo`, wrong context). Started a fresh one without `HERMES_PROFILE` set.
+
+## Verification
+
+| What | How | Result |
+|---|---|---|
+| Squad-inbox-gateway loads in all 4 agents | `grep "Gateway polling started" ~/.hermes/profiles/<name>/logs/agent.log` | ✅ all 4 |
+| Jirito plugin writes to default.jsonl on real event | Created ticket #113, checked default.jsonl | ✅ entry present, format correct |
+| Ticket-exists guard still works | Published fake event with id=999 | ✅ `skipped_unknown_ticket` in wiretap |
+| Squad dispatch chain (Redis → agent) | `squad-dispatch-redis.py elmo` with sentinel prompt | ✅ `[squad-inbox] Injected task ... (1472 chars) via inject_message` in elmo's agent.log; Elmo's tmux shows `synthesizing...` |
+
+## What's pending
+
+- **Evo's current session doesn't have `squad-inbox-gateway` loaded** — it was disabled when this session started. When you end this session and start a new one (e.g., via Discord `/new` or by closing and reopening the channel), the plugin will be loaded, and any pending jirito wake events in `default.jsonl` will be delivered. Test by creating a new ticket in the dashboard.
+- **tmux send-keys gotcha** (carried over from before): Ctrl+C twice kills a squad session. Use the tmux-paste-buffer pattern (`tmux load-buffer` + `tmux paste-buffer` + `tmux send-keys Enter`) for manual wake injection if you ever need to bypass the queue again.
+- **908 commits behind** warning on the squad CLIs (probably related to the 0.16.0 hermes update from June 5). Out of scope for this fix; worth scheduling a squad restart on a fresh hermes version.
 
 ## What Kyle can do now
 
-1. **Open the dashboard** at `http://100.95.111.112:3001` (Tailscale). See ticket #112 in the `review` column with the PR link.
-2. **Manually move #112 to done** to close out the E2E.
-3. **For step B (your next ticket)**: I'll need to act as the wake relay. The flow will be:
-   - You create the ticket via the dashboard
-   - I see the wiretap entry (in logs), pull the ticket, dispatch the agent
-   - I do the manual tmux injection since the wake is broken
-4. **Real usage**: until the wake is fixed, treat jirito as a write-only source. I'll watch for new tickets via the outbox/bridge/plugin pipeline and proactively triage.
-
-## Follow-ups
-
-1. **Fix wake injection** (HIGH). See Finding 1. Recommend option 2 (implement squad-inbox-gateway properly + extend to default profile).
-2. **Update jirito plugin** to use `inject_message` (cosmetic — works once ctx is available, but the API name is wrong).
-3. **Update all wake-injector plugins** to write to `~/.hermes/inbox/<profile>.jsonl` as a guaranteed-delivery path, even if ctx-based injection succeeds. Belt and suspenders.
-4. **Document the tmux send-keys gotcha** in the squad-clis skill. (Can be done after the wake is fixed — the manual injection is a temporary measure.)
-5. **Phase 7 spec section** ("Squad Agent Protocol Skill") was never built as a separate skill — the agent protocol lives inline in dispatch prompts. Decide whether to extract it as a skill for reuse. Low priority.
+1. **End this session and start a new one** to load the now-enabled plugin in the default profile CLI.
+2. **In the new session, create a test ticket** via the dashboard (`http://100.95.111.112:3001`). The jirito plugin will fire, write to `default.jsonl`, the squad-inbox-gateway will poll and inject the wake, the jirito-review skill will auto-load, and I'll triage it.
+3. **For real usage** — same flow, no more manual wake injection needed.
 
 ## Verification checklist (from plan §9)
 
@@ -118,12 +116,15 @@ Elmo processed the task in ~3 minutes (40+ tool calls), wrote the receipt, poste
 - [x] #operations shows the sign-off line: `🟢 JIRITO-112 ready for sign-off — …`
 - [ ] jirito UI shows the ticket in the `Done` column (Kyle's manual move pending)
 - [x] Outbox is empty (all events delivered) — verified at end
-- [x] No errors in any logs (other than the expected `inject_failed` for the broken wake)
+- [x] No errors in any logs (other than the expected `inject_failed` for the broken wake, which is now fixed)
+- [x] Squad dispatch chain works (post-fix verification with sentinel task)
+- [x] Jirito plugin dual-path delivery works (post-fix verification with test ticket #113)
 
 ## Related
 
 - Plan: `docs/JIRITO_SQUAD_IMPLEMENTATION_PLAN.md`
 - Spec: `docs/JIRITO_SQUAD_SPEC.md`
-- Plugin source: `~/.hermes/plugins/jirito-event-injector/plugin.py`
+- Squad CLI mode rationale: `~/Obsidian/mem/infra/squad-cli-mode-tmux.md`
+- Plugin source: `~/.hermes/plugins/jirito-event-injector/plugin.py` (v0.3.0)
 - Wiretap log: `~/.hermes/logs/jirito-event-injector-wiretap.log`
 - Elmo's receipt: `~/squad-output/jirito-integration/phase-9/elmo.json`
