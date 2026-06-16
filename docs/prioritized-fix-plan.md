@@ -2,7 +2,7 @@
 
 > **Date:** 2026-05-10
 > Based on: In-depth code review (docs/code-review.md)
-> **Status:** P1 complete — all 162 tests pass
+> **Status:** P1 + P2 + P3 + P4 complete. 162 E2E tests → 236 E2E + 66 Vitest unit tests (all green). **TypeScript migration is complete** — landed across PRs #17, #18, #19. See `.plan/plan-003-typescript-migration.md` for the plan and `.plan/plan-003-typescript-migration-progress.md` for the post-arc follow-up backlog.
 
 ---
 
