@@ -165,7 +165,6 @@ export async function loadState() {
     if (data && data.issues && data.issues.length > 0) {
         _issues = data.issues.map((i) => ({ ...i, desc: i.desc || i.description || "" }));
         _issueCounter = Math.max(..._issues.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
-        console.log("[loadState] Loaded", _issues.length, "issues from storage, first dueDate:", _issues[0]?.dueDate);
     }
     else {
         _issues = [...sampleIssues];
@@ -344,7 +343,9 @@ function saveSprints() {
         issueCounter: _issueCounter,
         trash: _trash.map((t) => ({ issues: t.issues || [], date: t.date })),
         sprints: _sprints,
-        columns: getEffectiveColumns(),
+        // Server only stores the custom subset. The defaults are hardcoded
+        // in getDefaultColumns() and rebuilt client-side on load.
+        columns: getCustomColumns(),
         customColumns: getCustomColumns(),
     };
     storage.saveStorageData(data).catch((err) => {
@@ -520,39 +521,42 @@ export function getDefaultColumns() {
     ];
 }
 export function getEffectiveColumns() {
-    const custom = getCustomColumns();
-    if (custom && custom.length > 0) {
-        return [...custom].sort((a, b) => a.order - b.order);
-    }
-    return getDefaultColumns();
+    // Defaults come first (fixed workflow), then any custom columns in
+    // their saved/insertion order. Customs are rendered after the defaults
+    // without a sort — the `order` field on customs is only used by the
+    // mutators below, not for display.
+    return [...getDefaultColumns(), ...getCustomColumns()];
 }
+// All column mutators operate on the *custom* subset only. The defaults
+// (To Do / In Progress / In Review / Done) are a fixed workflow and must
+// never be written to the custom list — doing so would demote a default
+// into a "custom" and corrupt the round-trip on next save.
 export function addCustomColumn(name, color) {
-    const columns = getEffectiveColumns();
+    const customs = getCustomColumns();
     const id = "col-" + Date.now();
-    columns.push({ id, name, color: color || "#9E9E9E", status: null, order: columns.length });
-    setCustomColumns(columns);
+    customs.push({ id, name, color: color || "#9E9E9E", status: null, order: customs.length });
+    setCustomColumns(customs);
     return id;
 }
 export function removeCustomColumn(id) {
-    const columns = getEffectiveColumns();
-    const filtered = columns.filter((c) => c.id !== id);
-    setCustomColumns(filtered);
+    const customs = getCustomColumns();
+    setCustomColumns(customs.filter((c) => c.id !== id));
 }
 export function updateCustomColumn(id, updates) {
-    const columns = getEffectiveColumns();
-    const col = columns.find((c) => c.id === id);
+    const customs = getCustomColumns();
+    const col = customs.find((c) => c.id === id);
     if (col) {
         Object.assign(col, updates);
-        setCustomColumns(columns);
+        setCustomColumns(customs);
     }
 }
 export function reorderColumns(orderMap) {
-    const columns = getEffectiveColumns();
-    columns.forEach((c) => {
+    const customs = getCustomColumns();
+    customs.forEach((c) => {
         if (orderMap[c.id] !== undefined)
             c.order = orderMap[c.id];
     });
-    setCustomColumns(columns);
+    setCustomColumns(customs);
 }
 // ===== Data Initialization (Task 2.2: Consolidated migration logic) =====
 export function initializeData() {

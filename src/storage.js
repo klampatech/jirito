@@ -132,7 +132,6 @@ function _apiRequest(endpoint, options = {}) {
 }
 async function _loadFromServer() {
     const data = (await _apiRequest("/state", { method: "GET" }));
-    console.log("[storage] _loadFromServer received issues:", JSON.stringify((data.issues || []).map((i) => ({ id: i.id, dueDate: i.dueDate }))));
     // Map trash from server format to frontend format. The server stores
     // each row as a `data` JSON blob; the client expands `data.issues` to
     // a top-level `issues` field for the trash UI.

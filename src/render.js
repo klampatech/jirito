@@ -16,7 +16,7 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { typeIcons } from "./state.js";
-import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
+import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
 import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
@@ -341,10 +341,15 @@ export function renderColumnConfig() {
     const container = document.getElementById("column-config-list");
     if (!container)
         return;
-    const columns = getEffectiveColumns();
+    // The config UI manages customs only. Defaults (To Do / In Progress /
+    // In Review / Done) are a fixed workflow and don't appear here — they
+    // render on the board but can't be renamed, recolored, deleted, or
+    // reordered. This avoids the silent no-op that would happen if a user
+    // tried to edit a default's color via updateCustomColumn (which now
+    // operates on the custom subset only).
+    const columns = getCustomColumns();
     container.innerHTML = columns
         .map((col) => {
-        const isDefault = getDefaultColumns().some((d) => d.id === col.id);
         const statusOptions = ["todo", "inprogress", "review", "done"]
             .map((s) => {
             const labels = {
@@ -364,7 +369,7 @@ export function renderColumnConfig() {
         <option value="">(custom)</option>
         ${statusOptions}
       </select>
-      ${isDefault ? "" : `<button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>`}
+      ${`<button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>`}
     </div>`;
     })
         .join("");
@@ -453,16 +458,25 @@ export function renderColumnConfig() {
             e.preventDefault();
             const targetId = item.dataset.colId;
             if (dragIdx && dragIdx !== targetId && targetId) {
-                const newCols = getEffectiveColumns().filter((c) => c.id !== dragIdx);
-                const draggedCol = columns.find((c) => c.id === dragIdx);
+                // Drag-drop only reorders custom columns. Defaults are a
+                // fixed workflow (To Do / In Progress / In Review / Done)
+                // and stay in their hardcoded positions. If either the
+                // dragged column or the target is a default, do nothing —
+                // dragging across the boundary would otherwise corrupt
+                // the custom list on save.
+                const customs = getCustomColumns();
+                const draggedCol = customs.find((c) => c.id === dragIdx);
                 if (!draggedCol)
                     return;
-                const targetIdx = newCols.findIndex((c) => c.id === targetId);
-                newCols.splice(targetIdx, 0, draggedCol);
-                newCols.forEach((c, i) => {
+                const newCustoms = customs.filter((c) => c.id !== dragIdx);
+                const targetIdx = newCustoms.findIndex((c) => c.id === targetId);
+                if (targetIdx === -1)
+                    return;
+                newCustoms.splice(targetIdx, 0, draggedCol);
+                newCustoms.forEach((c, i) => {
                     c.order = i;
                 });
-                setCustomColumns(newCols);
+                setCustomColumns(newCustoms);
                 renderColumnConfig();
                 renderBoard();
             }
