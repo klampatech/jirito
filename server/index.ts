@@ -316,8 +316,10 @@ async function start(): Promise<void> {
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
 
-    server.listen(PORT, "127.0.0.1", () => {
-      console.log(`Jirito server running at http://localhost:${PORT}`);
+    const HOST = process.env.SERVER_HOST || "127.0.0.1";
+    server.listen(PORT, HOST, () => {
+      console.log(`Jirito server running at http://${HOST === "0.0.0.0" ? `localhost` : HOST}:${PORT}`);
+      console.log(`(bound to ${HOST}; set SERVER_HOST=0.0.0.0 to expose on all interfaces, e.g. for Tailscale access)`);
       console.log(`Database: ${process.env.JIRITO_DB_PATH || "./jirito.db"}`);
     });
   } catch (error) {
