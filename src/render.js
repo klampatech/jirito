@@ -872,8 +872,12 @@ export function renderActivity() {
         const item = document.createElement("div");
         item.className = "activity-item";
         const ago = timeAgo(a.time);
-        // Skip emoji/non-Phosphor icon names to avoid console warnings
-        const iconHtml = /^[a-z0-9-]+$/.test(a.icon)
+        // Guard against nullish icon (legacy activity entries have
+        // icon: null / text: null). `String(null) === "null"` matches
+        // the regex below, which would then call lucideIcon("null", ...)
+        // and crash on .replace(). The typeof gate is the only reliable
+        // way to reject nullish values — see jirito-review §7.3.
+        const iconHtml = typeof a.icon === "string" && /^[a-z0-9-]+$/.test(a.icon)
             ? lucideIcon(a.icon, { class: "icon-sm" })
             : "";
         item.innerHTML = `
