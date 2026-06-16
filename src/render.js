@@ -16,7 +16,7 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { typeIcons } from "./state.js";
-import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
+import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
 import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
@@ -369,7 +369,7 @@ export function renderColumnConfig() {
         <option value="">(custom)</option>
         ${statusOptions}
       </select>
-      ${`<button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>`}
+      <button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>
     </div>`;
     })
         .join("");
@@ -457,29 +457,31 @@ export function renderColumnConfig() {
         item.addEventListener("drop", (e) => {
             e.preventDefault();
             const targetId = item.dataset.colId;
-            if (dragIdx && dragIdx !== targetId && targetId) {
-                // Drag-drop only reorders custom columns. Defaults are a
-                // fixed workflow (To Do / In Progress / In Review / Done)
-                // and stay in their hardcoded positions. If either the
-                // dragged column or the target is a default, do nothing —
-                // dragging across the boundary would otherwise corrupt
-                // the custom list on save.
-                const customs = getCustomColumns();
-                const draggedCol = customs.find((c) => c.id === dragIdx);
-                if (!draggedCol)
-                    return;
-                const newCustoms = customs.filter((c) => c.id !== dragIdx);
-                const targetIdx = newCustoms.findIndex((c) => c.id === targetId);
-                if (targetIdx === -1)
-                    return;
-                newCustoms.splice(targetIdx, 0, draggedCol);
-                newCustoms.forEach((c, i) => {
-                    c.order = i;
-                });
-                setCustomColumns(newCustoms);
-                renderColumnConfig();
-                renderBoard();
-            }
+            // Drag-drop only reorders custom columns. Defaults are a fixed
+            // workflow (To Do / In Progress / In Review / Done) and stay in
+            // their hardcoded positions. If either the dragged column or the
+            // target is a default, do nothing — dragging across the boundary
+            // would otherwise corrupt the custom list (defaults would get
+            // written into setCustomColumns on the next line).
+            if (!dragIdx || !targetId || dragIdx === targetId)
+                return;
+            const isDefault = (id) => getDefaultColumns().some((d) => d.id === id);
+            if (isDefault(dragIdx) || isDefault(targetId))
+                return;
+            const draggedCol = columns.find((c) => c.id === dragIdx);
+            if (!draggedCol)
+                return;
+            const newCols = getCustomColumns().filter((c) => c.id !== dragIdx);
+            const targetIdx = newCols.findIndex((c) => c.id === targetId);
+            if (targetIdx === -1)
+                return;
+            newCols.splice(targetIdx, 0, draggedCol);
+            newCols.forEach((c, i) => {
+                c.order = i;
+            });
+            setCustomColumns(newCols);
+            renderColumnConfig();
+            renderBoard();
         });
     });
 }
@@ -870,16 +872,10 @@ export function renderActivity() {
         const item = document.createElement("div");
         item.className = "activity-item";
         const ago = timeAgo(a.time);
-        // Skip emoji/non-Phosphor icon names to avoid console warnings.
-        // Also guard against null/undefined (legacy activity entries from
-        // before the icon field was always set can still be in storage
-        // — the regex alone doesn't catch them because `String(null)`
-        // and `String(undefined)` are "null"/"undefined", which match
-        // the kebab-case pattern but then crash lucideIcon on `.replace`).
-        const iconName = (typeof a.icon === "string" && /^[a-z0-9-]+$/.test(a.icon))
-            ? a.icon
-            : null;
-        const iconHtml = iconName ? lucideIcon(iconName, { class: "icon-sm" }) : "";
+        // Skip emoji/non-Phosphor icon names to avoid console warnings
+        const iconHtml = /^[a-z0-9-]+$/.test(a.icon)
+            ? lucideIcon(a.icon, { class: "icon-sm" })
+            : "";
         item.innerHTML = `
       <span class="activity-icon">${iconHtml}</span>
       <span class="activity-text">${a.text}</span>
