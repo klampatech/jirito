@@ -13,6 +13,7 @@ import { initTables, migrateTables } from "./db/init.js";
 // Routes
 import issuesRouter from "./routes/issues.js";
 import projectsRouter from "./routes/projects.js";
+import columnsRouter from "./routes/columns.js";
 import sprintsRouter from "./routes/sprints.js";
 import activityRouter from "./routes/activity.js";
 import filtersRouter from "./routes/filters.js";
@@ -109,6 +110,31 @@ async function dispatch(
   if (projectsId && method === "DELETE") {
     await projectsRouter.remove(req, res, projectsId);
     return true;
+  }
+
+  // Columns
+  if (pathname === "/api/columns" && method === "GET") {
+    await columnsRouter.getAll(req, res, url);
+    return true;
+  }
+  if (pathname === "/api/columns" && method === "POST") {
+    await columnsRouter.create(req, res, await parseBody(req));
+    return true;
+  }
+  const columnsId = matchId(pathname, /^\/api\/columns\/([^/]+)$/);
+  if (columnsId) {
+    if (method === "GET") {
+      await columnsRouter.getById(req, res, columnsId);
+      return true;
+    }
+    if (method === "PUT") {
+      await columnsRouter.update(req, res, columnsId, await parseBody(req));
+      return true;
+    }
+    if (method === "DELETE") {
+      await columnsRouter.remove(req, res, columnsId);
+      return true;
+    }
   }
 
   // Sprints

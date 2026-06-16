@@ -30,6 +30,7 @@ export function initTables(): void {
       storyPoints INTEGER DEFAULT 0,
       rank REAL DEFAULT 0,
       parentIssueId TEXT,
+      prUrl TEXT DEFAULT '',
       dueDate TEXT DEFAULT '',
       customColumnId TEXT DEFAULT NULL,
       createdAt TEXT DEFAULT (datetime('now')),
@@ -132,6 +133,27 @@ export function initTables(): void {
     )
   `);
 
+  // Webhook outbox — durable queue for webhook events (Phase 2 writes, Phase 4 drains)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS webhook_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id TEXT UNIQUE NOT NULL,
+      event_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      attempts INTEGER DEFAULT 0,
+      last_attempt_at TEXT,
+      delivered_at TEXT,
+      last_error TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_outbox_status_created
+      ON webhook_outbox(status, created_at)
+  `);
+
   // Custom columns table for Kanban boards
   db.run(`
     CREATE TABLE IF NOT EXISTS columns (
@@ -198,6 +220,10 @@ export function migrateTables(): void {
     if (!columns.includes("customColumnId")) {
       tryAddColumn(db, "issues", "customColumnId", "TEXT", "NULL");
       console.log("Added customColumnId column to issues table");
+    }
+    if (!columns.includes("prUrl")) {
+      tryAddColumn(db, "issues", "prUrl", "TEXT", "''");
+      console.log("Added prUrl column to issues table");
     }
   }
 
