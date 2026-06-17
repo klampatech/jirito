@@ -162,26 +162,20 @@ export async function loadState() {
     }
     // Load persisted data from storage layer (localStorage or server)
     const data = await storage.getStorageData();
-    // Only seed sampleIssues on a *genuine* first run — offline mode with no
-    // localStorage cache. The previous "if empty → samples" fallback re-seeded
-    // the hardcoded 101-106 on every page load when the server was empty,
-    // silently clobbering a user's "I deleted everything" intent. In server
-    // mode the server is the source of truth, even when empty.
-    const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
     if (data && data.issues && data.issues.length > 0) {
         _issues = data.issues.map((i) => ({ ...i, desc: i.desc || i.description || "" }));
         _issueCounter = Math.max(..._issues.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
         console.log("[loadState] Loaded", _issues.length, "issues from storage, first dueDate:", _issues[0]?.dueDate);
     }
-    else if (isFirstRun) {
-        _issues = [...sampleIssues];
-        _issueCounter = 106;
-        console.log("[loadState] First run, seeding sample issues");
-    }
     else {
+        // Empty board on first load. As of 2026-06-17, the hardcoded
+        // sample issues (formerly seeded via `sampleIssues` /
+        // `SAMPLE_FALLBACK_FLAG`) are gone. A new user lands on an
+        // empty board and creates their own tickets — same UX the
+        // Playwright `clearDb()` + `seedIssues()` helpers exercise.
         _issues = [];
-        _issueCounter = Math.max(ISSUE_COUNTER_START, _issueCounter ?? 0);
-        console.log("[loadState] Empty state, no issues to load");
+        _issueCounter = ISSUE_COUNTER_START;
+        console.log("[loadState] No data found, starting with empty board");
     }
     // Restore projects (storage layer uses object-per-key format)
     if (data && data.projects) {
@@ -194,7 +188,7 @@ export async function loadState() {
             name: "Project Alpha",
             icon: "📋",
             key: "PROJ",
-            issues: _issues.length > 0 ? _issues : [...sampleIssues],
+            issues: [..._issues],
         };
     }
     // Validate currentProject exists in projects before restoring
@@ -477,15 +471,6 @@ export function getDependents(issueId) {
         return i.dependencies.some((d) => String(d.targetId) === String(issueId));
     });
 }
-// ===== Sample Data =====
-const sampleIssues = [
-    { id: 101, title: "Design login page mockup", desc: "Create wireframes for the new login flow", type: "story", priority: "high", assignee: "Alice", status: "todo", dueDate: "2026-05-15", labels: ["design"], storyPoints: 5, rank: 0 },
-    { id: 102, title: "Fix auth token refresh bug", desc: "Tokens expire too early on mobile", type: "bug", priority: "high", assignee: "Bob", status: "inprogress", dueDate: "2026-05-01", labels: ["bug", "auth"], storyPoints: 3, rank: 1 },
-    { id: 103, title: "Set up CI/CD pipeline", desc: "GitHub Actions for staging and prod", type: "task", priority: "medium", assignee: "Charlie", status: "todo", dueDate: "2026-06-01", labels: ["devops"], storyPoints: 8, rank: 2 },
-    { id: 104, title: "Write API documentation", desc: "OpenAPI spec for all endpoints", type: "story", priority: "medium", assignee: "Alice", status: "review", dueDate: null, labels: ["docs"], storyPoints: 5, rank: 3 },
-    { id: 105, title: "Update dependencies", desc: "Bump all npm packages to latest", type: "task", priority: "low", assignee: "Bob", status: "done", dueDate: "2026-04-20", labels: [], storyPoints: 2, rank: 4 },
-    { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null, labels: ["feature"], storyPoints: 3, rank: 5 },
-];
 // Map issue type → phosphor icon name. Exported for use by render.ts
 // and events.ts (which render issue cards/lists). In classic-script
 // mode this const was implicitly global; in the new module world we
@@ -531,42 +516,39 @@ export function getDefaultColumns() {
     ];
 }
 export function getEffectiveColumns() {
-    // Defaults come first (fixed workflow), then any custom columns in
-    // their saved/insertion order. Customs are rendered after the defaults
-    // without a sort — the `order` field on customs is only used by the
-    // mutators below, not for display.
-    return [...getDefaultColumns(), ...getCustomColumns()];
+    const custom = getCustomColumns();
+    if (custom && custom.length > 0) {
+        return [...custom].sort((a, b) => a.order - b.order);
+    }
+    return getDefaultColumns();
 }
-// All column mutators operate on the *custom* subset only. The defaults
-// (To Do / In Progress / In Review / Done) are a fixed workflow and must
-// never be written to the custom list — doing so would demote a default
-// into a "custom" and corrupt the round-trip on next save.
 export function addCustomColumn(name, color) {
-    const customs = getCustomColumns();
+    const columns = getEffectiveColumns();
     const id = "col-" + Date.now();
-    customs.push({ id, name, color: color || "#9E9E9E", status: null, order: customs.length });
-    setCustomColumns(customs);
+    columns.push({ id, name, color: color || "#9E9E9E", status: null, order: columns.length });
+    setCustomColumns(columns);
     return id;
 }
 export function removeCustomColumn(id) {
-    const customs = getCustomColumns();
-    setCustomColumns(customs.filter((c) => c.id !== id));
+    const columns = getEffectiveColumns();
+    const filtered = columns.filter((c) => c.id !== id);
+    setCustomColumns(filtered);
 }
 export function updateCustomColumn(id, updates) {
-    const customs = getCustomColumns();
-    const col = customs.find((c) => c.id === id);
+    const columns = getEffectiveColumns();
+    const col = columns.find((c) => c.id === id);
     if (col) {
         Object.assign(col, updates);
-        setCustomColumns(customs);
+        setCustomColumns(columns);
     }
 }
 export function reorderColumns(orderMap) {
-    const customs = getCustomColumns();
-    customs.forEach((c) => {
+    const columns = getEffectiveColumns();
+    columns.forEach((c) => {
         if (orderMap[c.id] !== undefined)
             c.order = orderMap[c.id];
     });
-    setCustomColumns(customs);
+    setCustomColumns(columns);
 }
 // ===== Data Initialization (Task 2.2: Consolidated migration logic) =====
 export function initializeData() {
@@ -577,7 +559,7 @@ export function initializeData() {
             name: "Project Alpha",
             icon: "📋",
             key: "PROJ",
-            issues: _issues.length > 0 ? _issues : [...sampleIssues],
+            issues: [..._issues],
         };
     }
     // 2. Ensure currentProject is valid
