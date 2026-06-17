@@ -64,6 +64,29 @@ async function dispatch(
     return true;
   }
 
+  // Debug endpoint — capture boot errors from the browser
+  if (pathname === "/api/__dbg" && method === "POST") {
+    const log: any[] = (globalThis as any).__dbgLog || ((globalThis as any).__dbgLog = []);
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      try {
+        const entry = JSON.parse(body);
+        log.push({ ...entry, receivedAt: new Date().toISOString() });
+        console.log("[__dbg]", entry.label, entry.data ? JSON.stringify(entry.data).slice(0, 500) : "");
+      } catch (e) {}
+      sendJson(res, 200, { ok: true });
+    });
+    return true;
+  }
+
+  // Get accumulated debug log (for the assistant to read)
+  if (pathname === "/api/__dbg" && method === "GET") {
+    const log: any[] = (globalThis as any).__dbgLog || [];
+    sendJson(res, 200, { entries: log });
+    return true;
+  }
+
   // Issues
   if (pathname === "/api/issues" && method === "GET") {
     await issuesRouter.getAll(req, res, url);
