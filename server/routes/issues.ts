@@ -231,18 +231,35 @@ export async function update(
     const issue = mapRow("issues", result[0].columns, result[0].values[0]);
     sendJson(res, 200, coerceNumericId(issue));
 
-    // Emit ticket.moved
+    // Emit ticket.moved when status actually changes. B2 (2026-06-17)
+    // caught the missing-assignee bug: before this, the payload was just
+    // {id, from, to, actor} with no assignee field. The jirito-event-injector
+    // routes by assignee — when it's missing/empty, the routing falls back
+    // to default.jsonl (Evo's inbox) instead of the agent's, so the agent
+    // never gets a wake. This is the same root cause family as B1's
+    // silent-reassign bug: thin event payload = no agent routing.
+    //
+    // Fix: include the post-update full row (with assignee) in the payload,
+    // matching what we did for ticket.assigned in B1. Also, only fire when
+    // the status actually changed — an idempotent re-PUT with the same
+    // status should not produce a duplicate dispatch.
     const toStatus = input.status as string | undefined;
-    if (toStatus !== undefined) {
+    if (toStatus !== undefined && toStatus !== fromStatus) {
       void emitEvent("ticket.moved", {
-        id,
+        ...issue, // full post-update row: assignee, title, description, labels, etc.
+        id, // numeric id, kept explicit
         from: fromStatus,
         to: toStatus,
         actor: (input.assignee as string) || "system",
       });
       // Also emit ticket.review when moving to review
       if (toStatus === "review") {
-        void emitEvent("ticket.review", { id, from: fromStatus, to: toStatus });
+        void emitEvent("ticket.review", {
+          ...issue, // also enrich review with the full row for the same reason
+          id,
+          from: fromStatus,
+          to: toStatus,
+        });
       }
     }
 
