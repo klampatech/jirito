@@ -20,7 +20,7 @@ export function initTables(): void {
       title TEXT NOT NULL DEFAULT '',
       description TEXT DEFAULT '',
       type TEXT DEFAULT 'task',
-      status TEXT DEFAULT 'backlog',
+      status TEXT DEFAULT 'todo',
       priority TEXT DEFAULT 'medium',
       labels TEXT DEFAULT '[]',
       assignee TEXT DEFAULT '',

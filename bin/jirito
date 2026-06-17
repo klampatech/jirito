@@ -24,7 +24,7 @@ TIMEOUT = 5
 CONFIG_DIR = pathlib.Path(os.getenv("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "jirito"
 CACHE_BLOCKED = CONFIG_DIR / "blocked-column-id"
 CACHE_STATUS = CONFIG_DIR / "issue-status-cache.json"
-VALID_STATUSES = ("backlog", "todo", "in_progress", "review", "done", "trash")
+VALID_STATUSES = ("todo", "inprogress", "review", "done", "trash")
 VALID_AGENTS = ("elmo", "bert", "ernie", "grover")
 DB_PATH = pathlib.Path(os.getenv("JIRITO_DB_PATH", str(pathlib.Path(__file__).resolve().parent.parent / "jirito.db")))
 
@@ -35,9 +35,8 @@ _USE_COLOR = not _NO_COLOR and _IS_TTY
 
 _C = {
     "done":       "\033[32m",   # green
-    "in_progress":"\033[33m",   # yellow
+    "inprogress": "\033[33m",   # yellow
     "review":     "\033[34m",   # blue
-    "backlog":    "\033[90m",   # gray
     "todo":       "\033[90m",   # gray
     "reset":      "\033[0m",
 }
@@ -177,7 +176,7 @@ def cmd_move(args: argparse.Namespace) -> None:
     # Cache prior status before move (for unblock)
     cache = _load_status_cache()
     if str(args.id) not in cache:
-        cache[str(args.id)] = issue.get("status", "backlog")
+        cache[str(args.id)] = issue.get("status", "todo")
         _save_status_cache(cache)
 
     body: dict = {"status": status_val}
@@ -283,7 +282,7 @@ def cmd_block(args: argparse.Namespace) -> None:
     _, issue = _req("GET", f"/api/issues/{args.id}")
     cache = _load_status_cache()
     if str(args.id) not in cache:
-        cache[str(args.id)] = issue.get("status", "backlog")
+        cache[str(args.id)] = issue.get("status", "todo")
         _save_status_cache(cache)
 
     body: dict = {"customColumnId": col_id}

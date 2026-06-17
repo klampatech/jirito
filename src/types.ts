@@ -42,8 +42,8 @@ export interface Issue {
   description?: string;
   type: IssueType;
   priority: IssuePriority;
-  /** Server may store "backlog" in addition to the four canonical statuses. */
-  status: IssueStatus | string;
+  /** Server stores one of: "todo" | "inprogress" | "review" | "done" | "trash". */
+  status: IssueStatus | "trash" | string;
   assignee?: string;
   reporter?: string;
   projectId?: string;
@@ -136,7 +136,7 @@ export interface CustomColumn {
   id: string;
   name: string;
   color: string;
-  /** null = unassigned (e.g. backlog). */
+  /** null = unassigned (the column is not tied to a specific status). */
   status: string | null;
   order: number;
 }

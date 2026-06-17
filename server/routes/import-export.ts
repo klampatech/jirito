@@ -46,10 +46,9 @@ function validateImportPayload(body: unknown): string | null {
       return `Issue ${issue.id}: must have id, title, and status fields`;
     }
     const validStatuses = [
-      "backlog",
       "todo",
-      "in_progress",
-      "in_review",
+      "inprogress",
+      "review",
       "done",
     ];
     if (!validStatuses.includes(String(issue.status))) {
@@ -141,7 +140,7 @@ export async function importData(
           issueId,
           (issue.title as string) ?? "",
           (issue.description as string) ?? "",
-          (issue.status as string) ?? "backlog",
+          (issue.status as string) ?? "todo",
           (issue.priority as string) ?? "medium",
           labels,
           (issue.assignee as string) ?? "",
@@ -163,7 +162,7 @@ export async function importData(
         title: issue.title ?? "",
         description: issue.description ?? "",
         type: issue.type ?? "task",
-        status: issue.status ?? "backlog",
+        status: issue.status ?? "todo",
         priority: issue.priority ?? "medium",
         assignee: issue.assignee ?? "",
         reporter: issue.reporter ?? "",
