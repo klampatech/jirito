@@ -185,13 +185,22 @@ export async function update(
 
     const input = body as Record<string, unknown>;
 
-    // Check issue exists and capture 'from' status before update
-    const check = db.exec("SELECT id, status FROM issues WHERE id = ?", [String(id)]);
+    // Check issue exists and capture 'from' status + assignee before update.
+    // We need both because reassign should fire ticket.assigned even when status
+    // is unchanged (cross-agent handoff in the middle of work). Without this,
+    // PUT /api/issues/<id> with {"assignee": "bert"} on a ticket already
+    // assigned to elmo would silently update the DB row but emit no event —
+    // bert would never know. (B1 regression test, 2026-06-17.)
+    const check = db.exec(
+      "SELECT id, status, assignee FROM issues WHERE id = ?",
+      [String(id)]
+    );
     if (check.length === 0 || check[0].values.length === 0) {
       sendJson(res, 404, { error: "Issue not found" });
       return;
     }
     const fromStatus = String(check[0].values[0][1]);
+    const fromAssignee = String(check[0].values[0][2] ?? "");
 
     const now = new Date().toISOString();
     const updates: string[] = [];
@@ -235,6 +244,31 @@ export async function update(
       if (toStatus === "review") {
         void emitEvent("ticket.review", { id, from: fromStatus, to: toStatus });
       }
+    }
+
+    // Emit ticket.assigned when the assignee actually changes. B1 (2026-06-17)
+    // caught the silent-reassign bug: before this, reassigning a ticket in
+    // flight updated the DB but emitted no event, so the new agent never
+    // learned about the handoff. The jirito-event-injector routes this event
+    // to the new agent's inbox as a handoff wake (routed_to_agent + FYI).
+    //
+    // The payload includes the post-update full row so the receiving agent's
+    // wake text has title + description available — otherwise the new
+    // assignee has to `jirito show` before they have any context to work on.
+    //
+    // Guard: only fire when the new value is present AND differs from the
+    // current row. An idempotent re-PUT with the same assignee should not
+    // produce a duplicate dispatch.
+    const toAssignee = input.assignee as string | undefined;
+    if (toAssignee !== undefined && toAssignee !== fromAssignee) {
+      void emitEvent("ticket.assigned", {
+        ...issue, // full post-update row: title, description, type, priority, labels, etc.
+        id, // issue is already mapped to numericId, but pass id explicitly to be safe
+        from: fromAssignee,
+        to: toAssignee,
+        assignee: toAssignee,
+        actor: toAssignee,
+      });
     }
   } catch (error) {
     console.error("update issue error:", error);
