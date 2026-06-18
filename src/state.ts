@@ -239,13 +239,17 @@ export async function loadState(): Promise<void> {
   }
 
   // Ensure default project exists before checking currentProject
+  // Only seed sample issues on a genuine first run (offline mode with no
+  // localStorage). In server mode the server is the source of truth, even
+  // when empty — never re-seed the hardcoded 101-106, which would silently
+  // clobber the user's "I deleted everything" intent.
   if (!_projects["default"]) {
     _projects["default"] = {
       id: "default",
       name: "Project Alpha",
       icon: "📋",
       key: "PROJ",
-      issues: _issues.length > 0 ? _issues : [...sampleIssues],
+      issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
     };
   }
 
@@ -669,13 +673,33 @@ export function reorderColumns(orderMap: Record<string, number>): void {
 export function initializeData(): void {
   // 1. Ensure default project exists
   if (!_projects["default"]) {
+    // Only seed sample issues on a genuine first run. In server mode
+    // (or any state where the user has explicitly cleared the board),
+    // the project should start empty — never re-seed the 101-106 sample
+    // issues, which would silently clobber the user's "I deleted
+    // everything" intent. The loadState caller is responsible for
+    // setting the sample-fallback via the `isFirstRun` path; this
+    // initializer is only responsible for project structure.
+    const isFirstRun =
+      storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
     _projects["default"] = {
       id: "default",
       name: "Project Alpha",
       icon: "📋",
       key: "PROJ",
-      issues: _issues.length > 0 ? _issues : [...sampleIssues],
+      issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
     };
+    // If we seeded samples, sync the counter and the global issues list
+    // to match. Without this, the next issue would be created with id
+    // ISSUE_COUNTER_START (100) and collide with the seeded 101.
+    if (isFirstRun && _issues.length === 0 && (_projects["default"].issues?.length ?? 0) > 0) {
+      const seeded: Issue[] = _projects["default"].issues as Issue[];
+      _issues = seeded;
+      _issueCounter = Math.max(
+        ...seeded.map((i: Issue) => Number(i.id) || 0),
+        ISSUE_COUNTER_START,
+      );
+    }
   }
   // 2. Ensure currentProject is valid
   if (!_projects[_currentProject]) {
