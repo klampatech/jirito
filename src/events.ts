@@ -531,9 +531,9 @@ export function openDetailPanel(issueId: Issue["id"]): void {
     cloneBtn.addEventListener("click", () => cloneIssue(issueId));
   }
 
-  // Delete button
+  // Delete button — { once: true } prevents duplicate listeners if panel re-opens
   if (deleteBtn) {
-    deleteBtn.addEventListener("click", () => deleteIssue(issueId));
+    deleteBtn.addEventListener("click", () => deleteIssue(issueId), { once: true });
   }
 
   // Dependency removal
