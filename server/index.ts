@@ -9,6 +9,7 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { initDb, closeDb, saveDb } from "./db/index.js";
 import { initTables, migrateTables } from "./db/init.js";
+import { startOutboxWorker } from "./webhooks.js";
 
 // Routes
 import issuesRouter from "./routes/issues.js";
@@ -273,6 +274,14 @@ async function start(): Promise<void> {
     await initDb();
     initTables();
     migrateTables();
+
+    // Start the webhook outbox retry worker. C5 (jirito-squad
+    // integration test 2026-06-18) found that the fire-and-forget
+    // postToBridge left events in `status='pending'` forever when
+    // the bridge was down or jirito was killed mid-POST. The worker
+    // polls the outbox every 5s and re-POSTs pending rows. Idempotent
+    // start — safe to call from tests / hot reload.
+    startOutboxWorker();
 
     // Create HTTP server
     const server = http.createServer(async (req, res) => {
