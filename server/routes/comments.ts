@@ -8,7 +8,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { saveDb } from "../db/index.js";
-import { sendJson } from "./_shared.js";
+import { sendJson, mapRow, coerceNumericId } from "./_shared.js";
 import { getDb } from "../db/index.js";
 import { emitEvent } from "../webhooks.js";
 
@@ -81,7 +81,22 @@ export async function create(
     };
     sendJson(res, 201, comment);
 
+    // Look up the ticket so the emit payload has the same shape as other
+    // ticket events (id, assignee, title, description) — required so the
+    // jirito-event-injector's verify guard and routing logic work correctly.
+    const ticketResult = db.exec("SELECT * FROM issues WHERE id = ?", [
+      String(input.issueId ?? ""),
+    ]);
+    const ticket =
+      ticketResult.length > 0 && ticketResult[0].values.length > 0
+        ? mapRow("issues", ticketResult[0].columns, ticketResult[0].values[0])
+        : null;
+
     void emitEvent("ticket.commented", {
+      id: ticket ? String(ticket.id) : (input.issueId as string) ?? "",
+      assignee: (ticket?.assignee as string) ?? "",
+      title: (ticket?.title as string) ?? "",
+      description: (ticket?.description as string) ?? "",
       issueId: input.issueId ?? "",
       commentId: id,
       author: input.author ?? "",
