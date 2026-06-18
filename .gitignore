@@ -3,6 +3,7 @@ node_modules/
 
 # Test output
 test-results/
+playwright-report/
 
 # Temporary / scratch scripts (not part of the project)
 dark-mode-check*.mjs
