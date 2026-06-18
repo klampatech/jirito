@@ -468,9 +468,9 @@ export function openDetailPanel(issueId) {
         cloneBtn.style.display = "inline-flex";
         cloneBtn.addEventListener("click", () => cloneIssue(issueId));
     }
-    // Delete button
+    // Delete button — { once: true } prevents duplicate listeners if panel re-opens
     if (deleteBtn) {
-        deleteBtn.addEventListener("click", () => deleteIssue(issueId));
+        deleteBtn.addEventListener("click", () => deleteIssue(issueId), { once: true });
     }
     // Dependency removal
     const depContainer = document.getElementById("detail-dependencies");
