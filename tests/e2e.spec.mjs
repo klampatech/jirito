@@ -88,6 +88,36 @@ test.describe('E2E Integration Tests', () => {
   });
 
   test('should fallback to localStorage when server is down', async ({ page }) => {
+    // Seed localStorage with 6 issues BEFORE the page loads, so the app
+    // picks them up via the offline-mode fallback path and the new issue
+    // we create gets a deterministic ID (PROJ-107, since issueCounter=106
+    // after the seed). This makes the test order-independent — it no
+    // longer relies on a prior test leaving 6 issues in localStorage
+    // (the SAMPLE_FALLBACK that used to provide this was removed in
+    // 65e734e "chore(jirito): drop hardcoded localStorage sample issues").
+    await page.addInitScript(() => {
+      const seeded = {
+        issues: [
+          { id: 101, title: 'Seed 101', status: 'todo', type: 'task', priority: 'low', rank: 0 },
+          { id: 102, title: 'Seed 102', status: 'todo', type: 'task', priority: 'low', rank: 1 },
+          { id: 103, title: 'Seed 103', status: 'todo', type: 'task', priority: 'low', rank: 2 },
+          { id: 104, title: 'Seed 104', status: 'todo', type: 'task', priority: 'low', rank: 3 },
+          { id: 105, title: 'Seed 105', status: 'todo', type: 'task', priority: 'low', rank: 4 },
+          { id: 106, title: 'Seed 106', status: 'todo', type: 'task', priority: 'low', rank: 5 },
+        ],
+        projects: {},
+        currentProject: 'default',
+        savedFilters: [],
+        activityLog: [],
+        issueCounter: 106,
+        trash: [],
+        sprints: {},
+        columns: [],
+        comments: {},
+      };
+      localStorage.setItem('jirito-state', JSON.stringify(seeded));
+    });
+
     // Override fetch to block ALL server requests before page loads
     await page.addInitScript(() => {
       const originalFetch = window.fetch;
