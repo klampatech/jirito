@@ -16,41 +16,47 @@ async function clearStorage(page) {
   }
 }
 
+// Sample issues for the screenshot test, mirrored to the server via /api/issues.
+// The server is the source of truth in CI (the static file server on 8080
+// proxies /api/* to the jirito server on 3001), so we have to seed through
+// the API — not localStorage. Earlier test files (e2e.spec.mjs) clear the
+// DB in beforeEach, so the global setup's pre-seed is gone by the time
+// screenshot-capture runs.
+const SAMPLE_ISSUES = [
+  { id: 'PROJ-101', title: 'Design system tokens', description: 'Define color tokens', status: 'todo', priority: 'high', labels: ['design'], assignee: 'Alice', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'PROJ-102', title: 'Auth flow', description: 'Implement OAuth', status: 'todo', priority: 'high', labels: ['backend'], assignee: 'Charlie', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 8, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'PROJ-103', title: 'API endpoints', description: 'REST API design', status: 'inprogress', priority: 'medium', labels: ['backend'], assignee: 'Diana', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 3, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'PROJ-104', title: 'Unit tests', description: 'Core module tests', status: 'inprogress', priority: 'medium', labels: ['testing'], assignee: 'Eve', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'PROJ-105', title: 'Wireframes', description: 'Dashboard wireframes', status: 'inreview', priority: 'low', labels: ['design'], assignee: 'Alice', reporter: 'Charlie', projectId: 'default', sprintId: null, storyPoints: 2, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'PROJ-106', title: 'Deploy pipeline', description: 'CI/CD setup', status: 'done', priority: 'medium', labels: ['devops'], assignee: 'Frank', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
+// Helper to seed sample data via the API. The jirito server is the source
+// of truth — the static client in CI runs in server mode, so localStorage
+// writes are ignored. We POST each issue to /api/issues, then the test
+// reloads so the client fetches them.
+async function seedViaApi() {
+  for (const issue of SAMPLE_ISSUES) {
+    await fetch(APP_URL + 'api/issues', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(issue),
+    });
+  }
+}
+
 // Helper to navigate to the app
 async function navigate(page) {
   await clearStorage(page);
   await page.goto(APP_URL);
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
 
-  // Seed sample data so the board renders with issue cards.
-  // Without this, the board is empty and tests that interact with cards
-  // (detail panel, drag preview, activity feed) will timeout.
-  await page.evaluate(() => {
-    const sampleData = {
-      issues: [
-        { id: 'PROJ-101', title: 'Design system tokens', description: 'Define color tokens', status: 'todo', priority: 'high', labels: ['design'], assignee: 'Alice', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'PROJ-102', title: 'Auth flow', description: 'Implement OAuth', status: 'todo', priority: 'high', labels: ['backend'], assignee: 'Charlie', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 8, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'PROJ-103', title: 'API endpoints', description: 'REST API design', status: 'inprogress', priority: 'medium', labels: ['backend'], assignee: 'Diana', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 3, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'PROJ-104', title: 'Unit tests', description: 'Core module tests', status: 'inprogress', priority: 'medium', labels: ['testing'], assignee: 'Eve', reporter: 'Alice', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'PROJ-105', title: 'Wireframes', description: 'Dashboard wireframes', status: 'inreview', priority: 'low', labels: ['design'], assignee: 'Alice', reporter: 'Charlie', projectId: 'default', sprintId: null, storyPoints: 2, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'PROJ-106', title: 'Deploy pipeline', description: 'CI/CD setup', status: 'done', priority: 'medium', labels: ['devops'], assignee: 'Frank', reporter: 'Bob', projectId: 'default', sprintId: null, storyPoints: 5, parentIssueId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      ],
-      projects: {
-        default: { name: 'Project Alpha', key: 'PROJ', icon: '\uD83D\uDE80', color: '#0052CC', description: '', issues: ['PROJ-101','PROJ-102','PROJ-103','PROJ-104','PROJ-105','PROJ-106'] },
-      },
-      currentProject: 'default',
-      savedFilters: [],
-      activityLog: [],
-      issueCounter: 107,
-      trash: [],
-      sprints: {},
-      columns: [],
-      comments: {},
-    };
-    localStorage.setItem('jirito-state', JSON.stringify(sampleData));
-    localStorage.setItem('jirito-onboarding', 'true');
-  });
-  // Reload to load the seeded data
+  // Seed sample data via the API so the board renders with issue cards.
+  // Without this, the board is empty (the e2e beforeEach cleared the DB)
+  // and tests that interact with cards (detail panel, drag preview,
+  // activity feed) will timeout.
+  await seedViaApi();
+  // Reload to load the seeded data from the server.
   await page.reload();
   await page.waitForSelector('#view-list .view-item', { state: 'visible', timeout: 5000 });
   // Dismiss onboarding if it appears
