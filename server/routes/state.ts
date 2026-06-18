@@ -7,6 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
 import { sendJson, queryAll, mapRow, coerceNumericId } from "./_shared.js";
+import { emitEvent } from "../webhooks.js";
 
 /**
  * Helper: read a single scalar value from the metadata table.
@@ -128,6 +129,19 @@ export async function setState(
     }
     const data = rawData as Record<string, unknown>;
 
+    // Capture existing issues BEFORE the DELETE so we can diff and emit
+    // per-ticket events. Without this, every state sync (which the UI does
+    // on every form submit via saveStateImmediate) would either emit 0
+    // events (the bug Kyle hit with #101) or emit N events for a 1-ticket
+    // change. Diffing is the correct semantics.
+    const existingIssues = new Map<string, Record<string, unknown>>();
+    if (data.issues !== undefined) {
+      for (const issue of queryAll("SELECT * FROM issues")) {
+        const mapped = issue as Record<string, unknown>;
+        existingIssues.set(String(mapped.id), mapped);
+      }
+    }
+
     // Clear existing data (only for fields that are being updated)
     if (data.activityLog !== undefined) db.run("DELETE FROM activity");
     if (data.columns !== undefined) db.run("DELETE FROM columns");
@@ -174,7 +188,7 @@ export async function setState(
             (issue.title as string) ?? "",
             (issue.description as string) ?? "",
             (issue.type as string) ?? "task",
-            (issue.status as string) ?? "backlog",
+            (issue.status as string) ?? "todo",
             (issue.priority as string) ?? "medium",
             JSON.stringify(issue.labels ?? []),
             (issue.assignee as string) ?? "",
@@ -318,6 +332,81 @@ export async function setState(
     }
 
     await saveDb();
+
+    // Emit per-ticket events based on the diff. Fire-and-forget (void);
+    // emitEvent handles its own outbox + bridge POST. The state-sync path
+    // is the UI's primary create path (saveStateImmediate from
+    // main-issue-form.ts), so this is what makes "create a ticket in the
+    // UI" produce a wake. Without this, the UI form's create was silent
+    // (the bug that lost #101).
+    //
+    // Three diff cases per issue in the new state:
+    //   - new (not in old)         → ticket.created
+    //   - changed (in both, fields differ) → ticket.updated
+    //   - unchanged                → skip
+    // Plus: issues in old but not in new → ticket.deleted
+    //
+    // We compare on "meaningful" fields only — not updatedAt (always
+    // changes on every sync) or rank (UI-only display sort). This way
+    // a pure status move, reassign, title edit, etc. all fire events.
+    if (data.issues !== undefined) {
+      const newIssues = (data.issues as Array<Record<string, unknown>>);
+      const newIds = new Set(newIssues.map((i) => String(i.id)));
+      const meaningful: Array<keyof Record<string, unknown>> = [
+        "title", "description", "type", "status", "priority",
+        "assignee", "reporter", "customColumnId", "parentIssueId",
+      ];
+
+      for (const issue of newIssues) {
+        const id = String(issue.id);
+        const old = existingIssues.get(id);
+        if (!old) {
+          void emitEvent("ticket.created", {
+            id: Number(id) || id,
+            title: issue.title ?? "",
+            description: issue.description ?? "",
+            type: issue.type ?? "task",
+            status: issue.status ?? "todo",
+            priority: issue.priority ?? "medium",
+            labels: issue.labels ?? [],
+            assignee: issue.assignee ?? "",
+            reporter: issue.reporter ?? "",
+            createdAt: issue.createdAt,
+            updatedAt: issue.updatedAt,
+          });
+        } else {
+          // Check for meaningful changes
+          const changed = meaningful.some((k) => old[k] !== issue[k]);
+          if (changed) {
+            void emitEvent("ticket.updated", {
+              id: Number(id) || id,
+              title: issue.title ?? "",
+              description: issue.description ?? "",
+              type: issue.type ?? "task",
+              status: issue.status ?? "todo",
+              priority: issue.priority ?? "medium",
+              assignee: issue.assignee ?? "",
+              reporter: issue.reporter ?? "",
+              createdAt: issue.createdAt,
+              updatedAt: issue.updatedAt,
+              // Include the previous state for context
+              previousStatus: old.status,
+              previousAssignee: old.assignee,
+            });
+          }
+        }
+      }
+
+      for (const [id, old] of existingIssues) {
+        if (!newIds.has(id)) {
+          void emitEvent("ticket.deleted", {
+            id: Number(id) || id,
+            title: old.title,
+          });
+        }
+      }
+    }
+
     sendJson(res, 200, { success: true, message: "State imported successfully" });
   } catch (error) {
     console.error("setState error:", error);

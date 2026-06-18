@@ -9,6 +9,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
 import { sendJson, queryAll, mapRow } from "./_shared.js";
+import { emitEvent } from "../webhooks.js";
 
 export async function getAll(
   _req: IncomingMessage,
@@ -54,7 +55,7 @@ export async function restore(
             data.title || "",
             data.description || "",
             data.type || "task",
-            data.status || "backlog",
+            data.status || "todo",
             data.priority || "medium",
             JSON.stringify(data.labels || []),
             data.assignee || "",
@@ -72,6 +73,21 @@ export async function restore(
         );
         db.run("DELETE FROM trash WHERE id = ?", [id]);
         await saveDb();
+        // Emit so the watcher routes it (Evo triage if unassigned,
+        // agent dispatch if assigned). The original ticket metadata
+        // comes from the trash blob (data.id, data.title, etc.).
+        void emitEvent("ticket.created", {
+          id: data.id,
+          title: data.title || "",
+          description: data.description || "",
+          type: data.type || "task",
+          status: data.status || "todo",
+          priority: data.priority || "medium",
+          assignee: data.assignee || "",
+          reporter: data.reporter || "",
+          restoredFromTrash: true,
+          restoredAt: now,
+        });
         sendJson(res, 200, { success: true, message: "Issue restored" });
       } catch (err) {
         sendJson(res, 500, { error: (err as Error).message });

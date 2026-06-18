@@ -7,6 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
 import { sendJson, queryAll, mapRow, parseJsonColumn } from "./_shared.js";
+import { emitEvent } from "../webhooks.js";
 
 /** Structural validation of an incoming import payload. */
 function validateImportPayload(body: unknown): string | null {
@@ -45,10 +46,9 @@ function validateImportPayload(body: unknown): string | null {
       return `Issue ${issue.id}: must have id, title, and status fields`;
     }
     const validStatuses = [
-      "backlog",
       "todo",
-      "in_progress",
-      "in_review",
+      "inprogress",
+      "review",
       "done",
     ];
     if (!validStatuses.includes(String(issue.status))) {
@@ -133,13 +133,14 @@ export async function importData(
           : JSON.stringify(issue.labels ?? []);
       const createdAt = (issue.createdAt as string) ?? now;
       const updatedAt = (issue.updatedAt as string) ?? now;
+      const issueId = String(issue.id);
       db.run(
         "INSERT INTO issues (id, title, description, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, parentIssueId, customColumnId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-          String(issue.id),
+          issueId,
           (issue.title as string) ?? "",
           (issue.description as string) ?? "",
-          (issue.status as string) ?? "backlog",
+          (issue.status as string) ?? "todo",
           (issue.priority as string) ?? "medium",
           labels,
           (issue.assignee as string) ?? "",
@@ -153,6 +154,22 @@ export async function importData(
           updatedAt,
         ]
       );
+      // Emit per-issue so the watcher routes each one. Import is a
+      // deliberate bulk operation; the user expects each ticket to
+      // dispatch to the right inbox.
+      void emitEvent("ticket.created", {
+        id: Number(issueId) || issueId,
+        title: issue.title ?? "",
+        description: issue.description ?? "",
+        type: issue.type ?? "task",
+        status: issue.status ?? "todo",
+        priority: issue.priority ?? "medium",
+        assignee: issue.assignee ?? "",
+        reporter: issue.reporter ?? "",
+        createdAt,
+        updatedAt,
+        fromImport: true,
+      });
     }
 
     // Insert comments

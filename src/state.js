@@ -162,28 +162,43 @@ export async function loadState() {
     }
     // Load persisted data from storage layer (localStorage or server)
     const data = await storage.getStorageData();
+    // Only seed sampleIssues on a *genuine* first run — offline mode with no
+    // localStorage cache. The previous "if empty → samples" fallback re-seeded
+    // the hardcoded 101-106 on every page load when the server was empty,
+    // silently clobbering a user's "I deleted everything" intent. In server
+    // mode the server is the source of truth, even when empty.
+    const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
     if (data && data.issues && data.issues.length > 0) {
         _issues = data.issues.map((i) => ({ ...i, desc: i.desc || i.description || "" }));
         _issueCounter = Math.max(..._issues.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
         console.log("[loadState] Loaded", _issues.length, "issues from storage, first dueDate:", _issues[0]?.dueDate);
     }
-    else {
+    else if (isFirstRun) {
         _issues = [...sampleIssues];
         _issueCounter = 106;
-        console.log("[loadState] Using sample issues, first dueDate:", _issues[0]?.dueDate);
+        console.log("[loadState] First run, seeding sample issues");
+    }
+    else {
+        _issues = [];
+        _issueCounter = Math.max(ISSUE_COUNTER_START, _issueCounter ?? 0);
+        console.log("[loadState] Empty state, no issues to load");
     }
     // Restore projects (storage layer uses object-per-key format)
     if (data && data.projects) {
         _projects = data.projects;
     }
     // Ensure default project exists before checking currentProject
+    // Only seed sample issues on a genuine first run (offline mode with no
+    // localStorage). In server mode the server is the source of truth, even
+    // when empty — never re-seed the hardcoded 101-106, which would silently
+    // clobber the user's "I deleted everything" intent.
     if (!_projects["default"]) {
         _projects["default"] = {
             id: "default",
             name: "Project Alpha",
             icon: "📋",
             key: "PROJ",
-            issues: _issues.length > 0 ? _issues : [...sampleIssues],
+            issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
         };
     }
     // Validate currentProject exists in projects before restoring
@@ -520,51 +535,70 @@ export function getDefaultColumns() {
     ];
 }
 export function getEffectiveColumns() {
-    const custom = getCustomColumns();
-    if (custom && custom.length > 0) {
-        return [...custom].sort((a, b) => a.order - b.order);
-    }
-    return getDefaultColumns();
+    // Defaults come first (fixed workflow), then any custom columns in
+    // their saved/insertion order. Customs are rendered after the defaults
+    // without a sort — the `order` field on customs is only used by the
+    // mutators below, not for display.
+    return [...getDefaultColumns(), ...getCustomColumns()];
 }
+// All column mutators operate on the *custom* subset only. The defaults
+// (To Do / In Progress / In Review / Done) are a fixed workflow and must
+// never be written to the custom list — doing so would demote a default
+// into a "custom" and corrupt the round-trip on next save.
 export function addCustomColumn(name, color) {
-    const columns = getEffectiveColumns();
+    const customs = getCustomColumns();
     const id = "col-" + Date.now();
-    columns.push({ id, name, color: color || "#9E9E9E", status: null, order: columns.length });
-    setCustomColumns(columns);
+    customs.push({ id, name, color: color || "#9E9E9E", status: null, order: customs.length });
+    setCustomColumns(customs);
     return id;
 }
 export function removeCustomColumn(id) {
-    const columns = getEffectiveColumns();
-    const filtered = columns.filter((c) => c.id !== id);
-    setCustomColumns(filtered);
+    const customs = getCustomColumns();
+    setCustomColumns(customs.filter((c) => c.id !== id));
 }
 export function updateCustomColumn(id, updates) {
-    const columns = getEffectiveColumns();
-    const col = columns.find((c) => c.id === id);
+    const customs = getCustomColumns();
+    const col = customs.find((c) => c.id === id);
     if (col) {
         Object.assign(col, updates);
-        setCustomColumns(columns);
+        setCustomColumns(customs);
     }
 }
 export function reorderColumns(orderMap) {
-    const columns = getEffectiveColumns();
-    columns.forEach((c) => {
+    const customs = getCustomColumns();
+    customs.forEach((c) => {
         if (orderMap[c.id] !== undefined)
             c.order = orderMap[c.id];
     });
-    setCustomColumns(columns);
+    setCustomColumns(customs);
 }
 // ===== Data Initialization (Task 2.2: Consolidated migration logic) =====
 export function initializeData() {
     // 1. Ensure default project exists
     if (!_projects["default"]) {
+        // Only seed sample issues on a genuine first run. In server mode
+        // (or any state where the user has explicitly cleared the board),
+        // the project should start empty — never re-seed the 101-106 sample
+        // issues, which would silently clobber the user's "I deleted
+        // everything" intent. The loadState caller is responsible for
+        // setting the sample-fallback via the `isFirstRun` path; this
+        // initializer is only responsible for project structure.
+        const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
         _projects["default"] = {
             id: "default",
             name: "Project Alpha",
             icon: "📋",
             key: "PROJ",
-            issues: _issues.length > 0 ? _issues : [...sampleIssues],
+            issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
         };
+        // If we seeded samples, sync the counter and the global issues list
+        // to match. Without this, the next issue would be created with id
+        // ISSUE_COUNTER_START (100) and collide with the seeded 101.
+        if (isFirstRun && _issues.length === 0 && (_projects["default"].issues?.length ?? 0) > 0) {
+            const seeded = _projects["default"].issues;
+            _issues = seeded;
+            _issueCounter = Math.max(...seeded.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
+        }
     }
     // 2. Ensure currentProject is valid
     if (!_projects[_currentProject]) {

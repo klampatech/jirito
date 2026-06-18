@@ -25,6 +25,7 @@ import {
   getComments,
   getCurrentProject,
   getCurrentView,
+  getCustomColumns,
   getDefaultColumns,
   getDependents,
   getDependencies,
@@ -413,11 +414,16 @@ export function renderViews(): void {
 export function renderColumnConfig(): void {
   const container = document.getElementById("column-config-list");
   if (!container) return;
-  const columns = getEffectiveColumns();
+  // The config UI manages customs only. Defaults (To Do / In Progress /
+  // In Review / Done) are a fixed workflow and don't appear here — they
+  // render on the board but can't be renamed, recolored, deleted, or
+  // reordered. This avoids the silent no-op that would happen if a user
+  // tried to edit a default's color via updateCustomColumn (which now
+  // operates on the custom subset only).
+  const columns = getCustomColumns();
 
   container.innerHTML = columns
     .map((col) => {
-      const isDefault = getDefaultColumns().some((d) => d.id === col.id);
       const statusOptions = ["todo", "inprogress", "review", "done"]
         .map((s) => {
           const labels: Record<string, string> = {
@@ -437,7 +443,7 @@ export function renderColumnConfig(): void {
         <option value="">(custom)</option>
         ${statusOptions}
       </select>
-      ${isDefault ? "" : `<button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>`}
+      <button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>
     </div>`;
     })
     .join("");
@@ -526,19 +532,27 @@ export function renderColumnConfig(): void {
     item.addEventListener("drop", (e) => {
       e.preventDefault();
       const targetId = item.dataset.colId;
-      if (dragIdx && dragIdx !== targetId && targetId) {
-        const newCols = getEffectiveColumns().filter((c) => c.id !== dragIdx);
-        const draggedCol = columns.find((c) => c.id === dragIdx);
-        if (!draggedCol) return;
-        const targetIdx = newCols.findIndex((c) => c.id === targetId);
-        newCols.splice(targetIdx, 0, draggedCol);
-        newCols.forEach((c, i) => {
-          c.order = i;
-        });
-        setCustomColumns(newCols);
-        renderColumnConfig();
-        renderBoard();
-      }
+      // Drag-drop only reorders custom columns. Defaults are a fixed
+      // workflow (To Do / In Progress / In Review / Done) and stay in
+      // their hardcoded positions. If either the dragged column or the
+      // target is a default, do nothing — dragging across the boundary
+      // would otherwise corrupt the custom list (defaults would get
+      // written into setCustomColumns on the next line).
+      if (!dragIdx || !targetId || dragIdx === targetId) return;
+      const isDefault = (id: string) => getDefaultColumns().some((d) => d.id === id);
+      if (isDefault(dragIdx) || isDefault(targetId)) return;
+      const draggedCol = columns.find((c) => c.id === dragIdx);
+      if (!draggedCol) return;
+      const newCols = getCustomColumns().filter((c) => c.id !== dragIdx);
+      const targetIdx = newCols.findIndex((c) => c.id === targetId);
+      if (targetIdx === -1) return;
+      newCols.splice(targetIdx, 0, draggedCol);
+      newCols.forEach((c, i) => {
+        c.order = i;
+      });
+      setCustomColumns(newCols);
+      renderColumnConfig();
+      renderBoard();
     });
   });
 }
@@ -968,10 +982,15 @@ export function renderActivity(): void {
       const item = document.createElement("div");
       item.className = "activity-item";
       const ago = timeAgo(a.time);
-      // Skip emoji/non-Phosphor icon names to avoid console warnings
-      const iconHtml = /^[a-z0-9-]+$/.test(a.icon)
-        ? lucideIcon(a.icon, { class: "icon-sm" })
-        : "";
+      // Guard against nullish icon (legacy activity entries have
+      // icon: null / text: null). `String(null) === "null"` matches
+      // the regex below, which would then call lucideIcon("null", ...)
+      // and crash on .replace(). The typeof gate is the only reliable
+      // way to reject nullish values — see jirito-review §7.3.
+      const iconHtml =
+        typeof a.icon === "string" && /^[a-z0-9-]+$/.test(a.icon)
+          ? lucideIcon(a.icon, { class: "icon-sm" })
+          : "";
       item.innerHTML = `
       <span class="activity-icon">${iconHtml}</span>
       <span class="activity-text">${a.text}</span>
