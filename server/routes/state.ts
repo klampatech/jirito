@@ -186,7 +186,12 @@ export async function setState(
           [
             String(issue.id),
             (issue.title as string) ?? "",
-            (issue.description as string) ?? "",
+            // 2026-06-20: client uses `desc` (the canonical Issue field per
+            // src/types.ts: "Legacy alias for description. Older issues
+            // use `desc`.") but the DB column is `description`. Accept
+            // either so full-state saves from the UI don't silently drop
+            // the field. Same pattern as the read path in state.ts:218.
+            ((issue.description ?? issue.desc) as string) ?? "",
             (issue.type as string) ?? "task",
             (issue.status as string) ?? "todo",
             (issue.priority as string) ?? "medium",
@@ -364,7 +369,11 @@ export async function setState(
           void emitEvent("ticket.created", {
             id: Number(id) || id,
             title: issue.title ?? "",
-            description: issue.description ?? "",
+            // 2026-06-20: see server/routes/state.ts:189 — Issue shape
+            // carries `desc` (client canonical) AND `description` (DB
+            // column). Accept either so emit payloads include the
+            // description even when the UI state save sent only `desc`.
+            description: ((issue.description ?? issue.desc) as string) ?? "",
             type: issue.type ?? "task",
             status: issue.status ?? "todo",
             priority: issue.priority ?? "medium",
@@ -381,7 +390,9 @@ export async function setState(
             void emitEvent("ticket.updated", {
               id: Number(id) || id,
               title: issue.title ?? "",
-              description: issue.description ?? "",
+              // 2026-06-20: see state.ts:194 + state.ts:372 — accept
+              // either Issue description field. Same alignment fix.
+              description: ((issue.description ?? issue.desc) as string) ?? "",
               type: issue.type ?? "task",
               status: issue.status ?? "todo",
               priority: issue.priority ?? "medium",

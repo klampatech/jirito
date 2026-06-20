@@ -45,3 +45,9 @@ screenshots/automation/
 # TypeScript build output
 dist/
 *.tsbuildinfo
+# Server-side dead JavaScript scaffolding from the pre-TS-migration era.
+# tsx transparently resolves explicit `.js` imports (in server/*.ts) to
+# the matching `.ts` sibling when both exist, so these `.js` files are
+# never loaded at runtime — only misleading. See jirito-board skill §1a.
+server/**/*.js
+server/**/.*.js
