@@ -9,7 +9,13 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
-import { sendJson, queryAll, mapRow, coerceNumericId } from "./_shared.js";
+import {
+  sendJson,
+  queryAll,
+  mapRow,
+  coerceNumericId,
+  normalizeStatus,
+} from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 
 export async function getAll(
@@ -111,7 +117,11 @@ export async function create(
         // otherwise see their description silently dropped here.
         ((input.description ?? input.desc) as string) ?? "",
         (input.type as string) ?? "task",
-        (input.status as string) ?? "todo",
+        // 2026-06-20: normalize status so callers sending "in_progress"
+        // (with underscore) end up with the canonical "inprogress" that
+        // the client's default-column filter expects. See normalizeStatus
+        // for the full alias table.
+        normalizeStatus(input.status),
         (input.priority as string) ?? "medium",
         JSON.stringify(input.labels ?? []),
         (input.assignee as string) ?? "",
@@ -137,7 +147,7 @@ export async function create(
       // field name on the way out so callers see the description they
       // sent, regardless of which field name they used.
       description: ((input.description ?? input.desc) as string) ?? "",
-      status: input.status ?? "todo",
+      status: normalizeStatus(input.status),
       priority: input.priority ?? "medium",
       labels: input.labels ?? [],
       assignee: input.assignee ?? "",
@@ -224,6 +234,10 @@ export async function update(
         updates.push(`${field} = ?`);
         if (field === "labels") {
           params.push(JSON.stringify(input[field]));
+        } else if (field === "status") {
+          // 2026-06-20: normalize aliases like "in_progress" → "inprogress"
+          // before the UPDATE runs. See normalizeStatus comment above.
+          params.push(normalizeStatus(input[field]));
         } else {
           params.push(input[field]);
         }
