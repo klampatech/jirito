@@ -5,7 +5,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getDb, saveDb } from "../db/index.js";
+import { getDb, saveDb, atomic } from "../db/index.js";
 import { sendJson, queryAll, mapRow, parseJsonColumn } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 
@@ -89,44 +89,54 @@ export async function importData(
     const activityIn = (data.activityLog ?? []) as Array<Record<string, unknown>>;
     const trashIn = (data.trash ?? []) as Array<Record<string, unknown>>;
 
-    // Disable FK checks for the entire import (we validate data above)
-    db.run("PRAGMA foreign_keys=OFF");
+    // 2026-06-20: wrap the destructive operation (DELETE + INSERT) in
+        // `atomic()` for true all-or-nothing semantics. sql.js's transaction
+        // support via db.run("BEGIN TRANSACTION") is unreliable in some
+        // configurations — verified: BEGIN silently fails to start a
+        // transaction in the running server, DELETEs auto-commit, and a
+        // later COMMIT failure destroys the user's data with no rollback.
+        // atomic() snapshots the db before the operation and restores it
+        // on any throw, so a failed import leaves the user's data intact.
+        await atomic(() => {
+          // Disable FK checks for the entire import (we validate data above)
+          db.run("PRAGMA foreign_keys=OFF");
 
-    // Clear existing data
-    db.run("DELETE FROM issues");
-    db.run("DELETE FROM comments");
-    db.run("DELETE FROM sprints");
-    db.run("DELETE FROM filters");
-    db.run("DELETE FROM activity");
-    db.run("DELETE FROM trash");
-    db.run("DELETE FROM columns");
-    db.run("DELETE FROM metadata");
-    db.run("DELETE FROM projects");
+          // Clear existing data
+          db.run("DELETE FROM issues");
+          db.run("DELETE FROM comments");
+          db.run("DELETE FROM sprints");
+          db.run("DELETE FROM filters");
+          db.run("DELETE FROM activity");
+          db.run("DELETE FROM trash");
+          db.run("DELETE FROM columns");
+          db.run("DELETE FROM metadata");
+          db.run("DELETE FROM projects");
+          // Re-enable FK checks — atomic() will restore the original pragma
+          // state on failure, but we set it back here so the live db
+          // matches its pre-import state on success too.
+          db.run("PRAGMA foreign_keys=ON");
 
-    // Wrap all inserts in a transaction for atomicity
-    db.run("BEGIN TRANSACTION");
+          const now = new Date().toISOString();
 
-    const now = new Date().toISOString();
+          // Insert projects
+          for (const [key, proj] of Object.entries(projectsIn)) {
+            db.run(
+              "INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+              [
+                key,
+                (proj.name as string) ?? "",
+                (proj.key as string) ?? key,
+                (proj.icon as string) ?? "🚀",
+                (proj.color as string) ?? "#0052CC",
+                (proj.description as string) ?? "",
+                (proj.createdAt as string) ?? now,
+                now,
+              ]
+            );
+          }
 
-    // Insert projects
-    for (const [key, proj] of Object.entries(projectsIn)) {
-      db.run(
-        "INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          key,
-          (proj.name as string) ?? "",
-          (proj.key as string) ?? key,
-          (proj.icon as string) ?? "🚀",
-          (proj.color as string) ?? "#0052CC",
-          (proj.description as string) ?? "",
-          (proj.createdAt as string) ?? now,
-          now,
-        ]
-      );
-    }
-
-    // Insert issues
-    for (const issue of issuesIn) {
+          // Insert issues
+          for (const issue of issuesIn) {
       const labels =
         typeof issue.labels === "string"
           ? issue.labels
@@ -139,7 +149,10 @@ export async function importData(
         [
           issueId,
           (issue.title as string) ?? "",
-          (issue.description as string) ?? "",
+          // 2026-06-20: see server/routes/state.ts:189 — client uses
+          // `desc` (canonical Issue field per src/types.ts); DB column
+          // is `description`. Accept either.
+          ((issue.description ?? issue.desc) as string) ?? "",
           (issue.status as string) ?? "todo",
           (issue.priority as string) ?? "medium",
           labels,
@@ -160,7 +173,7 @@ export async function importData(
       void emitEvent("ticket.created", {
         id: Number(issueId) || issueId,
         title: issue.title ?? "",
-        description: issue.description ?? "",
+        description: ((issue.description ?? issue.desc) as string) ?? "",
         type: issue.type ?? "task",
         status: issue.status ?? "todo",
         priority: issue.priority ?? "medium",
@@ -281,10 +294,12 @@ export async function importData(
       "INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentProject', ?)",
       [String(data.currentProject ?? "default")]
     );
+    });  // end of atomic() callback
 
-    // Commit transaction
-    db.run("COMMIT");
-
+    // atomic() returned successfully — every DELETE and INSERT above
+    // ran against a temporary copy of the db. Now that we've returned
+    // from the atomic block, the original db reference is restored to
+    // the new state. Save it to disk.
     await saveDb();
 
     let commentCount = 0;
@@ -306,6 +321,10 @@ export async function importData(
       },
     });
   } catch (error) {
+    // atomic() catches errors inside the callback, restores the snapshot,
+    // and re-throws. By the time we reach this outer catch, the db is
+    // already back to its pre-import state — we just need to surface
+    // the error to the client.
     console.error("import error:", error);
     sendJson(res, 500, { error: (error as Error).message });
   }

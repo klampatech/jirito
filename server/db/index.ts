@@ -11,6 +11,7 @@ import initSqlJs, { type Database } from "sql.js";
 
 let db: Database | null = null;
 let dbPath: string | null = null;
+let sqlLib: Awaited<ReturnType<typeof initSqlJs>> | null = null;
 
 /**
  * Add a column to a table, ignoring errors that indicate the operation
@@ -54,7 +55,7 @@ export function tryAddColumn(
 export async function initDb(): Promise<Database> {
   if (db) return db;
 
-  const sqlLib = await initSqlJs();
+  sqlLib = await initSqlJs();
 
   dbPath = process.env.JIRITO_DB_PATH || "./jirito.db";
 
@@ -113,6 +114,42 @@ export async function saveDb(): Promise<void> {
     fs.writeFileSync(dbPath, buffer);
   } catch (err) {
     console.error("Failed to save database:", err);
+  }
+}
+
+/**
+ * Run a destructive operation atomically. sql.js's transaction support
+ * via db.run("BEGIN TRANSACTION") is unreliable in some configurations
+ * (verified 2026-06-20 — BEGIN silently fails to start a transaction in
+ * the running server's db handle, leaving DELETEs to auto-commit and
+ * destroying data on import failure). This helper snapshots the db
+ * before the operation and restores from snapshot on any throw.
+ *
+ * Usage:
+ *   await atomic(async () => {
+ *     db.run("DELETE FROM ...");
+ *     db.run("INSERT INTO ...");
+ *     ...
+ *   });
+ *
+ * On success: the operation's effects persist, saveDb() can be called
+ * by the caller.
+ * On failure: the db is restored to its pre-call state, the original
+ * error re-thrown.
+ */
+export async function atomic<T>(fn: () => Promise<T> | T): Promise<T> {
+  if (!db) throw new Error("atomic() called before db initialised");
+  if (!sqlLib) sqlLib = await initSqlJs();
+  const snapshot = db.export();
+  try {
+    return await fn();
+  } catch (err) {
+    // Restore: close current db and create a new one from the snapshot.
+    // The module-level `db` reference is replaced; subsequent getDb()
+    // calls return the restored handle.
+    try { db?.close(); } catch { /* ignore */ }
+    db = new sqlLib!.Database(snapshot);
+    throw err;
   }
 }
 

@@ -104,7 +104,12 @@ export async function create(
       [
         id,
         (input.title as string) ?? "",
-        (input.description as string) ?? "",
+        // 2026-06-20: see server/routes/state.ts:189 — accept either
+        // field name. The form's local save path doesn't use this
+        // endpoint, but the CLI / scripts / squad dispatch do, and any
+        // caller that sends the client-canonical `desc` would
+        // otherwise see their description silently dropped here.
+        ((input.description ?? input.desc) as string) ?? "",
         (input.type as string) ?? "task",
         (input.status as string) ?? "todo",
         (input.priority as string) ?? "medium",
@@ -128,7 +133,10 @@ export async function create(
     const created = coerceNumericId({
       id: Number(id),
       title: input.title ?? "",
-      description: input.description ?? "",
+      // 2026-06-20: see server/routes/state.ts:189 — accept either
+      // field name on the way out so callers see the description they
+      // sent, regardless of which field name they used.
+      description: ((input.description ?? input.desc) as string) ?? "",
       status: input.status ?? "todo",
       priority: input.priority ?? "medium",
       labels: input.labels ?? [],
@@ -144,7 +152,13 @@ export async function create(
     });
     sendJson(res, 201, created);
 
-    void emitEvent("ticket.created", { ...input, id: Number(id), createdAt: now, updatedAt: now });
+    // 2026-06-20: use the normalized `created` object (already coerced
+    // via `description ?? desc` on line 139) so the emit payload has
+    // the canonical `description` field, not the caller's raw `desc`.
+    // Otherwise this site would emit `desc` and diverge from the other
+    // emit sites (state.ts, import-export.ts) which all emit
+    // `description`.
+    void emitEvent("ticket.created", { ...created, createdAt: now, updatedAt: now });
   } catch (error) {
     console.error("create issue error:", error);
     sendJson(res, 500, { error: (error as Error).message });
