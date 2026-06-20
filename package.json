@@ -16,6 +16,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^20",
+    "@types/sql.js": "^1.4.11",
     "jsdom": "^29.1.1",
     "playwright": "^1.59.1",
     "tsx": "^4",

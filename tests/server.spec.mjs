@@ -2,22 +2,31 @@
 // Run with: node --test tests/server.spec.mjs
 // Requires: server running at http://localhost:3001
 
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = "http://localhost:3001/api";
+
+// Default caller for the integration tests. The JIRITO-101 gap fix
+// (server/routes/_shared.ts:validateVerdictCaller) requires a
+// reviewer-class X-Jirito-Caller header for verdict content. Tests
+// that exercise verdicts override this with fetchJson(method, path,
+// body, { caller: "elmo" }) or similar. The default mirrors what the
+// CLI sends in production (kyle running the test suite by hand).
+const DEFAULT_CALLER = "kyle";
 
 // ===== Helpers =====
 
-async function fetchJson(method, path, body) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
+async function fetchJson(method, path, body, opts = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Jirito-Caller": opts.caller ?? DEFAULT_CALLER,
   };
-  if (body) {
-    opts.body = JSON.stringify(body);
+  const reqOpts = { method, headers };
+  if (body !== undefined) {
+    reqOpts.body = JSON.stringify(body);
   }
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  const res = await fetch(`${API_BASE}${path}`, reqOpts);
   const data = await res.json();
   return { status: res.status, data };
 }
@@ -130,11 +139,14 @@ describe('Issues CRUD', () => {
     }
     const issue = issues[0];
     const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      // 2026-06-20: PR #38 added status normalization. Sending the
+      // underscore form should now return the canonical no-underscore
+      // form. Sending the canonical form is a no-op normalization.
       status: 'in_progress',
       priority: 'critical',
     });
     assert.strictEqual(status, 200);
-    assert.strictEqual(data.status, 'in_progress');
+    assert.strictEqual(data.status, 'inprogress');
     assert.strictEqual(data.priority, 'critical');
   });
 
@@ -339,10 +351,167 @@ describe('Comments', () => {
     const { status, data } = await fetchJson('POST', '/comments', {
       issueId: '1',
       content: 'Test comment from integration tests',
-      author: 'tester',
+      author: 'kyle',
     });
     assert.strictEqual(status, 201);
     assert.strictEqual(data.content, 'Test comment from integration tests');
+    assert.strictEqual(data.author, 'kyle');
+  });
+
+  it('should reject POST /api/comments with an unknown author (400)', async () => {
+    const { status, data } = await fetchJson('POST', '/comments', {
+      issueId: '1',
+      content: 'Test comment from random author',
+      author: 'rando_xyz',
+    });
+    assert.strictEqual(status, 400);
+    assert.match(data.error, /unknown author/);
+  });
+
+  it('should reject POST /api/comments with a missing author (400)', async () => {
+    const { status, data } = await fetchJson('POST', '/comments', {
+      issueId: '1',
+      content: 'Test comment with no author',
+    });
+    assert.strictEqual(status, 400);
+    assert.match(data.error, /author is required/);
+  });
+
+  it('should accept a verdict comment from a reviewer (evo)', async () => {
+    const { status, data } = await fetchJson('POST', '/comments', {
+      issueId: '1',
+      content: 'Review verdict: PASS — clean PR with 3 files',
+      author: 'evo',
+    });
+    assert.strictEqual(status, 201);
+    assert.strictEqual(data.author, 'evo');
+  });
+
+  it('should REJECT a verdict comment from a squad agent (400)', async () => {
+    // Burn 2026-06-20: JIRITO-101. elmo posted a "Review verdict: PASS"
+    // comment with author=evo. This is the exact case the new gate
+    // blocks — elmo cannot post a verdict, full stop.
+    const { status, data } = await fetchJson(
+      'POST',
+      '/comments',
+      {
+        issueId: '1',
+        content: 'Review verdict: PASS — my own work, trust me',
+        author: 'elmo',
+      },
+      { caller: 'elmo' }
+    );
+    assert.strictEqual(status, 400);
+    assert.match(data.error, /verdict comments must be posted by a reviewer/);
+  });
+
+  // ───── JIRITO-101 impersonation-gap tests (Layer 2: caller gate) ─────
+  // The body-author gate (Layer 1) only checks the body's `author`
+  // field, which any caller can set to anything. The X-Jirito-Caller
+  // header is the caller identity — set by the CLI / agent harness,
+  // not by the request body. A verdict is only valid if the CALLER
+  // is a reviewer, regardless of what the body's `author` claims.
+  // These tests pin the case the PR body originally failed to
+  // cover: elmo (caller) posting a verdict with body author=evo.
+
+  it('should REJECT a verdict attributed to a reviewer when caller is a squad agent (the original burn)', async () => {
+    // The body gate (Layer 1) would PASS this (author="evo" is a
+    // reviewer). The caller gate (Layer 2) is what closes it. Without
+    // the caller gate, the JIRITO-101 burn would still be possible.
+    const { status, data } = await fetchJson(
+      'POST',
+      '/comments',
+      {
+        issueId: '1',
+        content: 'Review verdict: PASS — my own work, trust me',
+        author: 'evo', // body claim — but the caller is the truth
+      },
+      { caller: 'elmo' } // elmo's harness is the real caller
+    );
+    assert.strictEqual(status, 400);
+    assert.match(
+      data.error,
+      /reviewer caller.*elmo|reviewer caller.*evo\/kyle\/system/
+    );
+  });
+
+  it('should REJECT a verdict with NO X-Jirito-Caller header (400)', async () => {
+    // Bypass fetchJson so we can omit the header entirely. Same as a
+    // misbehaving curl invocation that forgets the new header.
+    const res = await fetch(`${API_BASE}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        issueId: '1',
+        content: 'Review verdict: PASS',
+        author: 'evo',
+      }),
+    });
+    const data = await res.json();
+    assert.strictEqual(res.status, 400);
+    assert.match(data.error, /X-Jirito-Caller/);
+  });
+
+  it('should ACCEPT a verdict from caller=kyle attributed to author=evo (kyle posts on behalf of evo)', async () => {
+    // The body's author and the caller's identity CAN differ — Kyle
+    // reviewing a PR and attributing the verdict to Evo (e.g. when
+    // Kyle is acting as Evo's stand-in or wants the audit trail to
+    // say "evo approved" but is the human in the loop).
+    const { status, data } = await fetchJson(
+      'POST',
+      '/comments',
+      {
+        issueId: '1',
+        content: 'Review verdict: PASS — kyle posting as evo',
+        author: 'evo',
+      },
+      { caller: 'kyle' }
+    );
+    assert.strictEqual(status, 201);
+    assert.strictEqual(data.author, 'evo');
+  });
+
+  it('should ACCEPT a verdict from caller=evo attributed to author=evo (self-attribution)', async () => {
+    const { status, data } = await fetchJson(
+      'POST',
+      '/comments',
+      {
+        issueId: '1',
+        content: 'Review verdict: PASS — self-attributed',
+        author: 'evo',
+      },
+      { caller: 'evo' }
+    );
+    assert.strictEqual(status, 201);
+  });
+
+  it('should ACCEPT a regular (non-verdict) comment from caller=elmo (no caller check on non-verdicts)', async () => {
+    // The caller gate is verdict-only. Regular comments flow through
+    // just fine — the body author gate is enough.
+    const { status, data } = await fetchJson(
+      'POST',
+      '/comments',
+      {
+        issueId: '1',
+        content: 'Working on the column-config fix.',
+        author: 'elmo',
+      },
+      { caller: 'elmo' }
+    );
+    assert.strictEqual(status, 201);
+    assert.strictEqual(data.author, 'elmo');
+  });
+
+  it('should accept a synthetic system comment (cmd_triage flow)', async () => {
+    // The CLI's `jirito triage` posts "[auto] Triaged to X." with
+    // author="system" — must continue to work.
+    const { status, data } = await fetchJson('POST', '/comments', {
+      issueId: '1',
+      content: '[auto] Triaged to elmo.',
+      author: 'system',
+    });
+    assert.strictEqual(status, 201);
+    assert.strictEqual(data.author, 'system');
   });
 
   it('should get comments via GET /api/comments', async () => {
@@ -359,8 +528,11 @@ describe('Comments', () => {
       console.warn('Skipping comment update test: no comments exist');
       return;
     }
+    // 2026-06-20: the author allowlist gate (server/routes/_shared.ts)
+    // rejects PUTs without an author. Pass one explicitly.
     const { status, data } = await fetchJson('PUT', `/comments/${comments[0].id}`, {
       content: 'Updated test comment',
+      author: 'kyle',
     });
     assert.strictEqual(status, 200);
     assert.strictEqual(data.content, 'Updated test comment');

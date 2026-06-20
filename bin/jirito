@@ -26,6 +26,13 @@ CACHE_BLOCKED = CONFIG_DIR / "blocked-column-id"
 CACHE_STATUS = CONFIG_DIR / "issue-status-cache.json"
 VALID_STATUSES = ("todo", "inprogress", "review", "done", "trash")
 VALID_AGENTS = ("elmo", "bert", "ernie", "grover")
+# JIRITO_CALLER — identity of the system actor running this CLI. Sent as
+# the X-Jirito-Caller header on every request. Defaults to "kyle" (this
+# CLI is Kyle's tool) but can be overridden for tests or for agents
+# driving the CLI from their harness. Used by the server's
+# validateVerdictCaller gate to close the JIRITO-101 impersonation
+# gap: a verdict can only be posted by a reviewer-class caller.
+CALLER = os.getenv("JIRITO_CALLER", "kyle")
 DB_PATH = pathlib.Path(os.getenv("JIRITO_DB_PATH", str(pathlib.Path(__file__).resolve().parent.parent / "jirito.db")))
 
 # ANSI colours
@@ -47,7 +54,15 @@ _C = {
 def _req(method: str, path: str, body: dict | list | None = None) -> tuple[int, dict | list]:
     url = f"{JIRITO_URL}{path}"
     data = json.dumps(body).encode() if body is not None else None
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        # X-Jirito-Caller — caller identity (JIRITO-101 gap fix). The
+        # server uses this for the validateVerdictCaller gate. Default
+        # "kyle" because this CLI is Kyle's tool; set JIRITO_CALLER in
+        # the env to override (tests + agent harnesses do this).
+        "X-Jirito-Caller": CALLER,
+    }
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:

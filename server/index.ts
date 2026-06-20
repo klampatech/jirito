@@ -50,7 +50,11 @@ async function dispatch(
     res.writeHead(204, {
       "Access-Control-Allow-Origin": CLIENT_ORIGIN,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      // X-Jirito-Caller: caller identity for the JIRITO-101 gap fix.
+      // The CLI and agent harnesses set this header so the server can
+      // distinguish "the system actor" from "the comment's displayed
+      // author". Required for any browser-context callers.
+      "Access-Control-Allow-Headers": "Content-Type, X-Jirito-Caller",
     });
     res.end();
     return true;

@@ -10,7 +10,8 @@
     "outDir": "dist/tests",
     "rootDirs": [
       "tests/unit",
-      "src"
+      "src",
+      "server/routes"
     ],
     "strict": true,
     "esModuleInterop": true,
@@ -18,6 +19,7 @@
   },
   "include": [
     "tests/unit/**/*.ts",
-    "src/global.d.ts"
+    "src/global.d.ts",
+    "server/routes/_shared.ts"
   ]
 }
