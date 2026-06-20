@@ -1308,8 +1308,12 @@ export function applyFilters(): void {
         !(i.desc || "").toLowerCase().includes(search)
       )
         return false;
-      if (colDef.status && i.status !== colDef.status) return false;
-      return true;
+      if (colDef.status) {
+        if (i.status !== colDef.status) return false;
+      } else {
+        // Custom column: require matching customColumnId
+        if (i.customColumnId !== colDef.id) return false;
+      }
     });
     // Sort by rank (custom ordering)
     filtered.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
