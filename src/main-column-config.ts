@@ -8,7 +8,7 @@
  *     `./events.ts`.
  */
 
-import { addCustomColumn, saveState, setCustomColumns, updateCustomColumn } from "./state.js";
+import { addCustomColumn, resetDefaultColumnOverrides, saveState, setCustomColumns, updateCustomColumn } from "./state.js";
 import { renderBoard, renderColumnConfig } from "./render.js";
 import { showToast } from "./events.js";
 
@@ -30,8 +30,9 @@ export function initColumnConfig(): void {
   });
   // Reset columns to defaults
   document.getElementById("reset-columns-btn")?.addEventListener("click", () => {
-    if (confirm("Reset columns to defaults? Custom columns will be removed.")) {
+    if (confirm("Reset columns to defaults? Custom columns will be removed and default column names/colors will be restored.")) {
       setCustomColumns([]);  // reset to defaults (the custom array is global; clearing it triggers getEffectiveColumns fallback)
+      resetDefaultColumnOverrides();  // also restore default column name/color overrides
       saveState();
       renderColumnConfig();
       renderBoard();
