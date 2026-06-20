@@ -88,9 +88,10 @@ export function renderBoard(): void {
     if (titleSpan && titleSpan.textContent !== colDef.name) {
       titleSpan.textContent = colDef.name;
     }
-    // Update border color
-    if (colDef.color) {
-      (col as HTMLElement).style.borderTopColor = colDef.color;
+    // Update border color on .column-header (the element that holds the colored top border)
+    const header = col.querySelector(".column-header") as HTMLElement | null;
+    if (header && colDef.color) {
+      header.style.borderTopColor = colDef.color;
     }
   });
 
@@ -106,7 +107,7 @@ export function renderBoard(): void {
       col.dataset.colId = colDef.id;
       col.style.borderTopColor = colDef.color || "#9E9E9E";
       col.innerHTML = `
-        <div class="column-header">
+      <div class="column-header" style="border-top-color: ${colDef.color || "#9E9E9E"}">
           <div class="column-title">
             <span class="status-dot" style="background:${colDef.color}"></span>
             <span>${escapeHtml(colDef.name)}</span>
