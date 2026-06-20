@@ -6,7 +6,14 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb, atomic } from "../db/index.js";
-import { sendJson, queryAll, mapRow, parseJsonColumn } from "./_shared.js";
+import {
+  sendJson,
+  queryAll,
+  mapRow,
+  parseJsonColumn,
+  normalizeStatus,
+  VALID_STATUSES,
+} from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 
 /** Structural validation of an incoming import payload. */
@@ -45,13 +52,10 @@ function validateImportPayload(body: unknown): string | null {
     if (issue.id == null || issue.title == null || issue.status == null) {
       return `Issue ${issue.id}: must have id, title, and status fields`;
     }
-    const validStatuses = [
-      "todo",
-      "inprogress",
-      "review",
-      "done",
-    ];
-    if (!validStatuses.includes(String(issue.status))) {
+    // 2026-06-20: validate against the canonical enum AFTER applying the
+    // alias map. Otherwise an import with status="in_progress" would fail
+    // validation even though it normalizes to "inprogress".
+    if (!VALID_STATUSES.has(normalizeStatus(issue.status))) {
       return `Issue ${issue.id}: invalid status "${String(issue.status)}"`;
     }
   }
@@ -153,7 +157,9 @@ export async function importData(
           // `desc` (canonical Issue field per src/types.ts); DB column
           // is `description`. Accept either.
           ((issue.description ?? issue.desc) as string) ?? "",
-          (issue.status as string) ?? "todo",
+          // 2026-06-20: normalize aliases so the import DB row matches
+          // the canonical enum. See normalizeStatus in _shared.ts.
+          normalizeStatus(issue.status),
           (issue.priority as string) ?? "medium",
           labels,
           (issue.assignee as string) ?? "",
@@ -175,7 +181,7 @@ export async function importData(
         title: issue.title ?? "",
         description: ((issue.description ?? issue.desc) as string) ?? "",
         type: issue.type ?? "task",
-        status: issue.status ?? "todo",
+        status: normalizeStatus(issue.status),
         priority: issue.priority ?? "medium",
         assignee: issue.assignee ?? "",
         reporter: issue.reporter ?? "",

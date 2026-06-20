@@ -6,7 +6,13 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
-import { sendJson, queryAll, mapRow, coerceNumericId } from "./_shared.js";
+import {
+  sendJson,
+  queryAll,
+  mapRow,
+  coerceNumericId,
+  normalizeStatus,
+} from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 
 /**
@@ -193,7 +199,9 @@ export async function setState(
             // the field. Same pattern as the read path in state.ts:218.
             ((issue.description ?? issue.desc) as string) ?? "",
             (issue.type as string) ?? "task",
-            (issue.status as string) ?? "todo",
+            // 2026-06-20: normalize aliases like "in_progress" → "inprogress"
+            // for the bulk state import path. See normalizeStatus in _shared.
+            normalizeStatus(issue.status),
             (issue.priority as string) ?? "medium",
             JSON.stringify(issue.labels ?? []),
             (issue.assignee as string) ?? "",
@@ -375,7 +383,7 @@ export async function setState(
             // description even when the UI state save sent only `desc`.
             description: ((issue.description ?? issue.desc) as string) ?? "",
             type: issue.type ?? "task",
-            status: issue.status ?? "todo",
+            status: normalizeStatus(issue.status),
             priority: issue.priority ?? "medium",
             labels: issue.labels ?? [],
             assignee: issue.assignee ?? "",
@@ -394,7 +402,7 @@ export async function setState(
               // either Issue description field. Same alignment fix.
               description: ((issue.description ?? issue.desc) as string) ?? "",
               type: issue.type ?? "task",
-              status: issue.status ?? "todo",
+              status: normalizeStatus(issue.status),
               priority: issue.priority ?? "medium",
               assignee: issue.assignee ?? "",
               reporter: issue.reporter ?? "",

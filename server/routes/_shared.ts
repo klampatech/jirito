@@ -12,6 +12,40 @@ import type { Database, QueryExecResult } from "sql.js";
 import { getDb } from "../db/index.js";
 
 /**
+ * Canonical issue status enum used by the client's 4-column board.
+ * Anything else gets normalized via STATUS_ALIASES (or rejected).
+ *
+ * Burn 2026-06-20: elmo's harness occasionally emitted status="in_progress"
+ * (with underscore) instead of "inprogress". The server used to accept
+ * it silently. The board view filter `i.status === colDef.status` then
+ * returned false for every default column, hiding the ticket from the
+ * board while still showing it in list view (which doesn't filter through
+ * the column model). Normalize aliases here so any caller — CLI, harness,
+ * direct curl — ends up with a value the client can render.
+ */
+export const VALID_STATUSES: ReadonlySet<string> = new Set([
+  "todo",
+  "inprogress",
+  "review",
+  "done",
+  "trash",
+]);
+
+export const STATUS_ALIASES: Readonly<Record<string, string>> = {
+  in_progress: "inprogress",
+  "in-progress": "inprogress",
+  in_review: "review",
+  "in-review": "review",
+  backlog: "todo",
+};
+
+export function normalizeStatus(raw: unknown): string {
+  if (typeof raw !== "string") return "todo";
+  const aliased = STATUS_ALIASES[raw] ?? raw;
+  return VALID_STATUSES.has(aliased) ? aliased : "todo";
+}
+
+/**
  * Which columns on which tables hold JSON-encoded strings that should be
  * auto-parsed by `mapRow`. Lookup is case-insensitive on the column name.
  */
