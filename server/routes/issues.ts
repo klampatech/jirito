@@ -27,7 +27,7 @@ export async function getAll(
     const projectId = url.searchParams.get("projectId");
     const search = url.searchParams.get("search");
     let sql = "SELECT * FROM issues";
-    const params: unknown[] = [];
+    const params: Array<string | number> = [];
     const conditions: string[] = [];
     if (projectId) {
       conditions.push("projectId = ?");

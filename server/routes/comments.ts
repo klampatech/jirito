@@ -8,7 +8,14 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { saveDb } from "../db/index.js";
-import { sendJson, mapRow, coerceNumericId } from "./_shared.js";
+import {
+  sendJson,
+  mapRow,
+  coerceNumericId,
+  validateCommentAuthor,
+  validateVerdictCaller,
+  getCallerFromHeader,
+} from "./_shared.js";
 import { getDb } from "../db/index.js";
 import { emitEvent } from "../webhooks.js";
 
@@ -45,7 +52,7 @@ export async function getAll(
 }
 
 export async function create(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   body: unknown
 ): Promise<void> {
@@ -56,26 +63,48 @@ export async function create(
       return;
     }
     const input = body as Record<string, unknown>;
+
+    // Layer 1 (body gate) — added 2026-06-20 after the JIRITO-101
+    // impersonation burn: elmo posted a "Review verdict: PASS" comment
+    // with `author="evo"`, which the server previously accepted.
+    const authorCheck = validateCommentAuthor(input.author, input.content);
+    if (!authorCheck.ok) {
+      sendJson(res, 400, { error: authorCheck.error });
+      return;
+    }
+
+    // Layer 2 (caller gate) — closes the impersonation gap. The body
+    // gate is spoofable (anyone can set author="evo"); the caller
+    // header is set by the CLI/agent harness and identifies the
+    // system actually making the request. For verdict content, the
+    // caller must be a reviewer (evo/kyle/system) — squad agents
+    // are blocked even if they try to attribute the verdict to a
+    // reviewer. See _shared.ts:validateVerdictCaller for the cases.
+    const callerCheck = validateVerdictCaller(
+      getCallerFromHeader(req),
+      input.content
+    );
+    if (!callerCheck.ok) {
+      sendJson(res, 400, { error: callerCheck.error });
+      return;
+    }
+
     const id = `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     const now = new Date().toISOString();
+    const issueId = (input.issueId as string) ?? "";
+    const content = (input.content as string) ?? "";
+    const author = (input.author as string).trim();
     db.run(
       "INSERT INTO comments (id, issueId, content, author, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
-      [
-        id,
-        (input.issueId as string) ?? "",
-        (input.content as string) ?? "",
-        (input.author as string) ?? "",
-        now,
-        now,
-      ]
+      [id, issueId, content, author, now, now]
     );
     await saveDb();
 
     const comment = {
       id,
-      issueId: input.issueId ?? "",
-      content: input.content ?? "",
-      author: input.author ?? "",
+      issueId,
+      content,
+      author,
       createdAt: now,
       updatedAt: now,
     };
@@ -85,7 +114,7 @@ export async function create(
     // ticket events (id, assignee, title, description) — required so the
     // jirito-event-injector's verify guard and routing logic work correctly.
     const ticketResult = db.exec("SELECT * FROM issues WHERE id = ?", [
-      String(input.issueId ?? ""),
+      issueId,
     ]);
     const ticket =
       ticketResult.length > 0 && ticketResult[0].values.length > 0
@@ -93,14 +122,14 @@ export async function create(
         : null;
 
     void emitEvent("ticket.commented", {
-      id: ticket ? String(ticket.id) : (input.issueId as string) ?? "",
+      id: ticket ? String(ticket.id) : issueId,
       assignee: (ticket?.assignee as string) ?? "",
       title: (ticket?.title as string) ?? "",
       description: (ticket?.description as string) ?? "",
-      issueId: input.issueId ?? "",
+      issueId,
       commentId: id,
-      author: input.author ?? "",
-      preview: ((input.content as string) ?? "").slice(0, 100),
+      author,
+      preview: content.slice(0, 100),
     });
   } catch (error) {
     console.error("create comment error:", error);
@@ -109,7 +138,7 @@ export async function create(
 }
 
 export async function update(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   body: unknown
@@ -121,10 +150,29 @@ export async function update(
       return;
     }
     const input = body as Record<string, unknown>;
+
+    // Same two-layer gate as `create` — an UPDATE that flips the
+    // author to a name outside the allowlist (or a verdict that
+    // flips the author to a non-reviewer, or a verdict posted by a
+    // non-reviewer caller) is rejected with 400.
+    const authorCheck = validateCommentAuthor(input.author, input.content);
+    if (!authorCheck.ok) {
+      sendJson(res, 400, { error: authorCheck.error });
+      return;
+    }
+    const callerCheck = validateVerdictCaller(
+      getCallerFromHeader(req),
+      input.content
+    );
+    if (!callerCheck.ok) {
+      sendJson(res, 400, { error: callerCheck.error });
+      return;
+    }
+
     const now = new Date().toISOString();
     db.run(
       "UPDATE comments SET content = ?, author = ?, updatedAt = ? WHERE id = ?",
-      [input.content ?? "", input.author ?? "", now, id]
+      [input.content ?? "", (input.author as string).trim(), now, id]
     );
     await saveDb();
     sendJson(res, 200, { id, ...input, updatedAt: now });

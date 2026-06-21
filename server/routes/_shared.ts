@@ -11,6 +11,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Database, QueryExecResult } from "sql.js";
 import { getDb } from "../db/index.js";
 
+// Re-declared locally because @types/sql.js does not export SqlValue.
+// Matches the upstream definition: number | string | Uint8Array | null.
+type SqlValue = number | string | Uint8Array | null;
+
 /**
  * Canonical issue status enum used by the client's 4-column board.
  * Anything else gets normalized via STATUS_ALIASES (or rejected).
@@ -130,7 +134,7 @@ export function mapRow(
  */
 export function queryAll(
   sql: string,
-  params: unknown[] = []
+  params: SqlValue[] = []
 ): Record<string, unknown>[] {
   const db: Database | null = getDb();
   if (!db) {
@@ -143,7 +147,7 @@ export function queryAll(
   // hint. For the routes that use `queryAll` directly, they pass the
   // `mapRow` explicitly. Otherwise, we fall back to the legacy list.
   const tableHint = extractTableName(sql);
-  return result[0].values.map((row) =>
+  return result[0].values.map((row: unknown[]) =>
     mapRow(tableHint ?? "", result[0].columns, row)
   );
 }
@@ -174,6 +178,158 @@ export function coerceNumericId<T extends Record<string, unknown>>(row: T): T {
     return { ...row, id: Number(row.id) };
   }
   return row;
+}
+
+/**
+ * Author allowlist for comments. The set is the single source of truth
+ * for "who is allowed to post a comment to jirito" and matches the
+ * agents + reviewer + human + system authors used by `bin/jirito` and
+ * the jirito-event-injector.
+ *
+ * Why: prior to 2026-06-20, `POST /api/comments` accepted any string
+ * for `author`. The squad agents could — and one did — post comments
+ * under a different agent's name (JIRITO-101: elmo posted a "Review
+ * verdict: PASS" comment with `author="evo"` because my retry brief
+ * was wrong and elmo rubber-stamped the existing PR instead of
+ * pushing back). Burn 2026-06-20.
+ */
+export const VALID_AUTHORS: ReadonlySet<string> = new Set([
+  // 4 squad agents
+  "elmo", "bert", "ernie", "grover",
+  // reviewer (Evo) and human (Kyle)
+  "evo", "kyle",
+  // synthetic comments from server-side flows
+  // (e.g. `bin/jirito cmd_triage` posts "[auto] Triaged to X." with
+  // author="system")
+  "system",
+]);
+
+/**
+ * Authors allowed to post a review-verdict comment. Verdict comments
+ * are recognised by content (see `isVerdictComment`). Without this
+ * rule an agent could post a fake PASS verdict under the reviewer's
+ * name even after the VALID_AUTHORS gate accepts the author string.
+ */
+export const REVIEWER_AUTHORS: ReadonlySet<string> = new Set([
+  "evo", "kyle", "system",
+]);
+
+/**
+ * Detect a review-verdict comment. These signal "this work has been
+ * reviewed and approved/rejected" and must come from REVIEWER_AUTHORS.
+ *
+ * Matched prefixes (case-insensitive, leading whitespace allowed):
+ *  - "Review verdict: PASS" / "Review verdict: FAIL"
+ *  - "Evo review: <verdict>" / "Evo review (rejected): ..."
+ *  - "Review (rejected): ..."
+ */
+export function isVerdictComment(content: string | null | undefined): boolean {
+  if (!content) return false;
+  return /^\s*(review verdict|evo review|review \(rejected\))/i.test(content);
+}
+
+/**
+ * Validate a comment author (and content) before insert/update. Returns
+ * `{ ok: true }` on success or `{ ok: false, error }` with a stable
+ * 400-class message on failure.
+ *
+ * Rules (added 2026-06-20 after the JIRITO-101 impersonation burn):
+ *  1. `author` is required and must be in `VALID_AUTHORS`.
+ *  2. If the content is a verdict comment, `author` must additionally
+ *     be in `REVIEWER_AUTHORS`. This stops agents from rubber-stamping
+ *     their own work under a reviewer's name.
+ */
+export function validateCommentAuthor(
+  author: unknown,
+  content: unknown
+): { ok: true } | { ok: false; error: string } {
+  const a = typeof author === "string" ? author.trim() : "";
+  if (!a) {
+    return { ok: false, error: "author is required" };
+  }
+  if (!VALID_AUTHORS.has(a)) {
+    return { ok: false, error: `unknown author: ${a}` };
+  }
+  const c = typeof content === "string" ? content : "";
+  if (isVerdictComment(c) && !REVIEWER_AUTHORS.has(a)) {
+    return {
+      ok: false,
+      error: `verdict comments must be posted by a reviewer (evo/kyle/system), got: ${a}`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Read the request's caller identity from the `X-Jirito-Caller` header.
+ *
+ * The caller is the SYSTEM ACTOR making the request — distinct from
+ * the comment's displayed `author`. The CLI sets it to whoever
+ * invoked it (kyle by default, overridable via `JIRITO_CALLER`).
+ * The jirito-event-injector / agent harnesses set it to the agent's
+ * own name. The body's `author` is the comment's label; the header
+ * is who actually pressed the button.
+ *
+ * HTTP header names are case-insensitive. Returns the trimmed value
+ * or `null` if the header is absent / empty.
+ */
+export function getCallerFromHeader(req: IncomingMessage): string | null {
+  const raw = req.headers["x-jirito-caller"];
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Validate the caller (from `X-Jirito-Caller`) for verdict comments.
+ * Returns `{ ok: true }` for non-verdict content (no caller check
+ * needed) or `{ ok: false, error }` if a verdict was posted without
+ * a reviewer-class caller.
+ *
+ * This is the SECOND LAYER of the JIRITO-101 fix. The first layer
+ * (`validateCommentAuthor`) checks the body field, which can be
+ * spoofed. This layer checks the request's actual caller, which
+ * only legitimate processes can set. Combined:
+ *
+ *   - elmo (caller=elmo) posts verdict with body author=evo
+ *     → validateCommentAuthor: PASSES (evo is in REVIEWER_AUTHORS)
+ *     → validateVerdictCaller:  FAILS (elmo is not a reviewer)
+ *     → 400 ✓ (the original burn, now closed)
+ *
+ *   - kyle (caller=kyle) posts verdict with body author=evo
+ *     → validateCommentAuthor: PASSES
+ *     → validateVerdictCaller:  PASSES (kyle is a reviewer)
+ *     → 201 (kyle posting on behalf of evo — fine)
+ *
+ *   - elmo (caller=elmo) posts regular comment with body author=elmo
+ *     → validateCommentAuthor: PASSES (elmo is in VALID_AUTHORS)
+ *     → validateVerdictCaller:  N/A (not a verdict)
+ *     → 201 (regular agent comment — fine)
+ */
+export function validateVerdictCaller(
+  caller: string | null,
+  content: unknown
+): { ok: true } | { ok: false; error: string } {
+  const c = typeof content === "string" ? content : "";
+  if (!isVerdictComment(c)) {
+    // No caller check needed for non-verdict content.
+    return { ok: true };
+  }
+  if (!caller) {
+    return {
+      ok: false,
+      error:
+        "verdict comments require an X-Jirito-Caller header (evo/kyle/system)",
+    };
+  }
+  if (!REVIEWER_AUTHORS.has(caller)) {
+    return {
+      ok: false,
+      error: `verdict comments must be posted by a reviewer caller (evo/kyle/system), got: ${caller}`,
+    };
+  }
+  return { ok: true };
 }
 
 /** Read the request body as JSON. Throws on invalid JSON. */
