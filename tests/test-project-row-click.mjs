@@ -12,6 +12,41 @@ async function screenshot(page, name) {
   console.log(`  ✓ Screenshot: ${name}`);
 }
 
+// Seed a starting "Project Alpha" via localStorage so the front-end
+// (loaded via file://, no API server reachable) sees a default project.
+// This is the offline-mode equivalent of `clearDb()` in helpers.mjs —
+// see references/2026-06-21-no-demo-data.md for why the app no longer
+// auto-seeds a default project in its in-memory defaultState().
+async function seedDefaultProject(page) {
+  await page.addInitScript(() => {
+    const state = {
+      issues: [],
+      comments: {},
+      projects: {
+        default: {
+          id: 'default',
+          name: 'Project Alpha',
+          key: 'PROJ',
+          icon: '🚀',
+          color: '#0052CC',
+          description: '',
+          issues: [],
+        },
+      },
+      currentProject: 'default',
+      savedFilters: [],
+      activity: [],
+      activityLog: [],
+      issueCounter: 1,
+      trash: [],
+      sprints: {},
+      columns: [],
+      customColumns: [],
+    };
+    localStorage.setItem('jirito-state', JSON.stringify(state));
+  });
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -170,6 +205,7 @@ async function main() {
   // ===== Test 6: Delete button still works (doesn't switch project) =====
   {
     const page = await context.newPage();
+    await seedDefaultProject(page);
     await page.goto(URL);
     const onboarding = page.locator('#onboarding-overlay');
     if (await onboarding.isVisible()) await page.locator('#onboarding-skip').click();
@@ -229,6 +265,7 @@ async function main() {
   // ===== Test 9: Verify active project row is highlighted =====
   {
     const page = await context.newPage();
+    await seedDefaultProject(page);
     await page.goto(URL);
     const onboarding = page.locator('#onboarding-overlay');
     if (await onboarding.isVisible()) await page.locator('#onboarding-skip').click();

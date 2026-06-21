@@ -4,16 +4,27 @@ const API_URL = 'http://127.0.0.1:3001';
 
 export async function clearDb() {
   try {
-    // Use setState with empty data to clear all tables atomically.
-    // This avoids UNIQUE constraint errors on subsequent state imports
-    // (columns, sprints, filters, trash, comments, etc. were previously
-    // not cleared by setState, causing constraint failures).
+    // Reset to a known fixture state. Project Alpha is now part of the
+    // test fixture (not auto-seeded by the app — see
+    // references/2026-06-21-no-demo-data.md). Tests that switch between
+    // projects or test deletion semantics rely on this starting project
+    // existing.
     await fetch(`${API_URL}/api/state`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         issues: [],
-        projects: {},
+        projects: {
+          default: {
+            id: 'default',
+            name: 'Project Alpha',
+            key: 'PROJ',
+            icon: '🚀',
+            color: '#0052CC',
+            description: '',
+            issues: [],
+          },
+        },
         currentProject: 'default',
         savedFilters: [],
         activityLog: [],

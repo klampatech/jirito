@@ -176,20 +176,22 @@ export function initTables(): void {
     )
   `);
 
-  // Create default project if none exists
-  const projectCount = db.exec("SELECT COUNT(*) as count FROM projects");
-  if (projectCount[0].values[0][0] === 0) {
-    db.run(
-      "INSERT INTO projects (id, name, key, icon) VALUES ('default', 'Default Project', 'JIR', '🚀')"
-    );
-  }
+  // No auto-seeded "Default Project". Burned 2026-06-21: the previous
+  // "create default project if none exists" rule kept resurrecting a
+  // demo project after every DB clear. The user explicitly wants an
+  // empty board by default — they create their own projects through
+  // the UI. See references/2026-06-21-no-demo-data.md.
+
   // Ensure metadata entries exist (idempotent)
   const hasCurrentProject = db.exec(
     "SELECT COUNT(*) as count FROM metadata WHERE key = 'currentProject'"
   );
   if (hasCurrentProject[0].values[0][0] === 0) {
+    // Don't seed currentProject='default' either — it pointed at the
+    // now-removed demo project. Leave currentProject unset so the
+    // UI can show the empty-state until the user picks a project.
     db.run(
-      "INSERT INTO metadata (key, value) VALUES ('currentProject', 'default')"
+      "INSERT INTO metadata (key, value) VALUES ('currentProject', '')"
     );
   }
   const hasIssueCounter = db.exec(
