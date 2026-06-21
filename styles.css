@@ -1759,3 +1759,86 @@ body {
   .calendar-day { min-height: 50px; }
   .column-config-item { flex-wrap: wrap; }
 }
+
+/* ===== No-Projects Empty States =====
+ * Shown when the user has zero projects (i.e. fresh install). Previously
+ * the app auto-seeded "Project Alpha" + sample tickets; the demo-data
+ * removal (2026-06-21) requires us to show a clear "create your first
+ * project" CTA instead. See references/2026-06-21-no-demo-data.md. */
+.project-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 12px;
+  text-align: center;
+}
+.project-empty-icon {
+  font-size: 28px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.project-empty-msg {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.btn-empty-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed var(--border-light);
+  border-radius: 6px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-empty-create:hover {
+  background: var(--active-bg);
+  border-color: var(--primary);
+  border-style: solid;
+}
+.btn-empty-create .icon-sm { font-size: 14px; }
+
+.board-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: calc(100vh - 200px);
+  text-align: center;
+  padding: 48px 24px;
+  gap: 12px;
+}
+.board-empty-icon {
+  font-size: 56px;
+  color: var(--primary);
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+.board-empty-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+}
+.board-empty-msg {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}
+.btn-empty-create-board {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+}
