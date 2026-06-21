@@ -171,23 +171,22 @@ export async function loadState() {
     }
     // Load persisted data from storage layer (localStorage or server)
     const data = await storage.getStorageData();
-    // Only seed sampleIssues on a *genuine* first run — offline mode with no
-    // localStorage cache. The previous "if empty → samples" fallback re-seeded
-    // the hardcoded 101-106 on every page load when the server was empty,
-    // silently clobbering a user's "I deleted everything" intent. In server
-    // mode the server is the source of truth, even when empty.
-    const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
+    // Empty state — no demo data is ever seeded. Burned 2026-06-21:
+    // the previous "seed sample issues on first run" path kept surfacing
+    // hardcoded 101-106 tickets in the live SQLite DB every time the
+    // user cleared the DB. The user wants an empty board by default.
+    // See references/2026-06-21-no-demo-data.md.
     if (data && data.issues && data.issues.length > 0) {
         _issues = data.issues.map((i) => ({ ...i, desc: i.desc || i.description || "" }));
         _issueCounter = Math.max(..._issues.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
         console.log("[loadState] Loaded", _issues.length, "issues from storage, first dueDate:", _issues[0]?.dueDate);
     }
-    else if (isFirstRun) {
-        _issues = [...sampleIssues];
-        _issueCounter = 106;
-        console.log("[loadState] First run, seeding sample issues");
-    }
     else {
+        // Empty state — never seed sample/demo issues. Burned 2026-06-21:
+        // even the "only on a genuine first run" path was enough to surface
+        // hardcoded 101-106 tickets in the live SQLite DB every time the user
+        // cleared the DB. The user wants an empty board by default; they
+        // create their own tickets. See references/2026-06-21-no-demo-data.md.
         _issues = [];
         _issueCounter = Math.max(ISSUE_COUNTER_START, _issueCounter ?? 0);
         console.log("[loadState] Empty state, no issues to load");
@@ -196,26 +195,20 @@ export async function loadState() {
     if (data && data.projects) {
         _projects = data.projects;
     }
-    // Ensure default project exists before checking currentProject
-    // Only seed sample issues on a genuine first run (offline mode with no
-    // localStorage). In server mode the server is the source of truth, even
-    // when empty — never re-seed the hardcoded 101-106, which would silently
-    // clobber the user's "I deleted everything" intent.
-    if (!_projects["default"]) {
-        _projects["default"] = {
-            id: "default",
-            name: "Project Alpha",
-            icon: "📋",
-            key: "PROJ",
-            issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
-        };
-    }
-    // Validate currentProject exists in projects before restoring
+    // No auto-created "Project Alpha" / "Default Project" / sample tickets.
+    // The user starts with an empty board. If they want a project, they
+    // create one through the UI. See references/2026-06-21-no-demo-data.md.
+    // Validate currentProject exists in projects before restoring.
+    // If no projects exist yet (clean board), leave _currentProject empty
+    // so the UI can show a "create your first project" empty state. The
+    // previous `_currentProject = "default"` fallback assumed the demo
+    // project would always be there — that assumption is gone now.
     if (data && data.currentProject && _projects[data.currentProject]) {
         _currentProject = data.currentProject;
     }
-    else if (_projects["default"]) {
-        _currentProject = "default";
+    else {
+        const keys = Object.keys(_projects);
+        _currentProject = keys.length > 0 ? keys[0] : "";
     }
     // Restore filters, activity, trash, sprints, customColumns from storage layer
     if (data && data.filters) {
@@ -500,14 +493,12 @@ export function getDependents(issueId) {
     });
 }
 // ===== Sample Data =====
-const sampleIssues = [
-    { id: 101, title: "Design login page mockup", desc: "Create wireframes for the new login flow", type: "story", priority: "high", assignee: "Alice", status: "todo", dueDate: "2026-05-15", labels: ["design"], storyPoints: 5, rank: 0 },
-    { id: 102, title: "Fix auth token refresh bug", desc: "Tokens expire too early on mobile", type: "bug", priority: "high", assignee: "Bob", status: "inprogress", dueDate: "2026-05-01", labels: ["bug", "auth"], storyPoints: 3, rank: 1 },
-    { id: 103, title: "Set up CI/CD pipeline", desc: "GitHub Actions for staging and prod", type: "task", priority: "medium", assignee: "Charlie", status: "todo", dueDate: "2026-06-01", labels: ["devops"], storyPoints: 8, rank: 2 },
-    { id: 104, title: "Write API documentation", desc: "OpenAPI spec for all endpoints", type: "story", priority: "medium", assignee: "Alice", status: "review", dueDate: null, labels: ["docs"], storyPoints: 5, rank: 3 },
-    { id: 105, title: "Update dependencies", desc: "Bump all npm packages to latest", type: "task", priority: "low", assignee: "Bob", status: "done", dueDate: "2026-04-20", labels: [], storyPoints: 2, rank: 4 },
-    { id: 106, title: "Implement dark mode toggle", desc: "Add theme switcher in settings", type: "story", priority: "low", assignee: "Diana", status: "todo", dueDate: null, labels: ["feature"], storyPoints: 3, rank: 5 },
-];
+//
+// Removed 2026-06-21 (see references/2026-06-21-no-demo-data.md).
+// The previous `sampleIssues` array was the source of the recurring
+// "Project Alpha" + 6 demo tickets that kept reappearing after every
+// DB clear. The user explicitly wants an empty board by default —
+// they create their own projects and tickets through the UI.
 // Map issue type → phosphor icon name. Exported for use by render.ts
 // and events.ts (which render issue cards/lists). In classic-script
 // mode this const was implicitly global; in the new module world we
@@ -618,39 +609,19 @@ export function reorderColumns(orderMap) {
 }
 // ===== Data Initialization (Task 2.2: Consolidated migration logic) =====
 export function initializeData() {
-    // 1. Ensure default project exists
-    if (!_projects["default"]) {
-        // Only seed sample issues on a genuine first run. In server mode
-        // (or any state where the user has explicitly cleared the board),
-        // the project should start empty — never re-seed the 101-106 sample
-        // issues, which would silently clobber the user's "I deleted
-        // everything" intent. The loadState caller is responsible for
-        // setting the sample-fallback via the `isFirstRun` path; this
-        // initializer is only responsible for project structure.
-        const isFirstRun = storage.getStorageType() === "offline" && !localStorage.getItem("jirito-state");
-        _projects["default"] = {
-            id: "default",
-            name: "Project Alpha",
-            icon: "📋",
-            key: "PROJ",
-            issues: isFirstRun && _issues.length === 0 ? [...sampleIssues] : _issues,
-        };
-        // If we seeded samples, sync the counter and the global issues list
-        // to match. Without this, the next issue would be created with id
-        // ISSUE_COUNTER_START (100) and collide with the seeded 101.
-        if (isFirstRun && _issues.length === 0 && (_projects["default"].issues?.length ?? 0) > 0) {
-            const seeded = _projects["default"].issues;
-            _issues = seeded;
-            _issueCounter = Math.max(...seeded.map((i) => Number(i.id) || 0), ISSUE_COUNTER_START);
-        }
-    }
-    // 2. Ensure currentProject is valid
+    // No auto-created demo project or sample issues. The user starts with
+    // an empty board; they create projects and tickets through the UI.
+    // See references/2026-06-21-no-demo-data.md.
+    // 1. Ensure currentProject is valid (pick first available or empty)
     if (!_projects[_currentProject]) {
-        _currentProject = "default";
+        const keys = Object.keys(_projects);
+        _currentProject = keys.length > 0 ? keys[0] : "";
     }
-    // 3. Sync global issues with current project
+    // 2. Sync global issues with current project (if any)
     // Only sync if project.issues contains issue objects (not string IDs from server storage)
-    if (_projects[_currentProject].issues && _projects[_currentProject].issues.length > 0) {
+    if (_currentProject &&
+        _projects[_currentProject]?.issues &&
+        _projects[_currentProject].issues.length > 0) {
         const firstItem = _projects[_currentProject].issues[0];
         if (typeof firstItem === "object" && firstItem !== null && firstItem.id) {
             // Project has issue objects — sync them
@@ -658,8 +629,8 @@ export function initializeData() {
         }
         // If firstItem is a string, it's an ID list — keep _issues as-is (already set from storage)
     }
-    // 4. Ensure project key exists
-    if (!_projects[_currentProject].key) {
+    // 3. Ensure project key exists
+    if (_currentProject && _projects[_currentProject] && !_projects[_currentProject].key) {
         _projects[_currentProject].key = _currentProject.toUpperCase();
     }
 }
