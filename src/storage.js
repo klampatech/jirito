@@ -20,24 +20,17 @@ else if (typeof window !== "undefined") {
     SERVER_URL = "";
 }
 const API_BASE = SERVER_URL ? SERVER_URL + "/api" : "/api";
-/** A fresh, empty AppState. The `default` project is always seeded so
- *  the UI has something to render on first run. */
+/** A fresh, empty AppState. No demo project seeded — the user starts
+ *  with an empty board and creates their own projects through the UI.
+ *  Burned 2026-06-21: the previous `default` project ("Project Alpha")
+ *  kept reappearing after every DB clear. See
+ *  references/2026-06-21-no-demo-data.md. */
 function defaultState() {
     return {
         issues: [],
         comments: {},
-        projects: {
-            default: {
-                id: "default",
-                name: "Project Alpha",
-                key: "PROJ",
-                icon: "\uD83D\uDE80",
-                color: "#0052CC",
-                description: "",
-                issues: [],
-            },
-        },
-        currentProject: "default",
+        projects: {},
+        currentProject: "",
         savedFilters: [],
         activity: [],
         activityLog: [],
