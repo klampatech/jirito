@@ -183,9 +183,29 @@ def cmd_move(args: argparse.Namespace) -> None:
         sys.stderr.write(f"jirito: error: invalid status '{status_val}'. Valid: {', '.join(VALID_STATUSES)}\n")
         sys.exit(2)
 
+    # Close-verification gate (2026-06-21, JIRITO-101 "already handled" burn).
+    # When JIRITO_CALLER is a squad agent and the move is to a close status
+    # ('done' / 'trash'), --verification is required. The API enforces the
+    # same gate, so this client-side check is just a friendlier error path.
+    # Idempotent re-PUTs (already at target status) skip the gate because
+    # no transition is actually happening.
+    AGENT_CALLERS = ("elmo", "bert", "ernie", "grover")
+    caller_env = os.environ.get("JIRITO_CALLER", "kyle").lower()
+    is_agent_caller = caller_env in AGENT_CALLERS
+    if status_val in ("done", "trash") and is_agent_caller:
+        verification = (args.verification or "").strip()
+        if len(verification) < 20:
+            sys.stderr.write(
+                "jirito: error: --verification required (≥20 chars) when "
+                f"{caller_env} closes a ticket to '{status_val}'. Examples: "
+                "a commit SHA, a PR URL, 'verified in browser: <steps>', "
+                "or 'duplicate of #N / already handled by PR #N'.\n"
+            )
+            sys.exit(2)
+
     # Idempotency check (MUST R8)
     _, issue = _req("GET", f"/api/issues/{args.id}")
-    if issue.get("status") == status_val and args.pr_url is None:
+    if issue.get("status") == status_val and args.pr_url is None and not args.verification:
         print(f"jirito: no-op: issue {args.id} already {status_val}")
         return
 
@@ -200,6 +220,8 @@ def cmd_move(args: argparse.Namespace) -> None:
         body["assignee"] = args.assignee
     if args.pr_url is not None:
         body["prUrl"] = args.pr_url
+    if args.verification:
+        body["verification"] = args.verification
 
     status, data = _req("PUT", f"/api/issues/{args.id}", body)
     if status == 404:
@@ -470,6 +492,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("status", help=f"one of: {', '.join(VALID_STATUSES)}")
     p.add_argument("--assignee")
     p.add_argument("--pr-url", dest="pr_url", help="PR URL")
+    p.add_argument(
+        "--verification",
+        help=(
+            "Reason for closing (required when JIRITO_CALLER is a squad "
+            "agent and status is 'done' or 'trash'). ≥20 chars. Examples: "
+            "a commit SHA, a PR URL, 'verified in browser: <steps>', or "
+            "'duplicate of #N / already handled by PR #N'."
+        ),
+    )
 
     # comment
     p = sub.add_parser("comment", help="add a comment")

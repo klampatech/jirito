@@ -317,7 +317,7 @@ export async function loadState(): Promise<void> {
   }
   // Restore default column overrides (name/color for the 4 built-in columns)
   if (data && typeof data === "object" && "_defaultColumnOverrides" in data) {
-    _defaultColumnOverrides = (data as Record<string, unknown>)["_defaultColumnOverrides"] as typeof _defaultColumnOverrides;
+    _defaultColumnOverrides = (data as unknown as Record<string, unknown>)["_defaultColumnOverrides"] as typeof _defaultColumnOverrides;
   }
 
   // Sync in-memory issues with current project

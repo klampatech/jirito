@@ -215,6 +215,27 @@ export const REVIEWER_AUTHORS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Caller identifiers (X-Jirito-Caller header) that represent squad
+ * agents and are subject to the close-verification gate. Humans
+ * (kyle) and the parent agent (evo) are exempt — they can move
+ * tickets to `done`/`trash` without providing a `verification`
+ * field, because they're either consciously closing or have a
+ * downstream review path.
+ *
+ * Burn 2026-06-21 (JIRITO-101 / "already handled"): elmo moved
+ * #101 to inprogress, created a branch, then declared "Already
+ * handled — continuing with the bug fix" without reproducing in
+ * the browser. Skill-level Path C enforcement existed but agents
+ * can skip skill instructions. The API-level close gate below
+ * (see issues.ts `update`) is the structural fix that turns the
+ * "verification required" rule from prose into a hard pre-condition
+ * on the close transition itself.
+ */
+export const AGENT_CALLERS: ReadonlySet<string> = new Set([
+  "elmo", "bert", "ernie", "grover",
+]);
+
+/**
  * Detect a review-verdict comment. These signal "this work has been
  * reviewed and approved/rejected" and must come from REVIEWER_AUTHORS.
  *

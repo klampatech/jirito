@@ -169,6 +169,158 @@ describe('Issues CRUD', () => {
   });
 });
 
+describe('Close-Verification Gate (JIRITO-101 "already handled" burn, 2026-06-21)', () => {
+  // Helper to create a fresh ticket for each test so the gate behavior
+  // doesn't depend on cross-test ordering. We use a per-test prefix to
+  // keep the audit trail clear if anyone goes looking at the DB after.
+  async function makeTicket(titlePrefix, status = 'inprogress', caller = 'kyle') {
+    const { status: code, data } = await fetchJson('POST', '/issues', {
+      title: `${titlePrefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: 'task',
+      status,
+      assignee: 'elmo',
+      projectId: 'JIR',
+    }, { caller });
+    assert.strictEqual(code, 201, `expected 201 from POST /issues, got ${code}`);
+    return data;
+  }
+
+  it('rejects agent close to "done" without verification (400)', async () => {
+    const issue = await makeTicket('close-gate: no verification');
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 400);
+    assert.match(data.error, /Verification required/);
+    assert.ok(data.hint, '400 response should include a hint for the agent');
+  });
+
+  it('rejects agent close with too-short verification (400)', async () => {
+    const issue = await makeTicket('close-gate: short verification');
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+      verification: 'too short',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 400);
+    assert.match(data.error, /Verification required/);
+  });
+
+  it('accepts agent close to "done" with valid verification (200 + auto-comment)', async () => {
+    const issue = await makeTicket('close-gate: valid verification');
+    const verification = 'verified in browser: deleted a project and refreshed, project did NOT reappear';
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+      verification,
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.status, 'done');
+
+    // Auto-comment with [auto-verification] prefix should now exist.
+    const commentsRes = await fetch(
+      `${API_BASE}/comments?issueId=${issue.id}`,
+      { headers: { 'X-Jirito-Caller': 'kyle' } }
+    );
+    const comments = await commentsRes.json();
+    const auto = comments.find(c => c.content === `[auto-verification] ${verification}`);
+    assert.ok(auto, 'expected an [auto-verification] comment matching the verification text');
+    assert.strictEqual(auto.author, 'elmo');
+  });
+
+  it('accepts agent close to "trash" with verification (200)', async () => {
+    const issue = await makeTicket('close-gate: trash with verification');
+    const { status } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'trash',
+      verification: 'duplicate of #101, already handled by prior work',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 200);
+  });
+
+  it('lets Kyle (human) close without verification (user override)', async () => {
+    const issue = await makeTicket('close-gate: kyle bypass');
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+    }, { caller: 'kyle' });
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.status, 'done');
+  });
+
+  it('lets Evo (parent agent) close without verification (parent override)', async () => {
+    const issue = await makeTicket('close-gate: evo bypass');
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+    }, { caller: 'evo' });
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.status, 'done');
+  });
+
+  it('does NOT require verification when agent moves to "review"', async () => {
+    const issue = await makeTicket('close-gate: review, no verification');
+    const { status, data } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'review',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.status, 'review');
+  });
+
+  it('does NOT require verification on idempotent re-PUT (no transition)', async () => {
+    const issue = await makeTicket('close-gate: idempotent done');
+    // First, close it as kyle to set the canonical state.
+    await fetchJson('PUT', `/issues/${issue.id}`, { status: 'done' }, { caller: 'kyle' });
+    // Idempotent re-PUT by an agent without verification should be fine
+    // because the status didn't change (and a no-op is not a transition).
+    const { status } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 200);
+  });
+
+  it('auto-verification comment is idempotent (no duplicate on repeated close)', async () => {
+    const issue = await makeTicket('close-gate: idempotent auto-comment');
+    const verification = 'verified in browser: drag-drop reorder persists across refresh, see PR #50';
+
+    // First close: creates auto-comment.
+    await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+      verification,
+    }, { caller: 'elmo' });
+
+    // Move back to inprogress (kyle can do this freely).
+    await fetchJson('PUT', `/issues/${issue.id}`, { status: 'inprogress' }, { caller: 'kyle' });
+
+    // Re-close with the SAME verification text — should NOT create a duplicate.
+    await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+      verification,
+    }, { caller: 'elmo' });
+
+    const commentsRes = await fetch(
+      `${API_BASE}/comments?issueId=${issue.id}`,
+      { headers: { 'X-Jirito-Caller': 'kyle' } }
+    );
+    const comments = await commentsRes.json();
+    const matches = comments.filter(c => c.content === `[auto-verification] ${verification}`);
+    assert.strictEqual(matches.length, 1, 'expected exactly one auto-verification comment, not duplicates');
+  });
+
+  it('rejected close attempt does NOT mutate the issue row', async () => {
+    const issue = await makeTicket('close-gate: rejected mutation check');
+    const originalUpdatedAt = issue.updatedAt;
+
+    const { status } = await fetchJson('PUT', `/issues/${issue.id}`, {
+      status: 'done',
+    }, { caller: 'elmo' });
+    assert.strictEqual(status, 400);
+
+    // Re-fetch — status should still be inprogress, updatedAt unchanged.
+    const res = await fetch(`${API_BASE}/issues/${issue.id}`, {
+      headers: { 'X-Jirito-Caller': 'kyle' },
+    });
+    const fresh = await res.json();
+    assert.strictEqual(fresh.status, 'inprogress', 'rejected close should not change status');
+    assert.strictEqual(fresh.updatedAt, originalUpdatedAt, 'rejected close should not bump updatedAt');
+  });
+});
+
 describe('Projects CRUD', () => {
   it('should list projects via GET /api/projects', async () => {
     const res = await fetch(`${API_BASE}/projects`);

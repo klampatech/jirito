@@ -185,6 +185,10 @@ function _saveToServer(data) {
     else if (data.columns && data.columns.length > 0) {
         stateToSave.columns = data.columns;
     }
+    // Persist default column overrides alongside custom columns.
+    if (data._defaultColumnOverrides) {
+        stateToSave._defaultColumnOverrides = data._defaultColumnOverrides;
+    }
     // Mirror to localStorage as a cache. This keeps the offline fallback
     // warm and lets test suites (and any same-origin reader) observe the
     // latest state without an extra round-trip to the server.
@@ -218,6 +222,7 @@ function _writeLocalMirror(data) {
         sprints: data.sprints || {},
         columns: data.columns || [],
         customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
+        _defaultColumnOverrides: data._defaultColumnOverrides || {},
     };
     localStorage.setItem("jirito-state", JSON.stringify(stateToSave));
 }
