@@ -70,6 +70,7 @@ export interface Project {
   icon?: string;
   color?: string;
   description?: string;
+  githubUrl?: string;
   /** Server returns string ids; client may hydrate with full Issue objects. */
   issues?: Array<Issue | string>;
   createdAt?: string;

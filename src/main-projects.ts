@@ -42,12 +42,13 @@ export function initProjects(): void {
     const name = (document.getElementById("project-name") as HTMLInputElement | null)?.value.trim() ?? "";
     const keyRaw = (document.getElementById("project-key") as HTMLInputElement | null)?.value.trim() ?? "";
     const key = keyRaw.toUpperCase();
+    const githubUrl = (document.getElementById("project-github-url") as HTMLInputElement | null)?.value.trim() ?? "";
     if (!name || !key) return;
     if (getProjects()[key]) {
       showToast("Project key already exists!", "error");
       return;
     }
-    createProject(name, key);
+    createProject(name, key, githubUrl || undefined);
     const overlay = document.getElementById("project-modal-overlay");
     const form = document.getElementById("project-form") as HTMLFormElement | null;
     if (overlay) overlay.style.display = "none";
