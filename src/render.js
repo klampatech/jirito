@@ -22,10 +22,39 @@ import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast
 import { deleteProject } from "./data.js";
 // ===== Rendering =====
 export function renderBoard() {
-    const columns = getEffectiveColumns();
     const board = document.getElementById("board");
     if (!board)
         return;
+    // Empty state — no projects. The app no longer auto-seeds a default
+    // project (see references/2026-06-21-no-demo-data.md), so a fresh user
+    // lands here with no projects. Show a centered welcome with a CTA to
+    // create the first project, instead of an empty board.
+    if (Object.keys(getProjects()).length === 0 || !getCurrentProject()) {
+        board.innerHTML = `
+      <div class="board-empty">
+        <i class="ph ph-rocket board-empty-icon"></i>
+        <h2 class="board-empty-title">Welcome to Jirito</h2>
+        <p class="board-empty-msg">Create your first project to start tracking issues, sprints, and progress.</p>
+        <button class="btn btn-primary btn-empty-create-board" id="board-empty-create-btn" type="button">
+          <i class="ph ph-plus icon"></i>
+          Create your first project
+        </button>
+      </div>
+    `;
+        const btn = board.querySelector("#board-empty-create-btn");
+        if (btn) {
+            btn.addEventListener("click", () => {
+                const overlay = document.getElementById("project-modal-overlay");
+                if (overlay)
+                    overlay.style.display = "flex";
+                const nameInput = document.getElementById("project-name");
+                if (nameInput)
+                    nameInput.focus();
+            });
+        }
+        return;
+    }
+    const columns = getEffectiveColumns();
     const existingCols = board.querySelectorAll(".column");
     // Remove columns that no longer exist
     existingCols.forEach((col) => {
@@ -284,7 +313,37 @@ export function renderProjects() {
     if (!list)
         return;
     list.innerHTML = "";
-    Object.entries(getProjects()).forEach(([key, proj]) => {
+    const projects = getProjects();
+    const projectKeys = Object.keys(projects);
+    if (projectKeys.length === 0) {
+        // Empty state — no projects yet. The app no longer auto-seeds a default
+        // project (see references/2026-06-21-no-demo-data.md), so the user
+        // creates their first project through this CTA.
+        const empty = document.createElement("div");
+        empty.className = "project-empty";
+        empty.innerHTML = `
+      <i class="ph ph-folder-open project-empty-icon"></i>
+      <p class="project-empty-msg">No projects yet</p>
+      <button class="btn-empty-create" id="empty-create-project-btn" type="button">
+        <i class="ph ph-plus icon-sm"></i>
+        Create your first project
+      </button>
+    `;
+        const btn = empty.querySelector("#empty-create-project-btn");
+        if (btn) {
+            btn.addEventListener("click", () => {
+                const overlay = document.getElementById("project-modal-overlay");
+                if (overlay)
+                    overlay.style.display = "flex";
+                const nameInput = document.getElementById("project-name");
+                if (nameInput)
+                    nameInput.focus();
+            });
+        }
+        list.appendChild(empty);
+        return;
+    }
+    Object.entries(projects).forEach(([key, proj]) => {
         const item = document.createElement("div");
         item.className = `project-item${key === getCurrentProject() ? " active" : ""}`;
         item.dataset.key = key;
