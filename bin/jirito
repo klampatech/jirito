@@ -10,6 +10,7 @@ import json
 import os
 import pathlib
 import sqlite3
+import subprocess
 import sys
 import urllib.request
 import urllib.error
@@ -335,6 +336,75 @@ def cmd_unblock(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def cmd_build(args: argparse.Namespace) -> None:
+    """Rebuild compiled .js artifacts from .ts sources.
+
+    Wraps the `npm run build:<target>` scripts in package.json. The
+    common case after `git pull` is `jirito build` (default = client)
+    — the .js files in src/ are what the browser actually loads, and
+    they go stale when .ts changes aren't rebuilt. Without this step,
+    a merged PR can look broken in the browser even though the source
+    is fixed.
+
+    Burned 2026-06-21: PR #36 added the default-columns rendering in
+    .ts but the .js was never rebuilt, so the bug appeared to persist
+    after merge. The "verified in browser" check an agent did actually
+    confirmed the BROKEN state (stale .js) instead of the FIXED state.
+
+    Targets:
+      client  — src/*.js from src/*.ts (the browser-loadable artifacts)
+      server  — server/**/*.js from server/**/*.ts
+      tests   — test .js from .ts
+      all     — all of the above, in order
+    """
+    cwd = pathlib.Path(__file__).resolve().parent.parent  # jirito root
+    targets: dict[str, str] = {
+        "client": "build:client",
+        "server": "build:server",
+        "tests":  "build:tests",
+    }
+    if args.target == "all":
+        runs = list(targets.items())
+    elif args.target in targets:
+        runs = [(args.target, targets[args.target])]
+    else:
+        sys.stderr.write(
+            f"jirito: error: unknown build target {args.target!r} "
+            f"(choose from: {', '.join(list(targets) + ['all'])})\n"
+        )
+        sys.exit(2)
+
+    if not shutil.which("npm"):
+        sys.stderr.write(
+            "jirito: error: npm not found in PATH. The jirito service "
+            "sets PATH explicitly in jirito.service — for CLI use, "
+            "ensure nvm/fnm/etc. is sourced in your shell.\n"
+        )
+        sys.exit(1)
+
+    for label, script in runs:
+        sys.stderr.write(f"jirito: build {label} (npm run {script})...\n")
+        start = time.monotonic()
+        proc = subprocess.run(
+            ["npm", "run", script],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+        )
+        elapsed = time.monotonic() - start
+        if proc.returncode != 0:
+            sys.stderr.write(
+                f"jirito: build {label} FAILED (rc={proc.returncode}, "
+                f"{elapsed:.1f}s)\n"
+            )
+            if proc.stdout:
+                sys.stderr.write(proc.stdout)
+            if proc.stderr:
+                sys.stderr.write(proc.stderr)
+            sys.exit(proc.returncode)
+        print(f"jirito: build {label} OK ({elapsed:.1f}s)")
+
+
 def cmd_outbox(args: argparse.Namespace) -> None:
     """Read webhook_outbox directly from jirito.db (offline-friendly)."""
     if not DB_PATH.exists():
@@ -432,6 +502,20 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("unblock", help="unblock a ticket")
     p.add_argument("id", type=int, help="ticket id")
 
+    # build
+    p = sub.add_parser(
+        "build",
+        help="rebuild compiled .js from .ts (run after `git pull` to "
+             "pick up changes in the browser-loaded files)",
+    )
+    p.add_argument(
+        "target",
+        nargs="?",
+        default="client",
+        choices=["client", "server", "tests", "all"],
+        help="what to build (default: client)",
+    )
+
     # outbox
     p = sub.add_parser("outbox", help="show webhook outbox (reads DB directly)")
     p.add_argument("--status", help="filter by status (pending, delivered, dead)")
@@ -457,6 +541,7 @@ def main() -> None:
         "triage":    cmd_triage,
         "block":     cmd_block,
         "unblock":   cmd_unblock,
+        "build":     cmd_build,
         "outbox":    cmd_outbox,
     }
 

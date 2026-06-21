@@ -1102,8 +1102,7 @@ export function switchView(view: "board" | "list" | "calendar" | "dashboard"): v
       board?.after(newCal);
     }
     if (calendarContainer) calendarContainer.style.display = "block";
-    // Hide board header for calendar view
-    if (boardHeader) boardHeader.style.display = "none";
+    // Keep board header visible on calendar view
     if (bulkBar) (bulkBar as HTMLElement).style.display = "none";
     renderCalendarView();
   } else if (view === "dashboard") {
@@ -1114,8 +1113,7 @@ export function switchView(view: "board" | "list" | "calendar" | "dashboard"): v
       board?.after(newDash);
     }
     if (dashboardContainer) dashboardContainer.style.display = "block";
-    // Hide board header for dashboard view
-    if (boardHeader) boardHeader.style.display = "none";
+    // Keep board header visible on dashboard view
     if (bulkBar) (bulkBar as HTMLElement).style.display = "none";
     renderDashboardView();
   } else {
