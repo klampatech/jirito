@@ -994,9 +994,7 @@ export function switchView(view) {
         }
         if (calendarContainer)
             calendarContainer.style.display = "block";
-        // Hide board header for calendar view
-        if (boardHeader)
-            boardHeader.style.display = "none";
+        // Keep board header visible on calendar view
         if (bulkBar)
             bulkBar.style.display = "none";
         renderCalendarView();
@@ -1010,9 +1008,7 @@ export function switchView(view) {
         }
         if (dashboardContainer)
             dashboardContainer.style.display = "block";
-        // Hide board header for dashboard view
-        if (boardHeader)
-            boardHeader.style.display = "none";
+        // Keep board header visible on dashboard view
         if (bulkBar)
             bulkBar.style.display = "none";
         renderDashboardView();
