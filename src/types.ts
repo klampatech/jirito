@@ -165,6 +165,8 @@ export interface AppState {
   columns: CustomColumn[];
   /** Client-side column name (alias of columns). */
   customColumns: CustomColumn[];
+  /** Persisted default column name/color overrides (keyed by column id). */
+  _defaultColumnOverrides?: Record<string, { name?: string; color?: string }>;
 }
 
 export interface UserSettings {

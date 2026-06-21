@@ -8,6 +8,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { getDb, saveDb } from "../db/index.js";
 import {
   sendJson,
@@ -15,6 +16,8 @@ import {
   mapRow,
   coerceNumericId,
   normalizeStatus,
+  AGENT_CALLERS,
+  getCallerFromHeader,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 
@@ -226,6 +229,56 @@ export async function update(
     const fromStatus = String(check[0].values[0][1]);
     const fromAssignee = String(check[0].values[0][2] ?? "");
 
+    // Close-transition gate (2026-06-21, JIRITO-101 "already handled" burn).
+    // When a squad agent moves a ticket to `done` or `trash`, require a
+    // `verification` field with ≥20 chars of content explaining what was
+    // checked. This forces the close to come with an audit trail —
+    // either a commit SHA, a PR URL, a "verified in browser: <steps>"
+    // string, or a "duplicate of #N / already handled by PR #N" reason.
+    //
+    // Why an API-level gate (not just a skill instruction): agents skip
+    // skill prose. The 2026-06-21 burn was elmo saying "Already handled
+    // — continuing with the bug fix" without reproducing in the browser.
+    // Path C in jirito-squad-protocol already said "post verification
+    // before close"; that didn't stop the wedge. Making the gate a hard
+    // pre-condition on the API call means the close literally cannot
+    // happen without a recorded reason.
+    //
+    // Users (kyle) and the parent agent (evo) are exempt — they have
+    // downstream review paths or are consciously closing. Only squad
+    // agents (elmo, bert, ernie, grover) are gated.
+    const CLOSE_STATUSES = new Set(["done", "trash"]);
+    const requestedStatus = input.status as string | undefined;
+    const normalizedRequested =
+      requestedStatus !== undefined ? normalizeStatus(requestedStatus) : undefined;
+    const isCloseTransition =
+      normalizedRequested !== undefined &&
+      normalizedRequested !== fromStatus &&
+      CLOSE_STATUSES.has(normalizedRequested);
+    const caller = getCallerFromHeader(_req);
+    const callerLc = (caller ?? "").toLowerCase();
+    const isAgentCaller = AGENT_CALLERS.has(callerLc);
+    const verificationRaw = input.verification;
+    const verification =
+      typeof verificationRaw === "string" ? verificationRaw.trim() : "";
+
+    if (isCloseTransition && isAgentCaller) {
+      if (verification.length < 20) {
+        sendJson(res, 400, {
+          error:
+            "Verification required when an agent closes a ticket to '" +
+            normalizedRequested +
+            "'",
+          hint:
+            "Pass a `verification` field (≥20 chars) — e.g. a commit SHA, " +
+            "a PR URL, `verified in browser: <steps>`, or " +
+            "`duplicate of #N / already handled by PR #N`. The reason " +
+            "is auto-posted as a comment on the ticket for the audit trail.",
+        });
+        return;
+      }
+    }
+
     const now = new Date().toISOString();
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -249,6 +302,42 @@ export async function update(
 
     db.run(`UPDATE issues SET ${updates.join(", ")} WHERE id = ?`, params);
     await saveDb();
+
+    // Auto-write the verification text as a comment when an agent
+    // closes a ticket. This is the audit trail half of the close gate —
+    // the rejection above forces the agent to provide text, this part
+    // makes sure the text actually lands in the ticket timeline where
+    // kyle can see it. Idempotent: if a comment with the same content
+    // already exists for this issue (e.g. the agent manually posted it
+    // first), skip the auto-write to avoid duplicates.
+    if (isCloseTransition && isAgentCaller && verification.length >= 20) {
+      try {
+        const existing = db.exec(
+          "SELECT id FROM comments WHERE issueId = ? AND content = ?",
+          [String(id), `[auto-verification] ${verification}`]
+        );
+        const alreadyPosted =
+          existing.length > 0 && existing[0].values.length > 0;
+        if (!alreadyPosted) {
+          const autoId = `auto-${randomUUID()}`;
+          db.run(
+            "INSERT INTO comments (id, issueId, author, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+              autoId,
+              String(id),
+              callerLc || "system",
+              `[auto-verification] ${verification}`,
+              now,
+              now,
+            ]
+          );
+          await saveDb();
+        }
+      } catch (err) {
+        // Non-fatal — the close itself still succeeded. Log and move on.
+        console.warn("auto-verification comment write failed:", err);
+      }
+    }
 
     // Return updated issue
     const result = db.exec("SELECT * FROM issues WHERE id = ?", [String(id)]);
