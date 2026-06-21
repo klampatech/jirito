@@ -46,13 +46,14 @@ export function initProjects() {
         const name = document.getElementById("project-name")?.value.trim() ?? "";
         const keyRaw = document.getElementById("project-key")?.value.trim() ?? "";
         const key = keyRaw.toUpperCase();
+        const githubUrl = document.getElementById("project-github-url")?.value.trim() ?? "";
         if (!name || !key)
             return;
         if (getProjects()[key]) {
             showToast("Project key already exists!", "error");
             return;
         }
-        createProject(name, key);
+        createProject(name, key, githubUrl || undefined);
         const overlay = document.getElementById("project-modal-overlay");
         const form = document.getElementById("project-form");
         if (overlay)

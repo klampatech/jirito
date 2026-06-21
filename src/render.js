@@ -16,7 +16,7 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { typeIcons } from "./state.js";
-import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, } from "./state.js";
+import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, updateDefaultColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
 import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
@@ -338,19 +338,17 @@ export function renderViews() {
     // Re-render Phosphor icons in the view list
 }
 // ===== Column Configuration =====
+const DEFAULT_COLUMN_IDS = new Set(["todo", "inprogress", "review", "done"]);
 export function renderColumnConfig() {
     const container = document.getElementById("column-config-list");
     if (!container)
         return;
-    // The config UI manages customs only. Defaults (To Do / In Progress /
-    // In Review / Done) are a fixed workflow and don't appear here — they
-    // render on the board but can't be renamed, recolored, deleted, or
-    // reordered. This avoids the silent no-op that would happen if a user
-    // tried to edit a default's color via updateCustomColumn (which now
-    // operates on the custom subset only).
-    const columns = getCustomColumns();
-    container.innerHTML = columns
+    // Show ALL columns: defaults first (with name/color controls), then customs.
+    const defaults = getDefaultColumns();
+    const customs = getCustomColumns();
+    container.innerHTML = [...defaults, ...customs]
         .map((col) => {
+        const isDefault = DEFAULT_COLUMN_IDS.has(col.id);
         const statusOptions = ["todo", "inprogress", "review", "done"]
             .map((s) => {
             const labels = {
@@ -362,40 +360,58 @@ export function renderColumnConfig() {
             return `<option value="${s}" ${col.status === s ? "selected" : ""}>${labels[s]}</option>`;
         })
             .join("");
-        return `<div class="column-config-item" data-col-id="${col.id}" draggable="true" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;background:var(--bg-page);cursor:grab;">
+        // Default columns: name + color only (status is fixed, no delete).
+        // Custom columns: name + color + status dropdown + delete.
+        const statusSelect = isDefault
+            ? `<span style="font-size:12px;color:var(--text-muted);padding:0 4px;">${col.status}</span>`
+            : `<select class="column-config-status" data-col-id="${col.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg-card);color:var(--text);">
+            <option value="">(custom)</option>
+            ${statusOptions}
+           </select>`;
+        const deleteBtn = isDefault
+            ? ""
+            : `<button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>`;
+        return `<div class="column-config-item${isDefault ? " column-config-default" : ""}" data-col-id="${col.id}" draggable="true" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;background:var(--bg-page);cursor:grab;">
       <span class="column-drag-handle" style="color:var(--text-muted);cursor:grab;">⋮⋮</span>
       <input type="color" value="${col.color}" class="column-config-color" data-col-id="${col.id}" style="width:32px;height:28px;border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:1px;">
       <input type="text" value="${escapeHtml(col.name)}" class="column-config-name" data-col-id="${col.id}" style="flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:var(--bg-card);color:var(--text);">
-      <select class="column-config-status" data-col-id="${col.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg-card);color:var(--text);">
-        <option value="">(custom)</option>
-        ${statusOptions}
-      </select>
-      <button class="btn btn-danger btn-sm column-config-delete" data-col-id="${col.id}" style="padding:4px 8px;" title="Delete column">✕</button>
+      ${statusSelect}
+      ${deleteBtn}
     </div>`;
     })
         .join("");
-    // Color change handlers
+    // Color change handlers — works for both defaults and customs
     container.querySelectorAll(".column-config-color").forEach((input) => {
         input.addEventListener("change", () => {
             const colId = input.dataset.colId;
-            if (colId) {
-                updateCustomColumn(colId, { color: input.value });
-                renderBoard();
+            if (!colId)
+                return;
+            if (DEFAULT_COLUMN_IDS.has(colId)) {
+                updateDefaultColumn(colId, { color: input.value });
             }
+            else {
+                updateCustomColumn(colId, { color: input.value });
+            }
+            renderBoard();
         });
     });
-    // Name change handlers
+    // Name change handlers — works for both defaults and customs
     container.querySelectorAll(".column-config-name").forEach((input) => {
         input.addEventListener("blur", () => {
             const name = input.value.trim();
             const colId = input.dataset.colId;
-            if (name && colId) {
-                updateCustomColumn(colId, { name });
-                renderBoard();
+            if (!name || !colId)
+                return;
+            if (DEFAULT_COLUMN_IDS.has(colId)) {
+                updateDefaultColumn(colId, { name });
             }
+            else {
+                updateCustomColumn(colId, { name });
+            }
+            renderBoard();
         });
     });
-    // Status change handlers
+    // Status change handlers — custom columns only
     container.querySelectorAll(".column-config-status").forEach((select) => {
         select.addEventListener("change", () => {
             const colId = select.dataset.colId;
@@ -405,16 +421,15 @@ export function renderColumnConfig() {
             }
         });
     });
-    // Delete handlers
+    // Delete handlers — custom columns only
     container.querySelectorAll(".column-config-delete").forEach((btn) => {
         btn.addEventListener("click", () => {
             if (confirm("Delete this column? Cards in it will be moved to To Do.")) {
                 const colId = btn.dataset.colId;
                 if (!colId)
                     return;
-                const col = columns.find((c) => c.id === colId);
+                const col = customs.find((c) => c.id === colId);
                 if (col && col.status) {
-                    // Move cards with this status to To Do
                     getIssues()
                         .filter((i) => i.status === col.status)
                         .forEach((i) => {
@@ -422,7 +437,6 @@ export function renderColumnConfig() {
                     });
                 }
                 else if (col) {
-                    // Custom column without status: move cards by customColumnId to To Do
                     getIssues()
                         .filter((i) => i.customColumnId === col.id)
                         .forEach((i) => {
@@ -437,9 +451,12 @@ export function renderColumnConfig() {
             }
         });
     });
-    // Drag to reorder
+    // Drag to reorder — customs only; defaults stay in fixed positions
     let dragIdx = null;
     container.querySelectorAll(".column-config-item").forEach((item) => {
+        const colId = item.dataset.colId;
+        if (colId && DEFAULT_COLUMN_IDS.has(colId))
+            return; // skip defaults
         item.addEventListener("dragstart", (e) => {
             dragIdx = item.dataset.colId ?? null;
             item.style.opacity = "0.5";
@@ -458,31 +475,25 @@ export function renderColumnConfig() {
         item.addEventListener("drop", (e) => {
             e.preventDefault();
             const targetId = item.dataset.colId;
-            // Drag-drop only reorders custom columns. Defaults are a fixed
-            // workflow (To Do / In Progress / In Review / Done) and stay in
-            // their hardcoded positions. If either the dragged column or the
-            // target is a default, do nothing — dragging across the boundary
-            // would otherwise corrupt the custom list (defaults would get
-            // written into setCustomColumns on the next line).
             if (!dragIdx || !targetId || dragIdx === targetId)
                 return;
-            const isDefault = (id) => getDefaultColumns().some((d) => d.id === id);
-            if (isDefault(dragIdx) || isDefault(targetId))
+            if (DEFAULT_COLUMN_IDS.has(dragIdx) || DEFAULT_COLUMN_IDS.has(targetId))
                 return;
-            const draggedCol = columns.find((c) => c.id === dragIdx);
-            if (!draggedCol)
+            const customsArr = getCustomColumns();
+            const fromIdx = customsArr.findIndex((c) => c.id === dragIdx);
+            const toIdx = customsArr.findIndex((c) => c.id === targetId);
+            if (fromIdx < 0 || toIdx < 0)
                 return;
-            const newCols = getCustomColumns().filter((c) => c.id !== dragIdx);
-            const targetIdx = newCols.findIndex((c) => c.id === targetId);
-            if (targetIdx === -1)
-                return;
-            newCols.splice(targetIdx, 0, draggedCol);
-            newCols.forEach((c, i) => {
+            const [moved] = customsArr.splice(fromIdx, 1);
+            customsArr.splice(toIdx, 0, moved);
+            // Re-number order fields
+            customsArr.forEach((c, i) => {
                 c.order = i;
             });
-            setCustomColumns(newCols);
+            setCustomColumns(customsArr);
             renderColumnConfig();
             renderBoard();
+            saveState();
         });
     });
 }

@@ -29,6 +29,9 @@ let _trash = [];
 let _sprints = {};
 let _customColumns = [];
 let _markdownCache = {};
+// Per-column overrides for the 4 default columns (name / color only).
+// The status field is fixed and never overridable.
+let _defaultColumnOverrides = {};
 /**
  * Coerce both sides to string for ID comparison. After the SQLite
  * migration, issue ids are stored as numbers but the DOM (data-id) and
@@ -139,6 +142,12 @@ export function getCustomColumns() {
 }
 export function setCustomColumns(v) {
     _customColumns = v;
+}
+export function getDefaultColumnOverrides() {
+    return _defaultColumnOverrides;
+}
+export function setDefaultColumnOverrides(v) {
+    _defaultColumnOverrides = v;
 }
 export function getMarkdownCache() {
     return _markdownCache;
@@ -252,6 +261,10 @@ export async function loadState() {
             };
         });
     }
+    // Restore default column overrides (name/color for the 4 built-in columns)
+    if (data && typeof data === "object" && "_defaultColumnOverrides" in data) {
+        _defaultColumnOverrides = data["_defaultColumnOverrides"];
+    }
     // Sync in-memory issues with current project
     initializeData();
 }
@@ -304,6 +317,11 @@ async function _doSaveState() {
     // Include columns if there are actual custom columns (not the default {} sentinel)
     if (Array.isArray(customCols) && customCols.length > 0) {
         data.columns = customCols;
+    }
+    // Persist default column overrides (name/color for built-in columns)
+    const overrides = getDefaultColumnOverrides();
+    if (Object.keys(overrides).length > 0) {
+        data._defaultColumnOverrides = overrides;
     }
     // Delegate to storage layer (handles localStorage or server API)
     await storage.saveStorageData(data);
@@ -527,12 +545,19 @@ export function findDuplicateIssues(title) {
 }
 // ===== Custom Column Helpers =====
 export function getDefaultColumns() {
-    return [
+    const defaults = [
         { id: "todo", name: "To Do", color: "#9E9E9E", status: "todo", order: 0 },
         { id: "inprogress", name: "In Progress", color: "#D14A2A", status: "inprogress", order: 1 },
         { id: "review", name: "In Review", color: "#D49B00", status: "review", order: 2 },
         { id: "done", name: "Done", color: "#34A853", status: "done", order: 3 },
     ];
+    return defaults.map((col) => {
+        const override = _defaultColumnOverrides[col.id];
+        if (override) {
+            return { ...col, name: override.name ?? col.name, color: override.color ?? col.color };
+        }
+        return col;
+    });
 }
 export function getEffectiveColumns() {
     // Defaults come first (fixed workflow), then any custom columns in
@@ -563,6 +588,25 @@ export function updateCustomColumn(id, updates) {
         Object.assign(col, updates);
         setCustomColumns(customs);
     }
+}
+// Reset all default column overrides to factory defaults.
+export function resetDefaultColumnOverrides() {
+    _defaultColumnOverrides = {};
+    saveState();
+}
+// Update a default column's name and/or color. Status is fixed and cannot
+// be changed — defaults always map to their canonical status.
+export function updateDefaultColumn(id, updates) {
+    const DEFAULT_IDS = new Set(["todo", "inprogress", "review", "done"]);
+    if (!DEFAULT_IDS.has(id))
+        return;
+    const current = _defaultColumnOverrides[id] ?? {};
+    _defaultColumnOverrides[id] = {
+        ...current,
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        ...(updates.color !== undefined ? { color: updates.color } : {}),
+    };
+    saveState();
 }
 export function reorderColumns(orderMap) {
     const customs = getCustomColumns();
