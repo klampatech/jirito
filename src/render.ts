@@ -60,6 +60,7 @@ import {
 } from "./utils.js";
 import {
   applyFilters,
+  filterIssues,
   initDragDrop,
   openDetailPanel,
   removeUndoToast,
@@ -702,7 +703,7 @@ export function renderCalendarView(): void {
     day.addEventListener("click", () => {
       const date = day.dataset.date;
       if (!date) return;
-      const filtered = getIssues().filter((i) => i.dueDate === date);
+      const filtered = filterIssues(getIssues()).filter((i) => i.dueDate === date);
       if (filtered.length > 0) {
         const lines = filtered
           .map((i) => {
@@ -811,19 +812,22 @@ export function renderDashboardView(): void {
   const container = document.getElementById("dashboard-container");
   if (!container) return;
 
-  const total = getIssues().length;
+  // Apply active header-bar filters so dashboard stats reflect the user's scope
+  const filtered = filterIssues(getIssues());
+
+  const total = filtered.length;
   const byStatus: Record<string, number> = { todo: 0, inprogress: 0, review: 0, done: 0 };
-  getIssues().forEach((i) => {
+  filtered.forEach((i) => {
     if (byStatus[i.status] !== undefined) byStatus[i.status]++;
   });
   const doneCount = byStatus.done ?? 0;
   const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const overdueCount = getIssues().filter((i) => isOverdue(i.dueDate, i.status)).length;
-  const highPriority = getIssues().filter(
+  const overdueCount = filtered.filter((i) => isOverdue(i.dueDate, i.status)).length;
+  const highPriority = filtered.filter(
     (i) => i.priority === "high" && i.status !== "done"
   ).length;
-  const unassigned = getIssues().filter((i) => !i.assignee).length;
-  const dueThisWeek = getIssues().filter((i) => {
+  const unassigned = filtered.filter((i) => !i.assignee).length;
+  const dueThisWeek = filtered.filter((i) => {
     if (!i.dueDate || i.status === "done") return false;
     const due = new Date(i.dueDate);
     const now = new Date();
@@ -833,7 +837,7 @@ export function renderDashboardView(): void {
 
   // Assignee stats
   const byAssignee: Record<string, { total: number; done: number; overdue: number }> = {};
-  getIssues().forEach((i) => {
+  filtered.forEach((i) => {
     const a = i.assignee || "Unassigned";
     if (!byAssignee[a]) byAssignee[a] = { total: 0, done: 0, overdue: 0 };
     byAssignee[a].total++;
@@ -847,21 +851,21 @@ export function renderDashboardView(): void {
 
   // Priority breakdown
   const byPriority: Record<string, number> = { high: 0, medium: 0, low: 0 };
-  getIssues().forEach((i) => {
+  filtered.forEach((i) => {
     if (byPriority[i.priority] !== undefined) byPriority[i.priority]++;
   });
 
   // Type breakdown
   const byType: Record<string, number> = { story: 0, bug: 0, task: 0, epic: 0 };
-  getIssues().forEach((i) => {
+  filtered.forEach((i) => {
     if (byType[i.type] !== undefined) byType[i.type]++;
   });
 
-  // Sprint progress
+  // Sprint progress — also scoped to filtered issues
   const activeSprint = getActiveSprint();
   let sprintProgressHtml = "";
   if (activeSprint) {
-    const sprintIssues = getIssues().filter((i) => i.sprint === activeSprint.id);
+    const sprintIssues = filtered.filter((i) => i.sprint === activeSprint.id);
     const sprintTotalSP = sprintIssues.reduce(
       (sum, i) => sum + (i.storyPoints || 0),
       0

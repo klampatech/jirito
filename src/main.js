@@ -33,6 +33,7 @@
  */
 import { getActiveSprint, getCurrentProject, getProjects, initializeData, loadState, saveStateImmediate, } from "./state.js";
 import { initCalendar, populateAssigneeFilter, renderBoard, renderSidebar } from "./render.js";
+import { initSSE } from "./sse-client.js";
 import { initDragDrop } from "./events.js";
 import { populateSprintSelect, updateSprintBar, updateSprintProgressBar } from "./utils.js";
 import { initBulkActions } from "./main-bulk-actions.js";
@@ -107,7 +108,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     initBulkActions();
     initFilterControls();
     initColumnConfig();
-    // 4. Show onboarding on first load
+    // 4. SSE — real-time board updates from squad agents and other tabs
+    initSSE();
+    // 5. Show onboarding on first load
     initOnboarding();
     // 5. Initialize calendar
     initCalendar();
