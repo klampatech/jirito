@@ -18,7 +18,7 @@
 import { typeIcons } from "./state.js";
 import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, updateDefaultColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
-import { applyFilters, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
+import { applyFilters, filterIssues, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
 // ===== Rendering =====
 export function renderBoard() {
@@ -623,7 +623,7 @@ export function renderCalendarView() {
             const date = day.dataset.date;
             if (!date)
                 return;
-            const filtered = getIssues().filter((i) => i.dueDate === date);
+            const filtered = filterIssues(getIssues()).filter((i) => i.dueDate === date);
             if (filtered.length > 0) {
                 const lines = filtered
                     .map((i) => {
@@ -723,18 +723,20 @@ export function renderDashboardView() {
     const container = document.getElementById("dashboard-container");
     if (!container)
         return;
-    const total = getIssues().length;
+    // Apply active header-bar filters so dashboard stats reflect the user's scope
+    const filtered = filterIssues(getIssues());
+    const total = filtered.length;
     const byStatus = { todo: 0, inprogress: 0, review: 0, done: 0 };
-    getIssues().forEach((i) => {
+    filtered.forEach((i) => {
         if (byStatus[i.status] !== undefined)
             byStatus[i.status]++;
     });
     const doneCount = byStatus.done ?? 0;
     const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-    const overdueCount = getIssues().filter((i) => isOverdue(i.dueDate, i.status)).length;
-    const highPriority = getIssues().filter((i) => i.priority === "high" && i.status !== "done").length;
-    const unassigned = getIssues().filter((i) => !i.assignee).length;
-    const dueThisWeek = getIssues().filter((i) => {
+    const overdueCount = filtered.filter((i) => isOverdue(i.dueDate, i.status)).length;
+    const highPriority = filtered.filter((i) => i.priority === "high" && i.status !== "done").length;
+    const unassigned = filtered.filter((i) => !i.assignee).length;
+    const dueThisWeek = filtered.filter((i) => {
         if (!i.dueDate || i.status === "done")
             return false;
         const due = new Date(i.dueDate);
@@ -744,7 +746,7 @@ export function renderDashboardView() {
     }).length;
     // Assignee stats
     const byAssignee = {};
-    getIssues().forEach((i) => {
+    filtered.forEach((i) => {
         const a = i.assignee || "Unassigned";
         if (!byAssignee[a])
             byAssignee[a] = { total: 0, done: 0, overdue: 0 };
@@ -758,21 +760,21 @@ export function renderDashboardView() {
     const maxAssigneeTotal = assignees.length > 0 ? assignees[0][1].total : 1;
     // Priority breakdown
     const byPriority = { high: 0, medium: 0, low: 0 };
-    getIssues().forEach((i) => {
+    filtered.forEach((i) => {
         if (byPriority[i.priority] !== undefined)
             byPriority[i.priority]++;
     });
     // Type breakdown
     const byType = { story: 0, bug: 0, task: 0, epic: 0 };
-    getIssues().forEach((i) => {
+    filtered.forEach((i) => {
         if (byType[i.type] !== undefined)
             byType[i.type]++;
     });
-    // Sprint progress
+    // Sprint progress — also scoped to filtered issues
     const activeSprint = getActiveSprint();
     let sprintProgressHtml = "";
     if (activeSprint) {
-        const sprintIssues = getIssues().filter((i) => i.sprint === activeSprint.id);
+        const sprintIssues = filtered.filter((i) => i.sprint === activeSprint.id);
         const sprintTotalSP = sprintIssues.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
         const sprintDoneSP = sprintIssues
             .filter((i) => i.status === "done")

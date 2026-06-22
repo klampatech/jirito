@@ -1175,6 +1175,41 @@ export function handleBulkClear() {
     updateBulkBar();
 }
 // ===== Filter =====
+/**
+ * Returns the current set of active filter values from the header bar.
+ */
+export function getFilterValues() {
+    return {
+        search: document.getElementById("search-input")?.value.toLowerCase() || "",
+        typeFilter: document.getElementById("filter-type")?.value || "all",
+        priorityFilter: document.getElementById("filter-priority")?.value || "all",
+        assigneeFilter: document.getElementById("filter-assignee")?.value || "all",
+        sprintFilter: document.getElementById("sprint-filter")?.value || "all",
+    };
+}
+/**
+ * Applies header-bar filters (search, type, priority, assignee, sprint) to
+ * a given issue list. Used by board, calendar, and dashboard views so all
+ * three respect the same filter controls consistently.
+ */
+export function filterIssues(issues) {
+    const { search, typeFilter, priorityFilter, assigneeFilter, sprintFilter } = getFilterValues();
+    return issues.filter((i) => {
+        if (typeFilter !== "all" && i.type !== typeFilter)
+            return false;
+        if (priorityFilter !== "all" && i.priority !== priorityFilter)
+            return false;
+        if (assigneeFilter !== "all" && i.assignee !== assigneeFilter)
+            return false;
+        if (sprintFilter !== "all" && i.sprint !== sprintFilter)
+            return false;
+        if (search &&
+            !i.title.toLowerCase().includes(search) &&
+            !(i.desc || "").toLowerCase().includes(search))
+            return false;
+        return true;
+    });
+}
 export function applyFilters() {
     const search = document.getElementById("search-input")?.value.toLowerCase() || "";
     const typeFilter = document.getElementById("filter-type")?.value || "all";
@@ -1219,6 +1254,20 @@ export function applyFilters() {
     // Also update list view when filters change
     if (getCurrentView() === "list") {
         renderListView();
+    }
+    // Re-render calendar and dashboard views when filters change so they
+    // immediately reflect the new scope. Deferred with setTimeout(0) to avoid
+    // a circular import: render.ts imports filterIssues from events.ts, so we
+    // cannot import renderCalendarView/renderDashboardView here directly.
+    if (getCurrentView() === "calendar") {
+        setTimeout(() => {
+            import("./render.js").then((m) => m.renderCalendarView());
+        });
+    }
+    if (getCurrentView() === "dashboard") {
+        setTimeout(() => {
+            import("./render.js").then((m) => m.renderDashboardView());
+        });
     }
 }
 // ===== Toast Notifications =====

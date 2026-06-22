@@ -230,8 +230,15 @@ export function createCard(issue: Issue): HTMLDivElement {
       .join("")}</div>`;
   }
 
-  // Sprint badge
-  let sprintBadge = "";
+  // PR icon — shown when issue has an associated GitHub PR URL
+  let prIcon = "";
+  if (issue.prUrl) {
+    const isMerged =
+      issue.prUrl.includes("/pulls/") || issue.prUrl.includes("/merge");
+    const iconName = isMerged ? "GitMerge" : "GitPullRequest";
+    // Render as a clickable link to the PR
+    prIcon = `<a href="${escapeHtml(issue.prUrl)}" target="_blank" rel="noopener noreferrer" class="issue-pr-link" title="Open PR: ${escapeHtml(issue.prUrl)}" onclick="event.stopPropagation()">${lucideIcon(iconName, { class: "icon-sm" })}</a>`;
+  }
   if (issue.sprint) {
     const sprints = getSprints();
     const sprint = sprints[issue.sprint];
@@ -264,6 +271,7 @@ export function createCard(issue: Issue): HTMLDivElement {
       <span class="issue-priority priority-${escapeHtml(issue.priority)}">${escapeHtml(issue.priority)}</span>
       ${issue.storyPoints ? `<span class="issue-sp-badge" title="Story Points">${lucideIcon("Target", { class: "icon-sm" })} ${issue.storyPoints}</span>` : ""}
       ${issue.dueDate ? `<span class="issue-due-date ${isOverdue(issue.dueDate, issue.status) ? "overdue" : ""}">${lucideIcon("Calendar", { class: "icon-sm" })} ${formatDate(issue.dueDate)}</span>` : ""}
+      ${prIcon ? `<span class="issue-pr-badge">${prIcon}</span>` : ""}
       <div style="display:flex;align-items:center;gap:8px;">
         ${commentCount > 0 ? `<span class="issue-comments-badge">${lucideIcon("Chat", { class: "icon-sm" })} ${commentCount}</span>` : ""}
         ${issue.assignee ? `<div class="issue-assignee" title="${escapeHtml(issue.assignee)}">${issue.assignee.charAt(0).toUpperCase()}</div>` : ""}

@@ -369,6 +369,21 @@ body {
   background: var(--label-bg); color: var(--label-text);
   font-weight: 500;
 }
+.issue-pr-badge {
+  display: inline-flex; align-items: center;
+}
+.issue-pr-link {
+  display: inline-flex; align-items: center;
+  color: var(--success);
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.issue-pr-link:hover {
+  background: var(--success-bg);
+  color: var(--success);
+}
 .issue-dep-indicators {
   display: flex; gap: 4px; margin-left: auto;
 }
