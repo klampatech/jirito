@@ -1,6 +1,6 @@
 // tests/e2e.spec.mjs - End-to-end tests for Jirito
 import { test, expect } from '@playwright/test';
-import { clearDb, seedIssues } from './helpers.mjs';
+import { clearDb, clearDbEmpty, seedIssues } from './helpers.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
 
@@ -177,5 +177,63 @@ test.describe('E2E Integration Tests', () => {
     expect(stored).toBeDefined();
     const parsed = JSON.parse(stored);
     expect(parsed && parsed.issues && parsed.issues.some(i => i.title === 'Offline Test Issue')).toBe(true);
+  });
+});
+
+test.describe('Empty state (PR #45 regression)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Override beforeEach: we want a TRULY empty DB, not the standard
+    // Project Alpha fixture, so the empty-state welcome card is visible.
+    await clearDbEmpty();
+  });
+
+  test('shows the welcome empty state when no projects exist', async ({ page }) => {
+    const { errors } = await navigate(page);
+    if (errors.length > 0) console.log(`JS ERRORS: ${JSON.stringify(errors)}`);
+
+    // The empty-state welcome card should be present with its CTA.
+    await expect(page.locator('#board .board-empty')).toBeVisible();
+    await expect(page.locator('#board .board-empty-title'))
+      .toContainText('Welcome to Jirito');
+    await expect(page.locator('#board-empty-create-btn')).toBeVisible();
+    // The four default columns from index.html should NOT be the
+    // primary content of the board while the empty state is showing.
+    // (The columns exist in the DOM but are visually overshadowed by
+    // the centered empty-state container; functionally, no `.column`
+    // child should sit at the top of the board's children list.)
+    const firstChild = await page.locator('#board > *').first().getAttribute('class');
+    expect(firstChild).toContain('board-empty');
+  });
+
+  test('creating the first project removes the empty state and shows columns', async ({ page }) => {
+    const { errors } = await navigate(page);
+    if (errors.length > 0) console.log(`JS ERRORS: ${JSON.stringify(errors)}`);
+
+    // Sanity check: empty state visible before project creation.
+    await expect(page.locator('#board .board-empty')).toBeVisible();
+
+    // Create the first project. Use the sidebar's "add project" button
+    // (matches the existing `creating a new project switches to it`
+    // test in tests.spec.mjs).
+    await page.locator('#add-project-btn').click();
+    await page.locator('#project-name').fill('First Project');
+    await page.locator('#project-key').fill('FP');
+    await page.locator('#project-form').evaluate(form => form.requestSubmit());
+
+    // After project creation:
+    //   1. The empty-state welcome card MUST be gone (this is the
+    //      regression — it used to persist alongside the columns).
+    //   2. The four default columns MUST be present and visible.
+    await expect(page.locator('#board .board-empty')).toHaveCount(0);
+    await expect(page.locator('#board-title')).toContainText('First Project');
+
+    // The four default columns should all be rendered.
+    for (const colId of ['todo', 'inprogress', 'review', 'done']) {
+      await expect(page.locator(`#board .column[data-col-id="${colId}"]`))
+        .toBeVisible();
+    }
+
+    // And the empty-state CTA should no longer be reachable.
+    await expect(page.locator('#board-empty-create-btn')).toHaveCount(0);
   });
 });

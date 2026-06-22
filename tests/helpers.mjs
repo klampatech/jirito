@@ -71,3 +71,31 @@ export async function seedIssues() {
   const stateData = await stateResp.json();
   console.log('[seedIssues] After seed, API issues:', JSON.stringify(stateData.issues.map(i => ({id:i.id, dueDate:i.dueDate}))));
 }
+
+export async function clearDbEmpty() {
+  // Reset to a *truly* empty state (no projects, no current project) so
+  // the empty-state UI is shown. The default `clearDb()` seeds a
+  // "default" project, which would suppress the empty state and hide the
+  // regression we're trying to exercise. Use this helper in tests that
+  // cover the empty-state → create-first-project flow.
+  try {
+    await fetch(`${API_URL}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        issues: [],
+        projects: {},
+        currentProject: '',
+        savedFilters: [],
+        activityLog: [],
+        issueCounter: 1,
+        trash: [],
+        sprints: {},
+        columns: [],
+        comments: {},
+      }),
+    });
+  } catch {
+    // Server might not be running
+  }
+}
