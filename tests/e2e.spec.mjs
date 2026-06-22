@@ -105,7 +105,19 @@ test.describe('E2E Integration Tests', () => {
           { id: 105, title: 'Seed 105', status: 'todo', type: 'task', priority: 'low', rank: 4 },
           { id: 106, title: 'Seed 106', status: 'todo', type: 'task', priority: 'low', rank: 5 },
         ],
-        projects: {},
+        // Empty-state check requires a non-empty `projects` map. Mirror the
+        // Project Alpha fixture (matches tests/helpers.mjs clearDb()).
+        projects: {
+          default: {
+            id: 'default',
+            name: 'Project Alpha',
+            key: 'PROJ',
+            icon: '🚀',
+            color: '#0052CC',
+            description: '',
+            issues: [],
+          },
+        },
         currentProject: 'default',
         savedFilters: [],
         activityLog: [],
@@ -128,6 +140,13 @@ test.describe('E2E Integration Tests', () => {
         return originalFetch.call(this, url, ...args);
       };
     });
+
+    // The localStorage seed needs a `default` project to match the frontend's
+    // getProjects() check (server/routes/state.ts:81 / src/render.ts:81: the
+    // empty-state branch fires when `Object.keys(getProjects()).length === 0`,
+    // which would hide the issue card this test expects to see). The previous
+    // SAMPLE_FALLBACK that supplied this was removed in 65e734e; the seed here
+    // is the only place left that needs the project shape.
     
     const consoleMessages = [];
     const errors = [];
