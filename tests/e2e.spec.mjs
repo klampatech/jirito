@@ -187,6 +187,19 @@ test.describe('Empty state (PR #45 regression)', () => {
     await clearDbEmpty();
   });
 
+  // Restore the standard Project Alpha fixture after these tests run.
+  // Without this, downstream test files (notably screenshot-capture.spec.mjs
+  // which runs after e2e.spec.mjs alphabetically) inherit a state with
+  // no `default` project. Their seedViaApi() posts issues with
+  // projectId:'default' but no such project exists, so the frontend shows
+  // the empty state and the screenshot tests time out on
+  // `[data-status="todo"] .issue-card`. clearDb() is the same fixture the
+  // E2E Integration Tests use, so the screenshot suite sees what it
+  // expects.
+  test.afterAll(async () => {
+    await clearDb();
+  });
+
   test('shows the welcome empty state when no projects exist', async ({ page }) => {
     const { errors } = await navigate(page);
     if (errors.length > 0) console.log(`JS ERRORS: ${JSON.stringify(errors)}`);

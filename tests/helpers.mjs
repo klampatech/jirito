@@ -92,7 +92,9 @@ export async function clearDbEmpty() {
         trash: [],
         sprints: {},
         columns: [],
-        comments: {},
+        comments: [],   // must be an array — server's setState does `for (const c of data.comments)`
+                         // (server/routes/state.ts:298) which throws TypeError on a plain object.
+                         // clearDb() above uses [] for the same reason; mirror it here.
       }),
     });
   } catch {
