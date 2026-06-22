@@ -1,6 +1,6 @@
 // tests/e2e.spec.mjs - End-to-end tests for Jirito
 import { test, expect } from '@playwright/test';
-import { clearDb, seedIssues } from './helpers.mjs';
+import { clearDb, clearDbEmpty, seedIssues } from './helpers.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
 
@@ -105,7 +105,19 @@ test.describe('E2E Integration Tests', () => {
           { id: 105, title: 'Seed 105', status: 'todo', type: 'task', priority: 'low', rank: 4 },
           { id: 106, title: 'Seed 106', status: 'todo', type: 'task', priority: 'low', rank: 5 },
         ],
-        projects: {},
+        // Empty-state check requires a non-empty `projects` map. Mirror the
+        // Project Alpha fixture (matches tests/helpers.mjs clearDb()).
+        projects: {
+          default: {
+            id: 'default',
+            name: 'Project Alpha',
+            key: 'PROJ',
+            icon: '🚀',
+            color: '#0052CC',
+            description: '',
+            issues: [],
+          },
+        },
         currentProject: 'default',
         savedFilters: [],
         activityLog: [],
@@ -128,6 +140,13 @@ test.describe('E2E Integration Tests', () => {
         return originalFetch.call(this, url, ...args);
       };
     });
+
+    // The localStorage seed needs a `default` project to match the frontend's
+    // getProjects() check (server/routes/state.ts:81 / src/render.ts:81: the
+    // empty-state branch fires when `Object.keys(getProjects()).length === 0`,
+    // which would hide the issue card this test expects to see). The previous
+    // SAMPLE_FALLBACK that supplied this was removed in 65e734e; the seed here
+    // is the only place left that needs the project shape.
     
     const consoleMessages = [];
     const errors = [];
@@ -177,5 +196,76 @@ test.describe('E2E Integration Tests', () => {
     expect(stored).toBeDefined();
     const parsed = JSON.parse(stored);
     expect(parsed && parsed.issues && parsed.issues.some(i => i.title === 'Offline Test Issue')).toBe(true);
+  });
+});
+
+test.describe('Empty state (PR #45 regression)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Override beforeEach: we want a TRULY empty DB, not the standard
+    // Project Alpha fixture, so the empty-state welcome card is visible.
+    await clearDbEmpty();
+  });
+
+  // Restore the standard Project Alpha fixture after these tests run.
+  // Without this, downstream test files (notably screenshot-capture.spec.mjs
+  // which runs after e2e.spec.mjs alphabetically) inherit a state with
+  // no `default` project. Their seedViaApi() posts issues with
+  // projectId:'default' but no such project exists, so the frontend shows
+  // the empty state and the screenshot tests time out on
+  // `[data-status="todo"] .issue-card`. clearDb() is the same fixture the
+  // E2E Integration Tests use, so the screenshot suite sees what it
+  // expects.
+  test.afterAll(async () => {
+    await clearDb();
+  });
+
+  test('shows the welcome empty state when no projects exist', async ({ page }) => {
+    const { errors } = await navigate(page);
+    if (errors.length > 0) console.log(`JS ERRORS: ${JSON.stringify(errors)}`);
+
+    // The empty-state welcome card should be present with its CTA.
+    await expect(page.locator('#board .board-empty')).toBeVisible();
+    await expect(page.locator('#board .board-empty-title'))
+      .toContainText('Welcome to Jirito');
+    await expect(page.locator('#board-empty-create-btn')).toBeVisible();
+    // The four default columns from index.html should NOT be the
+    // primary content of the board while the empty state is showing.
+    // (The columns exist in the DOM but are visually overshadowed by
+    // the centered empty-state container; functionally, no `.column`
+    // child should sit at the top of the board's children list.)
+    const firstChild = await page.locator('#board > *').first().getAttribute('class');
+    expect(firstChild).toContain('board-empty');
+  });
+
+  test('creating the first project removes the empty state and shows columns', async ({ page }) => {
+    const { errors } = await navigate(page);
+    if (errors.length > 0) console.log(`JS ERRORS: ${JSON.stringify(errors)}`);
+
+    // Sanity check: empty state visible before project creation.
+    await expect(page.locator('#board .board-empty')).toBeVisible();
+
+    // Create the first project. Use the sidebar's "add project" button
+    // (matches the existing `creating a new project switches to it`
+    // test in tests.spec.mjs).
+    await page.locator('#add-project-btn').click();
+    await page.locator('#project-name').fill('First Project');
+    await page.locator('#project-key').fill('FP');
+    await page.locator('#project-form').evaluate(form => form.requestSubmit());
+
+    // After project creation:
+    //   1. The empty-state welcome card MUST be gone (this is the
+    //      regression — it used to persist alongside the columns).
+    //   2. The four default columns MUST be present and visible.
+    await expect(page.locator('#board .board-empty')).toHaveCount(0);
+    await expect(page.locator('#board-title')).toContainText('First Project');
+
+    // The four default columns should all be rendered.
+    for (const colId of ['todo', 'inprogress', 'review', 'done']) {
+      await expect(page.locator(`#board .column[data-col-id="${colId}"]`))
+        .toBeVisible();
+    }
+
+    // And the empty-state CTA should no longer be reachable.
+    await expect(page.locator('#board-empty-create-btn')).toHaveCount(0);
   });
 });

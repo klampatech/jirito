@@ -102,6 +102,14 @@ export function renderBoard(): void {
     return;
   }
 
+  // The empty-state branch above sets `board.innerHTML` to a `.board-empty`
+  // welcome div; the rest of this function only manipulates `.column`
+  // children additively. When the user creates their first project and we
+  // re-enter here, that empty-state div would otherwise remain in the DOM
+  // alongside the freshly synced columns. Remove it explicitly so the
+  // welcome UI doesn't persist after a project exists.
+  board.querySelector(".board-empty")?.remove();
+
   const columns = getEffectiveColumns();
   const existingCols = board.querySelectorAll(".column");
 
