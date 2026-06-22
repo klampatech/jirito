@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, saveDb } from "../db/index.js";
 import { sendJson, queryAll, mapRow } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
+import { broadcastEvent } from "./events.js";
 
 export async function getAll(
   _req: IncomingMessage,
@@ -77,6 +78,18 @@ export async function restore(
         // agent dispatch if assigned). The original ticket metadata
         // comes from the trash blob (data.id, data.title, etc.).
         void emitEvent("ticket.created", {
+          id: data.id,
+          title: data.title || "",
+          description: data.description || "",
+          type: data.type || "task",
+          status: data.status || "todo",
+          priority: data.priority || "medium",
+          assignee: data.assignee || "",
+          reporter: data.reporter || "",
+          restoredFromTrash: true,
+          restoredAt: now,
+        });
+        broadcastEvent("ticket.created", {
           id: data.id,
           title: data.title || "",
           description: data.description || "",

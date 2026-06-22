@@ -14,6 +14,7 @@ import {
   normalizeStatus,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
+import { broadcastEvent } from "./events.js";
 
 /**
  * Helper: read a single scalar value from the metadata table.
@@ -377,10 +378,19 @@ export async function setState(
           void emitEvent("ticket.created", {
             id: Number(id) || id,
             title: issue.title ?? "",
-            // 2026-06-20: see server/routes/state.ts:189 — Issue shape
-            // carries `desc` (client canonical) AND `description` (DB
-            // column). Accept either so emit payloads include the
-            // description even when the UI state save sent only `desc`.
+            description: ((issue.description ?? issue.desc) as string) ?? "",
+            type: issue.type ?? "task",
+            status: normalizeStatus(issue.status),
+            priority: issue.priority ?? "medium",
+            labels: issue.labels ?? [],
+            assignee: issue.assignee ?? "",
+            reporter: issue.reporter ?? "",
+            createdAt: issue.createdAt,
+            updatedAt: issue.updatedAt,
+          });
+          broadcastEvent("ticket.created", {
+            id: Number(id) || id,
+            title: issue.title ?? "",
             description: ((issue.description ?? issue.desc) as string) ?? "",
             type: issue.type ?? "task",
             status: normalizeStatus(issue.status),
@@ -398,8 +408,6 @@ export async function setState(
             void emitEvent("ticket.updated", {
               id: Number(id) || id,
               title: issue.title ?? "",
-              // 2026-06-20: see state.ts:194 + state.ts:372 — accept
-              // either Issue description field. Same alignment fix.
               description: ((issue.description ?? issue.desc) as string) ?? "",
               type: issue.type ?? "task",
               status: normalizeStatus(issue.status),
@@ -408,7 +416,20 @@ export async function setState(
               reporter: issue.reporter ?? "",
               createdAt: issue.createdAt,
               updatedAt: issue.updatedAt,
-              // Include the previous state for context
+              previousStatus: old.status,
+              previousAssignee: old.assignee,
+            });
+            broadcastEvent("ticket.updated", {
+              id: Number(id) || id,
+              title: issue.title ?? "",
+              description: ((issue.description ?? issue.desc) as string) ?? "",
+              type: issue.type ?? "task",
+              status: normalizeStatus(issue.status),
+              priority: issue.priority ?? "medium",
+              assignee: issue.assignee ?? "",
+              reporter: issue.reporter ?? "",
+              createdAt: issue.createdAt,
+              updatedAt: issue.updatedAt,
               previousStatus: old.status,
               previousAssignee: old.assignee,
             });
@@ -419,6 +440,10 @@ export async function setState(
       for (const [id, old] of existingIssues) {
         if (!newIds.has(id)) {
           void emitEvent("ticket.deleted", {
+            id: Number(id) || id,
+            title: old.title,
+          });
+          broadcastEvent("ticket.deleted", {
             id: Number(id) || id,
             title: old.title,
           });
