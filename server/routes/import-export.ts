@@ -15,6 +15,7 @@ import {
   VALID_STATUSES,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
+import { broadcastEvent } from "./events.js";
 
 /** Structural validation of an incoming import payload. */
 function validateImportPayload(body: unknown): string | null {
@@ -177,6 +178,19 @@ export async function importData(
       // deliberate bulk operation; the user expects each ticket to
       // dispatch to the right inbox.
       void emitEvent("ticket.created", {
+        id: Number(issueId) || issueId,
+        title: issue.title ?? "",
+        description: ((issue.description ?? issue.desc) as string) ?? "",
+        type: issue.type ?? "task",
+        status: normalizeStatus(issue.status),
+        priority: issue.priority ?? "medium",
+        assignee: issue.assignee ?? "",
+        reporter: issue.reporter ?? "",
+        createdAt,
+        updatedAt,
+        fromImport: true,
+      });
+      broadcastEvent("ticket.created", {
         id: Number(issueId) || issueId,
         title: issue.title ?? "",
         description: ((issue.description ?? issue.desc) as string) ?? "",

@@ -20,6 +20,7 @@ import {
   getCallerFromHeader,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
+import { broadcastEvent } from "./events.js";
 
 export async function getAll(
   req: IncomingMessage,
@@ -172,6 +173,7 @@ export async function create(
     // emit sites (state.ts, import-export.ts) which all emit
     // `description`.
     void emitEvent("ticket.created", { ...created, createdAt: now, updatedAt: now });
+    broadcastEvent("ticket.created", { ...created, createdAt: now, updatedAt: now });
   } catch (error) {
     console.error("create issue error:", error);
     sendJson(res, 500, { error: (error as Error).message });
@@ -369,10 +371,23 @@ export async function update(
         to: toStatus,
         actor: (input.assignee as string) || "system",
       });
+      broadcastEvent("ticket.moved", {
+        ...issue,
+        id,
+        from: fromStatus,
+        to: toStatus,
+        actor: (input.assignee as string) || "system",
+      });
       // Also emit ticket.review when moving to review
       if (toStatus === "review") {
         void emitEvent("ticket.review", {
           ...issue, // also enrich review with the full row for the same reason
+          id,
+          from: fromStatus,
+          to: toStatus,
+        });
+        broadcastEvent("ticket.review", {
+          ...issue,
           id,
           from: fromStatus,
           to: toStatus,
@@ -398,6 +413,14 @@ export async function update(
       void emitEvent("ticket.assigned", {
         ...issue, // full post-update row: title, description, type, priority, labels, etc.
         id, // issue is already mapped to numericId, but pass id explicitly to be safe
+        from: fromAssignee,
+        to: toAssignee,
+        assignee: toAssignee,
+        actor: toAssignee,
+      });
+      broadcastEvent("ticket.assigned", {
+        ...issue,
+        id,
         from: fromAssignee,
         to: toAssignee,
         assignee: toAssignee,
@@ -450,6 +473,7 @@ export async function remove(
     sendJson(res, 200, { success: true, message: "Issue moved to trash" });
 
     void emitEvent("ticket.deleted", { id, title: issue.title });
+    broadcastEvent("ticket.deleted", { id, title: issue.title });
   } catch (error) {
     console.error("remove issue error:", error);
     sendJson(res, 500, { error: (error as Error).message });

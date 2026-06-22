@@ -21,6 +21,7 @@ import filtersRouter from "./routes/filters.js";
 import trashRouter from "./routes/trash.js";
 import commentsRouter from "./routes/comments.js";
 import { getState, setState } from "./routes/state.js";
+import { handleSSE } from "./routes/events.js";
 import { importData, exportData } from "./routes/import-export.js";
 import { serveStaticFile } from "./static.js";
 import { parseBody, sendJson } from "./routes/_shared.js";
@@ -66,6 +67,12 @@ async function dispatch(
       status: "ok",
       timestamp: new Date().toISOString(),
     });
+    return true;
+  }
+
+  // SSE — real-time board updates for browser clients
+  if (pathname === "/api/events" && method === "GET") {
+    await handleSSE(req, res);
     return true;
   }
 
