@@ -198,6 +198,8 @@ async function _loadFromServer(): Promise<void> {
     sprints: data.sprints || {},
     columns: data.columns || [],
     customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
+    // Restore default column overrides (name/color for the 4 built-in columns)
+    _defaultColumnOverrides: (data as Partial<{ _defaultColumnOverrides: Record<string, { name?: string; color?: string }> }>)._defaultColumnOverrides || {},
   };
 }
 
