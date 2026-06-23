@@ -21,6 +21,16 @@ async function fetchJson(method, path, body, opts = {}) {
   const headers = {
     "Content-Type": "application/json",
     "X-Jirito-Caller": opts.caller ?? DEFAULT_CALLER,
+    // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
+    // This file is a node:test integration suite, NOT a Playwright
+    // suite, but it has the same problem: every POST/PUT/DELETE that
+    // touches a ticket fires ticket.* events to the squad wiretap.
+    // Running this whole file once produced 100+ Discord messages.
+    // The JIRITO-101 caller-gate tests still verify the gate
+    // behavior (the gate is enforced server-side, not by event
+    // delivery), so silencing is safe. Opt out per-call via
+    // { silent: false } if a test specifically needs the event.
+    "X-Jirito-Silent": opts.silent === false ? "0" : "1",
   };
   const reqOpts = { method, headers };
   if (body !== undefined) {

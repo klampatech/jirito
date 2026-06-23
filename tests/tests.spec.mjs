@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { clearDb, seedIssues } from './helpers.mjs';
+import { resetAndSeed } from './helpers.mjs';
 
 // Path to the bundled index.html — used by file://-based tests below
 const __filename = fileURLToPath(import.meta.url);
@@ -26,10 +26,11 @@ async function clearStorage(page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // Clear the database so each test starts fresh
-  await clearDb();
-  // Seed default issues so tests have data to work with
-  await seedIssues();
+  // Reset DB and seed the default 6 issues in one silent PUT. See
+  // helpers.mjs TEST_HEADERS — the seed would otherwise fire 6
+  // ticket.created events to the squad wiretap on every test, and
+  // 50+ tests = 300+ messages per suite run.
+  await resetAndSeed();
   // Check issues after seeding
   const stateResp = await fetch('http://127.0.0.1:3001/api/state');
   const stateData = await stateResp.json();

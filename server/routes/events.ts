@@ -17,6 +17,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isSilentRequest } from "../webhooks.js";
 
 // In-memory client registry — one entry per open /api/events connection.
 const clients = new Set<ServerResponse>();
@@ -39,6 +40,11 @@ export function broadcastEvent(
   payload: Record<string, unknown>
 ): void {
   if (clients.size === 0) return;
+  // Honor the same silent flag as emitEvent — Playwright's test
+  // fixture writes (resetAndSeed) carry X-Jirito-Silent: 1 to keep
+  // them out of Discord. Suppressing SSE too keeps the test page
+  // from reacting to its own seed.
+  if (isSilentRequest()) return;
 
   const data = JSON.stringify({ event_type, payload });
   const message = `data: ${data}\n\n`;

@@ -2,6 +2,18 @@
 
 const API_URL = 'http://127.0.0.1:3001';
 
+// X-Jirito-Silent: 1 — see server/webhooks.ts isSilentRequest(). The
+// dispatcher wraps the handler in runSilent() when this header is
+// present, so emitEvent / broadcastEvent / the per-issue diff loop
+// in state.ts all early-return. The DB still gets written — only
+// the Discord-bound events are suppressed. Without this, every
+// beforeEach() that seeds fixtures fires 6 ticket.created events
+// to the squad wiretap, and a 50-test suite produces 300+ messages.
+export const TEST_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-Jirito-Silent': '1',
+};
+
 export async function clearDb() {
   try {
     // Reset to a known fixture state. Project Alpha is now part of the
@@ -11,7 +23,7 @@ export async function clearDb() {
     // existing.
     await fetch(`${API_URL}/api/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: TEST_HEADERS,
       body: JSON.stringify({
         issues: [],
         projects: {
@@ -40,6 +52,70 @@ export async function clearDb() {
   }
 }
 
+// Default issue set used by resetAndSeed(). Matches the original
+// seedIssues() exactly so existing tests that rely on titles, ranks,
+// assignees, dueDates, etc. keep working. IDs are explicit so the
+// bulk PUT is deterministic — first new POST after reset creates
+// PROJ-107 (matches the existing e2e.spec.mjs "fallback to
+// localStorage" test which expects PROJ-107).
+const SEED_ISSUES = [
+  { id: 101, title: 'Design login page mockup', description: 'Create wireframes for the new login flow', type: 'story', priority: 'high', status: 'todo', storyPoints: 5, sprint: '', assignee: 'Alice', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 0, parentIssueId: null, dueDate: '2026-05-15', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: ['design'] },
+  { id: 102, title: 'Fix auth token refresh bug', description: 'Tokens expire too early on mobile', type: 'bug', priority: 'high', status: 'inprogress', storyPoints: 3, sprint: '', assignee: 'Bob', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 1, parentIssueId: null, dueDate: '2026-05-01', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: ['bug', 'auth'] },
+  { id: 103, title: 'Set up CI/CD pipeline', description: 'GitHub Actions for staging and prod', type: 'task', priority: 'medium', status: 'todo', storyPoints: 8, sprint: '', assignee: 'Charlie', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 2, parentIssueId: null, dueDate: '2026-06-01', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: ['devops'] },
+  { id: 104, title: 'Write API documentation', description: 'OpenAPI spec for all endpoints', type: 'story', priority: 'medium', status: 'review', storyPoints: 5, sprint: '', assignee: 'Alice', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 3, parentIssueId: null, dueDate: '', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: ['docs'] },
+  { id: 105, title: 'Update dependencies', description: 'Bump all npm packages to latest', type: 'task', priority: 'low', status: 'done', storyPoints: 2, sprint: '', assignee: 'Bob', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 4, parentIssueId: null, dueDate: '2026-04-20', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: [] },
+  { id: 106, title: 'Implement dark mode toggle', description: 'Add theme switcher in settings', type: 'story', priority: 'low', status: 'todo', storyPoints: 3, sprint: '', assignee: 'Diana', reporter: 'Kyle', projectId: 'default', sprintId: null, rank: 5, parentIssueId: null, dueDate: '', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', labels: ['feature'] },
+];
+
+/**
+ * Reset the database AND seed the default 6 issues in a single
+ * PUT /api/state call. Replaces the old clearDb() + seedIssues()
+ * pair, which made 1 PUT + 6 POSTs (each POST firing a
+ * ticket.created event to the squad wiretap). Tests should prefer
+ * this; the old pair is kept for any caller that needs the
+ * per-create path exercised (currently none).
+ *
+ * One PUT, one DB transaction, no events.
+ */
+export async function resetAndSeed() {
+  try {
+    await fetch(`${API_URL}/api/state`, {
+      method: 'PUT',
+      headers: TEST_HEADERS,
+      body: JSON.stringify({
+        issues: SEED_ISSUES,
+        projects: {
+          default: {
+            id: 'default',
+            name: 'Project Alpha',
+            key: 'PROJ',
+            icon: '🚀',
+            color: '#0052CC',
+            description: '',
+            issues: [],
+          },
+        },
+        currentProject: 'default',
+        savedFilters: [],
+        activityLog: [],
+        issueCounter: 106,  // last seed = 106; next POST yields PROJ-107
+        trash: [],
+        sprints: {},
+        columns: [],
+        comments: [],
+      }),
+    });
+  } catch {
+    // Server might not be running
+  }
+}
+
+/**
+ * @deprecated Prefer resetAndSeed(). Kept for callers that need
+ * each issue to be created through the POST /api/issues handler
+ * (none exist in the current suite — they all just need the data
+ * present in the DB).
+ */
 export async function seedIssues() {
   console.log('[seedIssues] Seeding issues...');
   // Seed a full set of test issues matching the original sample data
@@ -56,7 +132,7 @@ export async function seedIssues() {
     try {
       const resp = await fetch(`${API_URL}/api/issues`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: TEST_HEADERS,
         body: JSON.stringify(issue),
       });
       const created = await resp.json();
@@ -67,7 +143,7 @@ export async function seedIssues() {
     }
   }
   // Verify issues were created
-  const stateResp = await fetch(`${API_URL}/api/state`);
+  const stateResp = await fetch(`${API_URL}/api/state`, { headers: TEST_HEADERS });
   const stateData = await stateResp.json();
   console.log('[seedIssues] After seed, API issues:', JSON.stringify(stateData.issues.map(i => ({id:i.id, dueDate:i.dueDate}))));
 }
@@ -81,7 +157,7 @@ export async function clearDbEmpty() {
   try {
     await fetch(`${API_URL}/api/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: TEST_HEADERS,
       body: JSON.stringify({
         issues: [],
         projects: {},

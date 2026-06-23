@@ -178,7 +178,11 @@ export default async function globalSetup() {
     try {
       await fetch('http://127.0.0.1:3001/api/issues', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
+        // Global setup runs once before all tests; without the
+        // silent flag, this loop alone fires 5 ticket.created events
+        // to the squad wiretap per `npx playwright test` run.
+        headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
         body: JSON.stringify(issue),
       });
     } catch {

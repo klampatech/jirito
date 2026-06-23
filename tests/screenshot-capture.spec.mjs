@@ -39,7 +39,11 @@ async function seedViaApi() {
   for (const issue of SAMPLE_ISSUES) {
     await fetch(APP_URL + 'api/issues', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
+      // Screenshot tests don't need the wiretap to know about fixture
+      // issues; the comment with the screenshot is the only event
+      // these tests are "advertising" to Discord.
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(issue),
     });
   }
