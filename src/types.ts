@@ -57,6 +57,8 @@ export interface Issue {
   rank?: number;
   parentIssueId?: string | null;
   customColumnId?: string | null;
+  /** GitHub PR URL associated with this issue. */
+  prUrl?: string | null;
   history?: HistoryEntry[];
   dependencies?: Dependency[];
   createdAt?: string;
