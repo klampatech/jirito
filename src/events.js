@@ -90,6 +90,16 @@ function getCardPosition(cardEl) {
 let _detailChangeHandler = null;
 let _detailCommentClickHandler = null;
 let _detailCommentKeydownHandler = null;
+// Clone and delete buttons live in the persistent detail-panel-header (see
+// index.html). The header is NEVER re-rendered, so a naive addEventListener
+// here stacks one new listener per openDetailPanel() call. After N opens,
+// one click fires N clones / N confirmations / N deletions (each closure
+// captured a different issueId, so all the tickets the user opened get
+// nuked). Track the previous handler in a module-level var and remove it
+// before adding the new one — same pattern as _detailChangeHandler and the
+// comment handlers below.
+let _detailCloneClickHandler = null;
+let _detailDeleteClickHandler = null;
 export function openDetailPanel(issueId) {
     const issue = getIssues().find((i) => _matchesId(i, issueId));
     if (!issue)
@@ -461,16 +471,31 @@ export function openDetailPanel(issueId) {
             });
         });
     });
-    // Clone button
+    // Clone button — remove previous handler before adding the new one so we
+    // don't stack listeners on the persistent detail-panel-header button.
+    // (The dev comment about "{ once: true }" on delete was correct in spirit
+    // but `{ once: true }` does NOT prevent `addEventListener` from being
+    // called multiple times — it only ensures each registered listener fires
+    // once. After N panel opens you have N listeners, each with once: true,
+    // each firing on the next N clicks. The track-and-remove pattern is the
+    // only correct fix.)
     const deleteBtn = document.getElementById("delete-issue-btn");
     const cloneBtn = document.getElementById("clone-issue-btn");
     if (cloneBtn) {
         cloneBtn.style.display = "inline-flex";
-        cloneBtn.addEventListener("click", () => cloneIssue(issueId));
+        if (_detailCloneClickHandler) {
+            cloneBtn.removeEventListener("click", _detailCloneClickHandler);
+        }
+        _detailCloneClickHandler = () => cloneIssue(issueId);
+        cloneBtn.addEventListener("click", _detailCloneClickHandler);
     }
-    // Delete button — { once: true } prevents duplicate listeners if panel re-opens
+    // Delete button — same track-and-remove pattern as clone.
     if (deleteBtn) {
-        deleteBtn.addEventListener("click", () => deleteIssue(issueId), { once: true });
+        if (_detailDeleteClickHandler) {
+            deleteBtn.removeEventListener("click", _detailDeleteClickHandler);
+        }
+        _detailDeleteClickHandler = () => deleteIssue(issueId);
+        deleteBtn.addEventListener("click", _detailDeleteClickHandler);
     }
     // Dependency removal
     const depContainer = document.getElementById("detail-dependencies");
@@ -1175,6 +1200,41 @@ export function handleBulkClear() {
     updateBulkBar();
 }
 // ===== Filter =====
+/**
+ * Returns the current set of active filter values from the header bar.
+ */
+export function getFilterValues() {
+    return {
+        search: document.getElementById("search-input")?.value.toLowerCase() || "",
+        typeFilter: document.getElementById("filter-type")?.value || "all",
+        priorityFilter: document.getElementById("filter-priority")?.value || "all",
+        assigneeFilter: document.getElementById("filter-assignee")?.value || "all",
+        sprintFilter: document.getElementById("sprint-filter")?.value || "all",
+    };
+}
+/**
+ * Applies header-bar filters (search, type, priority, assignee, sprint) to
+ * a given issue list. Used by board, calendar, and dashboard views so all
+ * three respect the same filter controls consistently.
+ */
+export function filterIssues(issues) {
+    const { search, typeFilter, priorityFilter, assigneeFilter, sprintFilter } = getFilterValues();
+    return issues.filter((i) => {
+        if (typeFilter !== "all" && i.type !== typeFilter)
+            return false;
+        if (priorityFilter !== "all" && i.priority !== priorityFilter)
+            return false;
+        if (assigneeFilter !== "all" && i.assignee !== assigneeFilter)
+            return false;
+        if (sprintFilter !== "all" && i.sprint !== sprintFilter)
+            return false;
+        if (search &&
+            !i.title.toLowerCase().includes(search) &&
+            !(i.desc || "").toLowerCase().includes(search))
+            return false;
+        return true;
+    });
+}
 export function applyFilters() {
     const search = document.getElementById("search-input")?.value.toLowerCase() || "";
     const typeFilter = document.getElementById("filter-type")?.value || "all";
@@ -1219,6 +1279,20 @@ export function applyFilters() {
     // Also update list view when filters change
     if (getCurrentView() === "list") {
         renderListView();
+    }
+    // Re-render calendar and dashboard views when filters change so they
+    // immediately reflect the new scope. Deferred with setTimeout(0) to avoid
+    // a circular import: render.ts imports filterIssues from events.ts, so we
+    // cannot import renderCalendarView/renderDashboardView here directly.
+    if (getCurrentView() === "calendar") {
+        setTimeout(() => {
+            import("./render.js").then((m) => m.renderCalendarView());
+        });
+    }
+    if (getCurrentView() === "dashboard") {
+        setTimeout(() => {
+            import("./render.js").then((m) => m.renderDashboardView());
+        });
     }
 }
 // ===== Toast Notifications =====

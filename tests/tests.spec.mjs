@@ -961,6 +961,50 @@ test('delete moves issue to trash', async ({ page }) => {
   await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(count - 1);
 });
 
+test('delete button does not stack listeners across panel re-opens (regression)', async ({ page }) => {
+  // Burn 2026-06-23: the #delete-issue-btn is a static element in the
+  // detail-panel-header (see index.html) and the header is NEVER
+  // re-rendered. Every call to openDetailPanel() called
+  //   deleteBtn.addEventListener("click", () => deleteIssue(issueId), { once: true })
+  // on the SAME persistent button. `{ once: true }` does NOT prevent
+  // addEventListener from being called multiple times — it only ensures
+  // each registered listener fires once. After opening the panel for N
+  // different issues, the button had N listeners, each closure holding a
+  // different issueId. One click on delete then fired N confirm() dialogs
+  // in sequence and deleted N issues the user didn't intend to delete.
+  // Fix: track the previous handler in a module-level var and remove it
+  // before adding the new one (same pattern as _detailChangeHandler and
+  // the comment handlers).
+  let dialogCount = 0;
+  page.on('dialog', async dialog => {
+    dialogCount++;
+    await dialog.accept();
+  });
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const initialCount = await todoCards.count();
+  const openCount = Math.min(5, initialCount);
+  // Open the panel for the first 5 todo cards, one after another. Each
+  // openDetailPanel() call adds a new listener to the persistent
+  // #delete-issue-btn. With the bug, after 5 opens, 5 listeners are
+  // stacked on the same button.
+  for (let i = 0; i < openCount; i++) {
+    await todoCards.nth(i).click();
+    await page.locator('#detail-title').waitFor();
+    await page.locator('#detail-close').click();
+    await expect(page.locator('#detail-panel')).not.toHaveClass(/open/);
+  }
+  // Re-open the panel for the LAST card and click delete ONCE.
+  await todoCards.nth(openCount - 1).click();
+  await page.locator('#detail-title').waitFor();
+  await page.locator('#delete-issue-btn').click();
+  // Wait a beat for any stale listeners to fire (with the fix: none).
+  await page.waitForTimeout(500);
+  // Exactly ONE confirm dialog should have fired.
+  expect(dialogCount).toBe(1);
+  // And only ONE card should have been deleted (the last one).
+  await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(initialCount - 1);
+});
+
 // ===== Keyboard Navigation Tests =====
 test('cards are focusable', async ({ page }) => {
   const card = page.locator('[data-status="todo"] .issue-card').first();
@@ -1030,6 +1074,37 @@ test('clone issue creates a copy', async ({ page }) => {
   // Verify the cloned issue has "(clone)" in the title
   const clonedCard = page.locator('[data-status="todo"] .issue-card').last();
   await expect(clonedCard).toContainText('(clone)');
+});
+
+test('clone button does not stack listeners when detail panel re-opens (regression)', async ({ page }) => {
+  // Burn 2026-06-23: same root cause as the delete-stacking bug above.
+  // #clone-issue-btn is a static element in the detail-panel-header (see
+  // index.html) and the header is NEVER re-rendered. Every call to
+  // openDetailPanel() called
+  //   cloneBtn.addEventListener("click", () => cloneIssue(issueId))
+  // on the SAME persistent button (note: no `{ once: true }` here, unlike
+  // the delete button — the dev was aware of the issue for delete but not
+  // for clone). After 5 panel opens, one click on clone created 5 copies
+  // of the same ticket.
+  // Fix: track the previous handler in a module-level var and remove it
+  // before adding the new one (same pattern as _detailChangeHandler and
+  // the comment handlers).
+  const todoCards = page.locator('[data-status="todo"] .issue-card');
+  const count = await todoCards.count();
+  const card = page.locator('[data-status="todo"] .issue-card').first();
+  // Open the SAME card's panel 5 times.
+  for (let i = 0; i < 5; i++) {
+    await card.click();
+    await page.locator('#detail-title').waitFor();
+    await page.locator('#detail-close').click();
+    await expect(page.locator('#detail-panel')).not.toHaveClass(/open/);
+  }
+  // Re-open the panel and click clone ONCE.
+  await card.click();
+  await page.locator('#detail-title').waitFor();
+  await page.locator('#clone-issue-btn').click();
+  // Assert exactly ONE new card was created, not five.
+  await expect(page.locator('[data-status="todo"] .issue-card')).toHaveCount(count + 1);
 });
 
 // ===== History Tests =====
