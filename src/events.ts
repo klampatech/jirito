@@ -143,6 +143,16 @@ function getCardPosition(cardEl: HTMLElement): { columnId: string; index: number
 let _detailChangeHandler: ((e: Event) => void) | null = null;
 let _detailCommentClickHandler: ((e: Event) => void) | null = null;
 let _detailCommentKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
+// Clone and delete buttons live in the persistent detail-panel-header (see
+// index.html). The header is NEVER re-rendered, so a naive addEventListener
+// here stacks one new listener per openDetailPanel() call. After N opens,
+// one click fires N clones / N confirmations / N deletions (each closure
+// captured a different issueId, so all the tickets the user opened get
+// nuked). Track the previous handler in a module-level var and remove it
+// before adding the new one — same pattern as _detailChangeHandler and the
+// comment handlers below.
+let _detailCloneClickHandler: (() => void) | null = null;
+let _detailDeleteClickHandler: (() => void) | null = null;
 
 export function openDetailPanel(issueId: Issue["id"]): void {
   const issue = getIssues().find((i) => _matchesId(i, issueId));
@@ -523,17 +533,32 @@ export function openDetailPanel(issueId: Issue["id"]): void {
     });
   });
 
-  // Clone button
+  // Clone button — remove previous handler before adding the new one so we
+  // don't stack listeners on the persistent detail-panel-header button.
+  // (The dev comment about "{ once: true }" on delete was correct in spirit
+  // but `{ once: true }` does NOT prevent `addEventListener` from being
+  // called multiple times — it only ensures each registered listener fires
+  // once. After N panel opens you have N listeners, each with once: true,
+  // each firing on the next N clicks. The track-and-remove pattern is the
+  // only correct fix.)
   const deleteBtn = document.getElementById("delete-issue-btn");
   const cloneBtn = document.getElementById("clone-issue-btn");
   if (cloneBtn) {
     (cloneBtn as HTMLElement).style.display = "inline-flex";
-    cloneBtn.addEventListener("click", () => cloneIssue(issueId));
+    if (_detailCloneClickHandler) {
+      cloneBtn.removeEventListener("click", _detailCloneClickHandler);
+    }
+    _detailCloneClickHandler = () => cloneIssue(issueId);
+    cloneBtn.addEventListener("click", _detailCloneClickHandler);
   }
 
-  // Delete button — { once: true } prevents duplicate listeners if panel re-opens
+  // Delete button — same track-and-remove pattern as clone.
   if (deleteBtn) {
-    deleteBtn.addEventListener("click", () => deleteIssue(issueId), { once: true });
+    if (_detailDeleteClickHandler) {
+      deleteBtn.removeEventListener("click", _detailDeleteClickHandler);
+    }
+    _detailDeleteClickHandler = () => deleteIssue(issueId);
+    deleteBtn.addEventListener("click", _detailDeleteClickHandler);
   }
 
   // Dependency removal
