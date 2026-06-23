@@ -1,14 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { clearDb, seedIssues } from './helpers.mjs';
+import { resetAndSeed } from './helpers.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
 const API_URL = 'http://127.0.0.1:3001';
 
 test.beforeEach(async ({ page }) => {
-  // Clear the database so each test starts fresh
-  await clearDb();
-  // Seed default issues
-  await seedIssues();
+  // Reset DB and seed the default 6 issues in one silent PUT — see
+  // helpers.mjs TEST_HEADERS comment.
+  await resetAndSeed();
   // Navigate to the app via the static server (proxies /api/ to backend)
   await page.goto(APP_URL, { waitUntil: 'load' });
   // Force reset to initial state - clear localStorage and reload

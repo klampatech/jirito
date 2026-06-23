@@ -1,6 +1,6 @@
 // tests/e2e.spec.mjs - End-to-end tests for Jirito
 import { test, expect } from '@playwright/test';
-import { clearDb, clearDbEmpty, seedIssues } from './helpers.mjs';
+import { clearDb, clearDbEmpty, resetAndSeed } from './helpers.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
 
@@ -41,7 +41,7 @@ test.describe('E2E Integration Tests', () => {
   test('should load data from server on startup', async ({ page }) => {
     // Uses the standard seedIssues fixture (3 todo, 1 inprogress, 1 review, 1 done = 6 total).
     // The test verifies the data is loaded from the server on the first page load.
-    await seedIssues();
+    await resetAndSeed();
 
     const { consoleMessages, errors } = await navigate(page);
     consoleMessages.forEach(m => console.log(`[${m.type}] ${m.text}`));

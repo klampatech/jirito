@@ -13,7 +13,7 @@ import {
   coerceNumericId,
   normalizeStatus,
 } from "./_shared.js";
-import { emitEvent } from "../webhooks.js";
+import { emitEvent, isSilentRequest } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
 
 /**
@@ -363,6 +363,16 @@ export async function setState(
     // We compare on "meaningful" fields only — not updatedAt (always
     // changes on every sync) or rank (UI-only display sort). This way
     // a pure status move, reassign, title edit, etc. all fire events.
+    //
+    // Skip the entire diff loop when the request carries X-Jirito-Silent.
+    // emitEvent/broadcastEvent already check isSilentRequest(), but
+    // batching the per-issue events here would still do 6 lookups +
+    // 6 emit calls per resetAndSeed; a single early-return is cleaner
+    // and avoids the work entirely.
+    if (isSilentRequest()) {
+      sendJson(res, 200, { success: true });
+      return;
+    }
     if (data.issues !== undefined) {
       const newIssues = (data.issues as Array<Record<string, unknown>>);
       const newIds = new Set(newIssues.map((i) => String(i.id)));

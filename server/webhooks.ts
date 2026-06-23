@@ -15,11 +15,44 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { getDb, saveDb } from "./db/index.js";
 
 const BRIDGE_URL =
   process.env.JIRITO_WEBHOOK_BRIDGE_URL || "http://localhost:3030";
 const ENABLED = process.env.JIRITO_WEBHOOK_ENABLED !== "false";
+
+/**
+ * Per-request "silent" flag, set when the inbound request carries
+ * `X-Jirito-Silent: 1`. Lets the Playwright suite seed fixtures without
+ * spamming Discord — `emitEvent` and `broadcastEvent` both early-return
+ * when this is set, so the outbox is not even written.
+ *
+ * AsyncLocalStorage (not a module-level boolean) because the server
+ * interleaves concurrent requests at every `await`. A module-level
+ * flag would corrupt across requests when one request is mid-handler
+ * and another's middleware runs.
+ */
+const silentStorage = new AsyncLocalStorage<{ silent: boolean }>();
+
+/** True iff the currently-executing request is marked silent. */
+export function isSilentRequest(): boolean {
+  return silentStorage.getStore()?.silent === true;
+}
+
+/**
+ * Run `fn` inside a silent request context. The dispatcher in
+ * server/index.ts wraps each inbound HTTP request in this when the
+ * request carries `X-Jirito-Silent: 1`; emitEvent and broadcastEvent
+ * then early-return for the duration of the handler.
+ *
+ * Exported (not just the storage) so the wrapper itself is the
+ * public API — callers shouldn't reach into AsyncLocalStorage
+ * directly.
+ */
+export function runSilent<T>(fn: () => T): T {
+  return silentStorage.run({ silent: true }, fn);
+}
 
 /**
  * Emit a webhook event. Inserts a row into webhook_outbox and fires
@@ -35,6 +68,14 @@ export async function emitEvent(
 ): Promise<void> {
   if (!ENABLED) {
     console.log(`[webhook] disabled, skipping ${event_type}`);
+    return;
+  }
+  // Test fixture writes set X-Jirito-Silent so the squad wiretap
+  // doesn't get 6 ticket.created events per `beforeEach` × every test
+  // (50+ tests = 300+ events per suite run). The outbox row is also
+  // skipped — leaving it would just queue phantom events for the
+  // worker to retry.
+  if (isSilentRequest()) {
     return;
   }
   const db = getDb();

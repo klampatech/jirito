@@ -24,7 +24,10 @@ const API_BASE = 'http://localhost:3001/api';
 async function fetchJson(method, path, body) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
+    // Storage tests PUT a lot of state and would otherwise produce
+    // dozens of ticket.* events per file run.
+    headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
   };
   if (body) {
     opts.body = JSON.stringify(body);
@@ -75,7 +78,7 @@ describe('Storage Layer — Server State Endpoint', () => {
 
     const res = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
 
@@ -88,7 +91,7 @@ describe('Storage Layer — Server State Endpoint', () => {
     // First ensure sprints exist (the previous test may have wiped them)
     await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify({
         issues: [], projects: {}, currentProject: 'default',
         savedFilters: [], activityLog: [], issueCounter: 1000, trash: [],
@@ -122,7 +125,7 @@ describe('Storage Layer — Server State Endpoint', () => {
     // Create test columns first (independent of other tests)
     await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify({
         issues: [], projects: {}, currentProject: 'default',
         savedFilters: [], activityLog: [], issueCounter: 1000, trash: [],
@@ -160,7 +163,7 @@ describe('Storage Layer — Server State Endpoint', () => {
 
     const res = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
 
@@ -189,7 +192,7 @@ describe('Storage Layer — Server State Endpoint', () => {
 
     const res = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
 
@@ -213,7 +216,7 @@ describe('Storage Layer — Server State Endpoint', () => {
 
     const res = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
 
@@ -278,7 +281,7 @@ describe('Storage Layer — State Round-trip', () => {
     // Save
     const putRes = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
     assert.strictEqual(putRes.status, 200);
@@ -343,7 +346,7 @@ describe('Storage Layer — State Round-trip', () => {
 
     await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
 
@@ -375,7 +378,7 @@ describe('Storage Layer — Data Integrity', () => {
     // Save with same issues
     const putRes = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(currentState),
     });
     assert.strictEqual(putRes.status, 200);
@@ -393,7 +396,7 @@ describe('Storage Layer — Data Integrity', () => {
 
     const putRes = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(currentState),
     });
     assert.strictEqual(putRes.status, 200);
@@ -420,7 +423,7 @@ describe('Storage Layer — Data Integrity', () => {
 
     const putRes = await fetch(`${API_BASE}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
       body: JSON.stringify(testState),
     });
     assert.strictEqual(putRes.status, 200);

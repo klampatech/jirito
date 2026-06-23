@@ -9,7 +9,7 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { initDb, closeDb, saveDb } from "./db/index.js";
 import { initTables, migrateTables } from "./db/init.js";
-import { startOutboxWorker } from "./webhooks.js";
+import { startOutboxWorker, runSilent } from "./webhooks.js";
 
 // Routes
 import issuesRouter from "./routes/issues.js";
@@ -301,13 +301,22 @@ async function start(): Promise<void> {
           req.url ?? "/",
           `http://${req.headers.host ?? "localhost"}`
         );
-        const handled = await dispatch(
-          req,
-          res,
-          url,
-          url.pathname,
-          req.method ?? "GET"
-        );
+        // X-Jirito-Silent: 1 — Playwright test fixtures use this to
+        // seed the database without spamming the squad wiretap (6
+        // ticket.created events per beforeEach × 50+ tests was
+        // producing 300+ Discord messages per suite run). Wrapped in
+        // AsyncLocalStorage so concurrent requests can't corrupt
+        // each other's silent context across await points.
+        const isSilent = req.headers["x-jirito-silent"] === "1";
+        const handle = () =>
+          dispatch(
+            req,
+            res,
+            url,
+            url.pathname,
+            req.method ?? "GET"
+          );
+        const handled = isSilent ? await runSilent(handle) : await handle();
         if (!handled) {
           // No /api/* route matched. Try to serve a static file from the
           // project root (index.html, src/*.js, styles.css, public/*, etc.).
