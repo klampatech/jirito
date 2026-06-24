@@ -73,6 +73,8 @@ export interface Project {
   color?: string;
   description?: string;
   githubUrl?: string;
+  /** Local filesystem path to the project directory on the local machine. */
+  path?: string;
   /** Server returns string ids; client may hydrate with full Issue objects. */
   issues?: Array<Issue | string>;
   createdAt?: string;
