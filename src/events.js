@@ -2,7 +2,7 @@ import { CONSTANTS } from "./constants.js";
 import { typeIcons } from "./state.js";
 import { addActivity, addDependency, deleteSprint, getActiveSprint, getComments, getCurrentDetailIssue, getCurrentView, getEffectiveColumns, getIssueCounter, getIssues, getSelectedIds, getSprints, hasCircularDependency, isSelectedIssue, moveToTrash, removeDependency, saveState, setCurrentDetailIssue, setIssueCounter, setIssues, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getProjectKey, lucideIcon, populateSprintFilter, populateSprintSelect, renderMarkdown, updateSprintBar, updateSprintProgressBar, } from "./utils.js";
-import { createCard, renderBoard, renderListView, updateCounts, } from "./render.js";
+import { createCard, renderActivity, renderBoard, renderListView, updateCounts, } from "./render.js";
 import { renderTrash } from "./main-trash.js";
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
@@ -179,7 +179,6 @@ export function openDetailPanel(issueId) {
       <label>PR Merged</label>
       <input type="checkbox" id="detail-pr-merged" ${issue.prMerged ? "checked" : ""}>
     </div>
-    <div class="detail-field">
       <label>Sprint</label>
       <select id="detail-sprint">
         <option value="">No Sprint</option>
@@ -412,7 +411,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
-            addActivity("GitMerge", "PR merge status updated");
+            renderActivity();
             showUndoToast("PR merged changed", () => {
                 issue.prMerged = oldMerged;
                 saveState();

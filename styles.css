@@ -404,6 +404,14 @@ body {
   padding: 1px 5px; border-radius: 8px;
   background: var(--border-light);
 }
+.issue-pr-icon {
+  display: inline-flex; align-items: center;
+  color: var(--success, #2ea44f);
+  text-decoration: none;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.issue-pr-icon:hover { opacity: 0.8; }
 
 /* ===== Board Header ===== */
 .board-header {

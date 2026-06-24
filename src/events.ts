@@ -59,6 +59,7 @@ import {
 } from "./utils.js";
 import {
   createCard,
+  renderActivity,
   renderBoard,
   renderListView,
   updateCounts,
@@ -241,7 +242,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       <label>PR Merged</label>
       <input type="checkbox" id="detail-pr-merged" ${issue.prMerged ? "checked" : ""}>
     </div>
-    <div class="detail-field">
       <label>Sprint</label>
       <select id="detail-sprint">
         <option value="">No Sprint</option>
@@ -471,7 +471,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
-      addActivity("GitMerge", "PR merge status updated");
+      renderActivity();
       showUndoToast("PR merged changed", () => {
         issue.prMerged = oldMerged;
         saveState();
