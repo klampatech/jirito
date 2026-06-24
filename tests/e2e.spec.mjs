@@ -1,8 +1,12 @@
 // tests/e2e.spec.mjs - End-to-end tests for Jirito
 import { test, expect } from '@playwright/test';
 import { clearDb, clearDbEmpty, resetAndSeed } from './helpers.mjs';
+import { getTestContext } from '../playwright/playwright-shared.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
+// Tests target the test backend (port 3002 by default — see
+// playwright/playwright-global-setup.mjs). Never the live jirito on 3001.
+const TEST_API_URL = `http://127.0.0.1:${getTestContext().testPort}`;
 
 async function navigate(page) {
   const consoleMessages = [];
@@ -80,7 +84,7 @@ test.describe('E2E Integration Tests', () => {
     await page.waitForTimeout(1500);
     
     // Verify the issue was saved to the server
-    const resp = await page.request.get('http://127.0.0.1:3001/api/issues');
+    const resp = await page.request.get(`${TEST_API_URL}/api/issues`);
     const issues = await resp.json();
     const found = issues.find(i => i.title === 'E2E UI Created Issue');
     expect(found).toBeDefined();
@@ -131,14 +135,24 @@ test.describe('E2E Integration Tests', () => {
     });
 
     // Override fetch to block ALL server requests before page loads
-    await page.addInitScript(() => {
-      const originalFetch = window.fetch;
-      window.fetch = function(url, ...args) {
-        if (typeof url === 'string' && (url.includes('127.0.0.1:3001') || url === '/api/health' || url.startsWith('/api/'))) {
-          return Promise.reject(new Error('Connection refused'));
-        }
-        return originalFetch.call(this, url, ...args);
-      };
+    // Override fetch to block ALL server requests before page loads.
+    // NOTE: addInitScript serializes the function — closure variables like
+    // TEST_API_URL won't survive. Use the { content: string } form so the
+    // override is self-contained. Match on /api/ substring (the page makes
+    // relative fetches that resolve to the static proxy at 8080 → test
+    // backend at TEST_PORT).
+    await page.addInitScript({
+      content: `
+        (function() {
+          const originalFetch = window.fetch;
+          window.fetch = function(url, ...args) {
+            if (typeof url === 'string' && (url.startsWith('/api/') || url.includes('/api/'))) {
+              return Promise.reject(new Error('Connection refused'));
+            }
+            return originalFetch.call(this, url, ...args);
+          };
+        })();
+      `,
     });
 
     // The localStorage seed needs a `default` project to match the frontend's

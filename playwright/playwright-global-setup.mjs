@@ -1,17 +1,33 @@
 // playwright-global-setup.mjs
-// Global test setup: starts backend (port 3001) and static file server (port 8080)
+// Global test setup: starts the test backend on TEST_PORT with an isolated
+// DB at TEST_DB_PATH, plus the static file server on port 8080.
+//
+// IMPORTANT: the test backend must NEVER touch the live jirito.service on
+// port 3001 / DB ./jirito.db. Earlier versions of this file called
+// killOnPort(3001) (killing the live service) and re-spawned a test server
+// on the same port pointed at the same DB, which wiped production tickets.
+// See tests/helpers.isolation.test.mjs for the invariants that lock this
+// in. Override TEST_PORT / TEST_DB_PATH via the JIRITO_TEST_PORT /
+// JIRITO_TEST_DB_PATH env vars for debugging or parallel runs.
 import { spawn, execSync } from 'child_process';
 import { createServer, request } from 'http';
-import { appendFileSync, readFile } from 'fs';
+import { appendFileSync, readFile, unlinkSync, existsSync } from 'fs';
 import { resolve, join, dirname, extname, sep } from 'path';
 import { fileURLToPath } from 'url';
-import { setServers } from './playwright-shared.mjs';
+import { setServers, setTestContext } from './playwright-shared.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let staticServer;
 let backendProc;
 const rootDir = resolve(__dirname, '..');
 const LOG_FILE = '/Users/kylelampa/Development/jirito/playwright-test-setup.log';
+
+// Test infrastructure constants. Keep these in sync with tests/helpers.mjs
+// (via playwright-shared.mjs) and any spec files that need to talk to the
+// test backend directly.
+const TEST_PORT = process.env.JIRITO_TEST_PORT || '3002';
+const TEST_DB_PATH = process.env.JIRITO_TEST_DB_PATH || '/tmp/jirito-test.db';
+
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   try { appendFileSync(LOG_FILE, line); } catch {} // silent in case of errors
@@ -19,14 +35,14 @@ function log(msg) {
 }
 
 function serveStatic(req, res) {
-  // Proxy API requests to the backend server
+  // Proxy API requests to the test backend server (NOT the live one on 3001)
   if (req.url.startsWith('/api/')) {
-    const backendUrl = 'http://127.0.0.1:3001' + req.url;
+    const backendUrl = `http://127.0.0.1:${TEST_PORT}` + req.url;
     const proxyReq = request(backendUrl, {
       method: req.method,
       headers: {
         ...req.headers,
-        host: '127.0.0.1:3001',
+        host: `127.0.0.1:${TEST_PORT}`,
         'x-forwarded-host': '127.0.0.1:8080',
       },
     }, (proxyRes) => {
@@ -91,11 +107,13 @@ function killOnPort(port) {
 export default async function globalSetup() {
   try {
   log('Starting global setup...');
-  
-  // Kill any existing servers
+
+  // Free the test-only ports. NOTE: we DO NOT call killOnPort(3001) — that
+  // would kill Kyle's live jirito.service. The test backend now runs on
+  // TEST_PORT (default 3002) so it never collides with the live server.
   killOnPort(8080);
-  killOnPort(3001);
-  log('Killed existing processes');
+  killOnPort(Number(TEST_PORT));
+  log('Killed any existing test processes on 8080 / ' + TEST_PORT);
 
   // Wait for ports to be free
   for (let i = 0; i < 40; i++) {
@@ -106,17 +124,32 @@ export default async function globalSetup() {
     }
     await new Promise(r => setTimeout(r, 250));
   }
-  log('Ports free, starting servers...');
+  log('Test ports free, starting servers...');
 
-  // Start backend server on port 3001. Per phase 2, the server source of
-  // truth is server/index.ts. The committed server/*.js files are
-  // legacy artifacts (still tracked for now, but no longer run).
-  // `tsx` is the project's dev dep (per phase 1) for running TS files
-  // directly, so we use it here instead of the emit-then-node dance.
+  // Start with a clean test DB. The test server reads JIRITO_DB_PATH and
+  // creates the file if absent — so unlinking first gives us a fresh slate.
+  try {
+    if (existsSync(TEST_DB_PATH)) unlinkSync(TEST_DB_PATH);
+    log('Removed stale test DB at ' + TEST_DB_PATH);
+  } catch (e) {
+    log('Could not remove stale test DB: ' + e.message);
+  }
+
+  // Start backend server on TEST_PORT with an isolated DB.
+  //
+  // `detached: true` puts the child in its own process group, so the
+  // teardown can kill the whole group (and so jirito.service's
+  // KillMode=mixed never confuses our children for its own — they share
+  // the same `tsx server/index.ts` binary path).
   backendProc = spawn('npx', ['tsx', 'server/index.ts'], {
     cwd: rootDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, SERVER_PORT: '3001' },
+    detached: true,
+    env: {
+      ...process.env,
+      SERVER_PORT: TEST_PORT,
+      JIRITO_DB_PATH: TEST_DB_PATH,
+    },
   });
   backendProc.stdout.on('data', d => log('[backend] ' + d.toString().trim()));
   backendProc.stderr.on('data', d => log('[backend err] ' + d.toString().trim()));
@@ -125,7 +158,7 @@ export default async function globalSetup() {
   let backendReady = false;
   for (let i = 0; i < 40; i++) {
     try {
-      const resp = await fetch('http://127.0.0.1:3001/api/health');
+      const resp = await fetch(`http://127.0.0.1:${TEST_PORT}/api/health`);
       if (resp.ok) { backendReady = true; break; }
     } catch {
       // not ready yet
@@ -149,7 +182,11 @@ export default async function globalSetup() {
   log('Static server started on 8080');
 
   // Share server references with teardown
-  setServers(staticServer, backendProc);
+  setServers(staticServer, backendProc, {
+    testPort: TEST_PORT,
+    testDbPath: TEST_DB_PATH,
+  });
+  setTestContext({ testPort: TEST_PORT, testDbPath: TEST_DB_PATH });
 
   // Verify servers are responding
   for (let i = 0; i < 20; i++) {
@@ -176,12 +213,12 @@ export default async function globalSetup() {
   ];
   for (const issue of seedIssues) {
     try {
-      await fetch('http://127.0.0.1:3001/api/issues', {
+      // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
+      // Global setup runs once before all tests; without the silent
+      // flag, this loop alone fires 5 ticket.created events to the
+      // squad wiretap per `npx playwright test` run.
+      await fetch(`http://127.0.0.1:${TEST_PORT}/api/issues`, {
         method: 'POST',
-        // X-Jirito-Silent: 1 — see helpers.mjs TEST_HEADERS comment.
-        // Global setup runs once before all tests; without the
-        // silent flag, this loop alone fires 5 ticket.created events
-        // to the squad wiretap per `npx playwright test` run.
         headers: { 'Content-Type': 'application/json', 'X-Jirito-Silent': '1' },
         body: JSON.stringify(issue),
       });

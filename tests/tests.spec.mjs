@@ -7,7 +7,8 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { resetAndSeed } from './helpers.mjs';
+import { clearDb, seedIssues, resetAndSeed } from './helpers.mjs';
+import { getTestContext } from '../playwright/playwright-shared.mjs';
 
 // Path to the bundled index.html — used by file://-based tests below
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,9 @@ const __dirname = path.dirname(__filename);
 const indexPath = path.resolve(__dirname, '..', 'index.html');
 
 const APP_URL = 'http://127.0.0.1:8080/';
+// Tests target the test backend (port 3002 by default — see
+// playwright/playwright-global-setup.mjs). Never the live jirito on 3001.
+const TEST_API_URL = `http://127.0.0.1:${getTestContext().testPort}`;
 
 // Helper to clear localStorage safely (file:// protocol may block it)
 async function clearStorage(page) {
@@ -32,7 +36,7 @@ test.beforeEach(async ({ page }) => {
   // 50+ tests = 300+ messages per suite run.
   await resetAndSeed();
   // Check issues after seeding
-  const stateResp = await fetch('http://127.0.0.1:3001/api/state');
+  const stateResp = await fetch(`http://127.0.0.1:${getTestContext().testPort}/api/state`);
   const stateData = await stateResp.json();
   console.log('[beforeEach] After seed, API issues:', JSON.stringify(stateData.issues.map(i => ({id:i.id, title:i.title, dueDate:i.dueDate}))));
   // Navigate to the app via the static server (proxies /api/ to backend)

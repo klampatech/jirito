@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { resetAndSeed } from './helpers.mjs';
+import { getTestContext } from '../playwright/playwright-shared.mjs';
 
 const APP_URL = 'http://127.0.0.1:8080/';
-const API_URL = 'http://127.0.0.1:3001';
+// Tests target the test backend (port 3002 by default — see
+// playwright/playwright-global-setup.mjs). Never the live jirito on 3001.
+const API_URL = `http://127.0.0.1:${getTestContext().testPort}`;
 
 test.beforeEach(async ({ page }) => {
   // Reset DB and seed the default 6 issues in one silent PUT — see

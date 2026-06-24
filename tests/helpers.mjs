@@ -1,6 +1,25 @@
 // tests/helpers.mjs - Test utilities for E2E tests
+//
+// IMPORTANT: tests run against a TEST backend on port 3002 with an isolated
+// DB at /tmp/jirito-test.db — NEVER against the live jirito.service on
+// port 3001 / ./jirito.db. See playwright/playwright-global-setup.mjs and
+// tests/helpers.isolation.test.mjs for the invariants that lock this in.
+// If the playwright global setup hasn't run yet (e.g. node --test
+// directly), the test server is expected to be reachable on the test
+// port — start it manually with: JIRITO_DB_PATH=/tmp/jirito-test.db \
+//   SERVER_PORT=3002 npx tsx server/index.ts
+import { getTestContext } from '../playwright/playwright-shared.mjs';
 
-const API_URL = 'http://127.0.0.1:3001';
+// Resolve at call time so the test-context module's exports are populated
+// by the time the global setup has finished. Falls back to the default
+// test port (3002) so standalone helpers/seed runs that bypass the
+// playwright setup still hit the right server.
+function testApiUrl() {
+  const ctx = getTestContext();
+  return `http://127.0.0.1:${ctx.testPort}`;
+}
+
+const API_URL = testApiUrl();
 
 // X-Jirito-Silent: 1 — see server/webhooks.ts isSilentRequest(). The
 // dispatcher wraps the handler in runSilent() when this header is

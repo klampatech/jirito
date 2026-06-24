@@ -18,7 +18,7 @@ async function clearStorage(page) {
 
 // Sample issues for the screenshot test, mirrored to the server via /api/issues.
 // The server is the source of truth in CI (the static file server on 8080
-// proxies /api/* to the jirito server on 3001), so we have to seed through
+// proxies /api/* to the test jirito server), so we have to seed through
 // the API — not localStorage. Earlier test files (e2e.spec.mjs) clear the
 // DB in beforeEach, so the global setup's pre-seed is gone by the time
 // screenshot-capture runs.

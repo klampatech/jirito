@@ -16,8 +16,14 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { getTestContext } from '../playwright/playwright-shared.mjs';
 
-const API_BASE = 'http://localhost:3001/api';
+// Node --test suite. Targets the test backend (port 3002 by default —
+// see playwright/playwright-global-setup.mjs). Never the live jirito on
+// 3001. If running standalone, ensure the test backend is up:
+//   JIRITO_DB_PATH=/tmp/jirito-test.db SERVER_PORT=3002 \
+//     npx tsx server/index.ts &
+const API_BASE = `http://localhost:${getTestContext().testPort}/api`;
 
 // ===== Helpers =====
 
