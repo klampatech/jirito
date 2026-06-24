@@ -369,9 +369,6 @@ body {
   background: var(--label-bg); color: var(--label-text);
   font-weight: 500;
 }
-.issue-pr-badge {
-  display: inline-flex; align-items: center;
-}
 .issue-pr-link {
   display: inline-flex; align-items: center;
   color: var(--success);
@@ -387,8 +384,15 @@ body {
 .issue-pr-link.merged {
   color: var(--purple, #8250df);
 }
-.issue-pr-link.merged:hover {
-  background: rgba(130, 80, 223, 0.1);
+.issue-pr-icon {
+  display: inline-flex; align-items: center;
+  color: var(--success, #2ea44f);
+  text-decoration: none;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.issue-pr-icon:hover { opacity: 0.8; }
+.issue-pr-icon.merged {
   color: var(--purple, #8250df);
 }
 .issue-dep-indicators {
