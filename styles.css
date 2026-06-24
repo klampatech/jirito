@@ -658,6 +658,17 @@ body {
   font-family: 'SFMono-Regular', Consolas, monospace;
 }
 .issue-type-icon { font-size: 14px; }
+.issue-pr-icon {
+  display: inline-flex; align-items: center;
+  color: var(--success, #2ea44f);
+  text-decoration: none;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.issue-pr-icon:hover { opacity: 0.8; }
+.issue-pr-icon.merged {
+  color: var(--purple, #8250df);
+}
 .issue-title {
   font-size: 14px; font-weight: 500; line-height: 1.4;
   word-break: break-word;

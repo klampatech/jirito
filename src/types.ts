@@ -59,6 +59,8 @@ export interface Issue {
   customColumnId?: string | null;
   /** GitHub PR URL associated with this issue. */
   prUrl?: string | null;
+  /** Whether the associated PR has been merged. */
+  prMerged?: boolean;
   history?: HistoryEntry[];
   dependencies?: Dependency[];
   createdAt?: string;
