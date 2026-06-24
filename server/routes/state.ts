@@ -105,6 +105,15 @@ export async function getState(
     // Custom columns
     const columns = queryAll("SELECT * FROM columns ORDER BY sortOrder ASC");
 
+    // Default column overrides (name/color for the 4 built-in columns)
+    const defaultColumnOverridesStr = readMetadata("defaultColumnOverrides", "{}");
+    let defaultColumnOverrides: Record<string, { name?: string; color?: string }> = {};
+    try {
+      defaultColumnOverrides = JSON.parse(defaultColumnOverridesStr);
+    } catch {
+      defaultColumnOverrides = {};
+    }
+
     sendJson(res, 200, {
       issues,
       comments,
@@ -116,6 +125,7 @@ export async function getState(
       trash,
       sprints,
       columns,
+      _defaultColumnOverrides: defaultColumnOverrides,
     });
   } catch (error) {
     console.error("getState error:", error);
@@ -342,6 +352,14 @@ export async function setState(
       db.run(
         "INSERT OR REPLACE INTO metadata (key, value) VALUES ('issueCounter', ?)",
         [String(data.issueCounter)]
+      );
+    }
+
+    // Persist default column overrides (name/color for the 4 built-in columns)
+    if (data._defaultColumnOverrides) {
+      db.run(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES ('defaultColumnOverrides', ?)",
+        [JSON.stringify(data._defaultColumnOverrides)]
       );
     }
 
