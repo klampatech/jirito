@@ -1262,11 +1262,7 @@ export function renderListView(): void {
             <td>${escapeHtml(i.assignee || "—")}</td>
             <td>${escapeHtml(sprintName || "—")}</td>
             <td>${escapeHtml(i.status)}</td>
-            <td>${i.prUrl ? (() => {
-    const isMerged = i.prMerged ?? (i.prUrl!.includes("/pulls/") || i.prUrl!.includes("/merge"));
-    const iconName = isMerged ? "GitMerge" : "GitPullRequest";
-    return `<a href="${escapeHtml(i.prUrl)}" target="_blank" rel="noopener noreferrer" class="issue-pr-link${isMerged ? " merged" : ""}" title="Open PR${isMerged ? " (merged)" : ""}" onclick="event.stopPropagation()">${lucideIcon(iconName, { class: "icon" })}</a>`;
-  })() : "—"}</td>
+            <td>${i.prUrl ? `<a class="issue-pr-icon${i.prMerged ? " merged" : ""}" href="${escapeHtml(i.prUrl)}" target="_blank" rel="noopener noreferrer" title="${i.prMerged ? "PR merged" : "Open PR"}" onclick="event.stopPropagation()">${lucideIcon(i.prMerged ? "GitMerge" : "GitPullRequest", { class: "icon" })}</a>` : "—"}</td>
           </tr>`;
           })
           .join("")}
