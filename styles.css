@@ -384,6 +384,13 @@ body {
   background: var(--success-bg);
   color: var(--success);
 }
+.issue-pr-link.merged {
+  color: var(--purple, #8250df);
+}
+.issue-pr-link.merged:hover {
+  background: rgba(130, 80, 223, 0.1);
+  color: var(--purple, #8250df);
+}
 .issue-dep-indicators {
   display: flex; gap: 4px; margin-left: auto;
 }

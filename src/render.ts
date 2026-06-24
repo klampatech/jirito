@@ -252,10 +252,9 @@ export function createCard(issue: Issue): HTMLDivElement {
   // PR icon — shown when the issue has an associated GitHub PR URL
   let prIcon = "";
   if (issue.prUrl) {
-    const isMerged =
-      issue.prUrl.includes("/pulls/") || issue.prUrl.includes("/merge");
+    const isMerged = issue.prMerged ?? (issue.prUrl.includes("/pulls/") || issue.prUrl.includes("/merge"));
     const iconName = isMerged ? "GitMerge" : "GitPullRequest";
-    prIcon = `<a href="${escapeHtml(issue.prUrl)}" target="_blank" rel="noopener noreferrer" class="issue-pr-link" title="Open PR: ${escapeHtml(issue.prUrl)}" onclick="event.stopPropagation()">${lucideIcon(iconName, { class: "icon-sm" })}</a>`;
+    prIcon = `<a href="${escapeHtml(issue.prUrl)}" target="_blank" rel="noopener noreferrer" class="issue-pr-link${isMerged ? " merged" : ""}" title="Open PR${isMerged ? " (merged)" : ""}: ${escapeHtml(issue.prUrl)}" onclick="event.stopPropagation()">${lucideIcon(iconName, { class: "icon-sm" })}</a>`;
   }
 
   card.innerHTML = `
@@ -1255,6 +1254,7 @@ export function renderListView(): void {
           <th class="sortable" data-sort="assignee">Assignee${sortArrow("assignee")}</th>
           <th class="sortable" data-sort="sprint">Sprint${sortArrow("sprint")}</th>
           <th class="sortable" data-sort="status">Status${sortArrow("status")}</th>
+          <th>PR</th>
         </tr>
       </thead>
       <tbody>
@@ -1270,6 +1270,11 @@ export function renderListView(): void {
             <td>${escapeHtml(i.assignee || "—")}</td>
             <td>${escapeHtml(sprintName || "—")}</td>
             <td>${escapeHtml(i.status)}</td>
+            <td>${i.prUrl ? (() => {
+    const isMerged = i.prMerged ?? (i.prUrl!.includes("/pulls/") || i.prUrl!.includes("/merge"));
+    const iconName = isMerged ? "GitMerge" : "GitPullRequest";
+    return `<a href="${escapeHtml(i.prUrl)}" target="_blank" rel="noopener noreferrer" class="issue-pr-link${isMerged ? " merged" : ""}" title="Open PR${isMerged ? " (merged)" : ""}" onclick="event.stopPropagation()">${lucideIcon(iconName, { class: "icon" })}</a>`;
+  })() : "—"}</td>
           </tr>`;
           })
           .join("")}
