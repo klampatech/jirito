@@ -11,7 +11,7 @@
  * interface declared in `src/types.ts`.
  */
 
-import type { AppState, StorageLayer, StorageType } from "./types";
+import type { AppState, Comment, StorageLayer, StorageType } from "./types";
 
 // Detect server URL — use relative path for same-origin, or env override
 let SERVER_URL = "";
@@ -122,6 +122,12 @@ export interface SaveInput {
   customColumns?: AppState["customColumns"];
   /** Persisted default column name/color overrides (keyed by column id). */
   _defaultColumnOverrides?: Record<string, { name?: string; color?: string }>;
+  /** Comments keyed by issue id — restored on page load so comment count
+   *  icons and comment list survive a browser refresh (JIRITO-104). */
+  comments?: Record<string, Comment[]>;
+  /** Current view mode (board/list/calendar/dashboard) — persisted so the
+   *  user's selected view survives a browser refresh (JIRITO-104). */
+  currentView?: "board" | "list" | "calendar" | "dashboard";
 }
 
 /**
@@ -172,6 +178,8 @@ async function _loadFromServer(): Promise<void> {
     activityLog?: AppState["activity"];
     columns?: AppState["columns"];
     customColumns?: AppState["customColumns"];
+    comments?: Record<string, Comment[]>;
+    currentView?: "board" | "list" | "calendar" | "dashboard";
   };
 
   // Map trash from server format to frontend format. The server stores
@@ -200,6 +208,8 @@ async function _loadFromServer(): Promise<void> {
     customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
     // Restore default column overrides (name/color for the 4 built-in columns)
     _defaultColumnOverrides: (data as Partial<{ _defaultColumnOverrides: Record<string, { name?: string; color?: string }> }>)._defaultColumnOverrides || {},
+    // Restore current view mode (JIRITO-104)
+    currentView: data.currentView || "board",
   };
 }
 
@@ -267,6 +277,10 @@ function _writeLocalMirror(data: Partial<SaveInput>): void {
     columns: data.columns || [],
     customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
     _defaultColumnOverrides: data._defaultColumnOverrides || {},
+    // Persist comments keyed by issue id (JIRITO-104)
+    comments: data.comments || {},
+    // Persist current view mode (JIRITO-104)
+    currentView: data.currentView || "board",
   };
   localStorage.setItem("jirito-state", JSON.stringify(stateToSave));
 }

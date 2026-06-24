@@ -312,6 +312,14 @@ export async function loadState(): Promise<void> {
   if (data && typeof data === "object" && "_defaultColumnOverrides" in data) {
     _defaultColumnOverrides = (data as unknown as Record<string, unknown>)["_defaultColumnOverrides"] as typeof _defaultColumnOverrides;
   }
+  // Restore comments keyed by issue id (JIRITO-104)
+  if (data && data.comments) {
+    _comments = data.comments;
+  }
+  // Restore current view mode (JIRITO-104)
+  if (data && typeof data === "object" && "currentView" in data) {
+    _currentView = ((data as unknown as Record<string, unknown>).currentView as typeof _currentView) || "board";
+  }
 
   // Sync in-memory issues with current project
   initializeData();
@@ -364,6 +372,10 @@ async function _doSaveState(): Promise<void> {
     // Persist the local issue counter so the next client reload doesn't
     // regress to ISSUE_COUNTER_START and collide with existing IDs.
     issueCounter: _issueCounter,
+    // Persist comments keyed by issue id (JIRITO-104)
+    comments: _comments,
+    // Persist current view mode (JIRITO-104)
+    currentView: _currentView,
   };
 
   // Include columns if there are actual custom columns (not the default {} sentinel)
