@@ -57,6 +57,7 @@ export interface Issue {
   rank?: number;
   parentIssueId?: string | null;
   customColumnId?: string | null;
+  prUrl?: string;
   history?: HistoryEntry[];
   dependencies?: Dependency[];
   createdAt?: string;

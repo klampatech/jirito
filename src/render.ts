@@ -214,6 +214,7 @@ export function createCard(issue: Issue): HTMLDivElement {
       <input type="checkbox" class="issue-checkbox" data-id="${issue.id}" onclick="event.stopPropagation()" aria-label="Select issue ${key}">
       <span class="issue-key">${key}</span>
       <span class="issue-type-icon">${lucideIcon(typeIcons[issue.type] || "File", { class: "icon" })}</span>
+      ${issue.prUrl ? `<a class="issue-pr-icon" href="${escapeHtml(issue.prUrl)}" target="_blank" rel="noopener noreferrer" title="Open PR: ${escapeHtml(issue.prUrl)}" onclick="event.stopPropagation()">${lucideIcon("GitPullRequest", { class: "icon" })}</a>` : ""}
       ${depIndicators ? `<span class="issue-dep-indicators">${depIndicators}</span>` : ""}
     </div>
     ${labelsHtml}
@@ -1165,6 +1166,7 @@ export function renderListView(): void {
           <th class="sortable" data-sort="assignee">Assignee${sortArrow("assignee")}</th>
           <th class="sortable" data-sort="sprint">Sprint${sortArrow("sprint")}</th>
           <th class="sortable" data-sort="status">Status${sortArrow("status")}</th>
+          <th>PR</th>
         </tr>
       </thead>
       <tbody>
@@ -1180,6 +1182,7 @@ export function renderListView(): void {
             <td>${escapeHtml(i.assignee || "—")}</td>
             <td>${escapeHtml(sprintName || "—")}</td>
             <td>${escapeHtml(i.status)}</td>
+            <td>${i.prUrl ? `<a href="${escapeHtml(i.prUrl)}" target="_blank" rel="noopener noreferrer" title="Open PR" onclick="event.stopPropagation()">${lucideIcon("GitPullRequest", { class: "icon" })}</a>` : "—"}</td>
           </tr>`;
           })
           .join("")}
