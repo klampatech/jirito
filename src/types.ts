@@ -173,6 +173,9 @@ export interface AppState {
   customColumns: CustomColumn[];
   /** Persisted default column name/color overrides (keyed by column id). */
   _defaultColumnOverrides?: Record<string, { name?: string; color?: string }>;
+  /** Current UI view (board/list/calendar/dashboard) — persisted so the
+   *  user's selected view survives a browser refresh (JIRITO-104). */
+  currentView?: "board" | "list" | "calendar" | "dashboard";
 }
 
 export interface UserSettings {

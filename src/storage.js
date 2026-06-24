@@ -148,6 +148,10 @@ async function _loadFromServer() {
         sprints: data.sprints || {},
         columns: data.columns || [],
         customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
+        // Restore default column overrides (name/color for the 4 built-in columns)
+        _defaultColumnOverrides: data._defaultColumnOverrides || {},
+        // Restore current view mode (JIRITO-104)
+        currentView: data.currentView || "board",
     };
 }
 function _saveToServer(data) {
@@ -216,6 +220,10 @@ function _writeLocalMirror(data) {
         columns: data.columns || [],
         customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
         _defaultColumnOverrides: data._defaultColumnOverrides || {},
+        // Persist comments keyed by issue id (JIRITO-104)
+        comments: data.comments || {},
+        // Persist current view mode (JIRITO-104)
+        currentView: data.currentView || "board",
     };
     localStorage.setItem("jirito-state", JSON.stringify(stateToSave));
 }
