@@ -386,6 +386,9 @@ body {
   flex-shrink: 0;
 }
 .issue-pr-icon:hover { opacity: 0.8; }
+.issue-pr-icon.merged {
+  color: var(--purple, #8250df);
+}
 
 /* ===== Board Header ===== */
 .board-header {

@@ -58,6 +58,7 @@ export interface Issue {
   parentIssueId?: string | null;
   customColumnId?: string | null;
   prUrl?: string;
+  prMerged?: boolean;
   history?: HistoryEntry[];
   dependencies?: Dependency[];
   createdAt?: string;

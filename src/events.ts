@@ -248,6 +248,10 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       <input type="url" id="detail-pr-url" value="${escapeHtml(issue.prUrl || "")}" placeholder="https://github.com/owner/repo/pull/1">
     </div>
     <div class="detail-field">
+      <label>PR Merged</label>
+      <input type="checkbox" id="detail-pr-merged" ${issue.prMerged ? "checked" : ""}>
+    </div>
+    <div class="detail-field">
       <label>Sprint</label>
       <select id="detail-sprint">
         <option value="">No Sprint</option>
@@ -461,6 +465,22 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("PR URL restored", "success");
+      });
+    } else if (target.id === "detail-pr-merged") {
+      const oldMerged = !!issue.prMerged;
+      issue.prMerged = (target as HTMLInputElement).checked;
+      if (oldMerged !== issue.prMerged) {
+        trackHistory(issue, "PR merged", String(oldMerged), String(issue.prMerged));
+      }
+      saveState();
+      renderBoard();
+      showUndoToast("PR merged changed", () => {
+        issue.prMerged = oldMerged;
+        saveState();
+        renderBoard();
+        openDetailPanel(issue.id);
+        removeUndoToast();
+        showToast("PR merged restored", "success");
       });
     } else if (target.id === "detail-sprint") {
       const oldSprint = issue.sprint;
