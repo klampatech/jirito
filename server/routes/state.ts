@@ -97,10 +97,21 @@ export async function getState(
       };
     }
 
-    // Comments
-    const comments = queryAll(
+    // Comments — reshape flat array into Record<issueId, Comment[]> to match
+    // the client's _comments: Record<string, Comment[]> shape (src/state.ts:43).
+    // Before JIRITO-106, the server returned a flat array and the client's
+    // `_comments[issueId]` lookup returned undefined → comments vanished on
+    // refresh even though they were in the DB.
+    const commentsFlat = queryAll(
       "SELECT * FROM comments ORDER BY createdAt ASC"
     );
+    const comments: Record<string, Array<Record<string, unknown>>> = {};
+    for (const c of commentsFlat) {
+      const cid = String((c as { issueId?: unknown }).issueId ?? "");
+      if (!cid) continue;
+      if (!comments[cid]) comments[cid] = [];
+      comments[cid].push(c);
+    }
 
     // Custom columns
     const columns = queryAll("SELECT * FROM columns ORDER BY sortOrder ASC");
@@ -114,6 +125,10 @@ export async function getState(
       defaultColumnOverrides = {};
     }
 
+    // Current view mode (JIRITO-104 followup). Stored in the metadata table
+    // alongside currentProject / issueCounter / _defaultColumnOverrides.
+    const currentView = readMetadata("currentView", "board");
+
     sendJson(res, 200, {
       issues,
       comments,
@@ -126,6 +141,7 @@ export async function getState(
       sprints,
       columns,
       _defaultColumnOverrides: defaultColumnOverrides,
+      currentView,
     });
   } catch (error) {
     console.error("getState error:", error);
@@ -305,8 +321,24 @@ export async function setState(
     }
 
     // Import comments
-    if (data.comments) {
-      for (const c of data.comments as Array<Record<string, unknown>>) {
+    // JIRITO-106: the client sends `comments` as Record<issueId, Comment[]>
+    // (keyed object, matching src/state.ts:43 _comments shape). Normalise
+    // both keyed and flat shapes to a flat Comment[] before INSERT, since
+    // the DB schema is a flat table keyed by row id.
+    if (data.comments !== undefined) {
+      let commentRows: Array<Record<string, unknown>>;
+      if (Array.isArray(data.comments)) {
+        commentRows = data.comments as Array<Record<string, unknown>>;
+      } else {
+        // Keyed shape: { "<issueId>": Comment[], ... } → flat array.
+        commentRows = [];
+        for (const list of Object.values(
+          data.comments as Record<string, Array<Record<string, unknown>>>
+        )) {
+          if (Array.isArray(list)) commentRows.push(...list);
+        }
+      }
+      for (const c of commentRows) {
         db.run(
           "INSERT INTO comments (id, issueId, content, author, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
           [
@@ -360,6 +392,15 @@ export async function setState(
       db.run(
         "INSERT OR REPLACE INTO metadata (key, value) VALUES ('defaultColumnOverrides', ?)",
         [JSON.stringify(data._defaultColumnOverrides)]
+      );
+    }
+
+    // Persist current view mode (JIRITO-104 followup). Stored in metadata
+    // alongside currentProject / issueCounter / defaultColumnOverrides.
+    if (data.currentView) {
+      db.run(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES ('currentView', ?)",
+        [String(data.currentView)]
       );
     }
 
