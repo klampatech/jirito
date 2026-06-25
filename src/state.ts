@@ -752,6 +752,12 @@ export function initializeData(): void {
   if (_currentProject && _projects[_currentProject] && !_projects[_currentProject].key) {
     _projects[_currentProject].key = _currentProject.toUpperCase();
   }
+  // 4. Restore activity log from persisted state (JIRITO-105).
+  // loadState() restores _activityLog on fresh page load, but
+  // initializeData() is called on every SSE re-sync and previously
+  // did not propagate _state.activity back into _activityLog —
+  // causing the sidebar activity feed to go stale after SSE events.
+  setActivityLog(storage.getStorageData().activity || []);
 }
 
 // ===== Test contract =====

@@ -146,7 +146,7 @@ export function importData(file) {
     };
     reader.readAsText(file);
 }
-export function createProject(name, key, githubUrl) {
+export function createProject(name, key, githubUrl, path) {
     // Sanitize project key: only allow alphanumeric, dash, underscore
     const sanitizedKey = key
         .replace(/[^a-zA-Z0-9_-]/g, "")
@@ -158,7 +158,7 @@ export function createProject(name, key, githubUrl) {
     }
     const icons = ["🚀", "🎯", "⚡", "🔥", "💡", "🌟", "🎨", "🔧"];
     const icon = icons[Math.floor(Math.random() * icons.length)];
-    getProjects()[sanitizedKey] = { id: sanitizedKey, name, icon, key: sanitizedKey, issues: [], githubUrl };
+    getProjects()[sanitizedKey] = { id: sanitizedKey, name, icon, key: sanitizedKey, issues: [], githubUrl, path };
     saveState();
     switchProject(sanitizedKey);
     addActivity("Sparkles", `<strong>${escapeHtml(name)}</strong> project created`);
