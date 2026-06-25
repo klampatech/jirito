@@ -33,6 +33,9 @@ export function initModals(): void {
 
   // Add card buttons (delegate to column footer)
   document.querySelectorAll<HTMLButtonElement>(".btn-add-card").forEach((btn) => {
-    btn.addEventListener("click", () => openModal());
+    btn.addEventListener("click", () => {
+      const status = btn.dataset.status || "todo";
+      openModal(status);
+    });
   });
 }
