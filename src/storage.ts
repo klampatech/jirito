@@ -199,8 +199,13 @@ async function _loadFromServer(): Promise<void> {
     projects: data.projects || _state.projects,
     currentProject: data.currentProject || "default",
     savedFilters: data.savedFilters || [],
-    activity: data.activityLog || [],
-    activityLog: data.activityLog || [],
+    // JIRITO-107: server stores {action, details, time}, client reads
+    // {icon, text, time}. Transform so the in-memory _activityLog
+    // matches ActivityEntry (src/types.ts:121-126). Without this,
+    // every entry from the server has a.icon=undefined and a.text=undefined
+    // → renderActivity()'s typeof guard renders an empty span.
+    activity: (data.activityLog || []).map(_activityFromServer),
+    activityLog: (data.activityLog || []).map(_activityFromServer),
     issueCounter: data.issueCounter || 1,
     trash: trashData,
     sprints: data.sprints || {},
@@ -213,6 +218,71 @@ async function _loadFromServer(): Promise<void> {
   };
 }
 
+/**
+ * Convert a client-side activity entry (shape: {icon, text, time}) to the
+ * server's storage shape ({action, details, time, issueId}). The server
+ * schema uses `action` for the icon-style key and `details` (string or
+ * object) for the human-readable description. Both must be coerced to the
+ * server shape on PUT, or the DB INSERT will store empty strings/objects
+ * and the activity log will appear blank after any saveState cycle.
+ */
+function _activityToServer(entry: { icon?: string; text?: string; time?: string | Date }): {
+  action: string;
+  details: string;
+  time: string;
+} {
+  const icon = typeof entry.icon === "string" && entry.icon.length > 0 ? entry.icon : "activity";
+  const text = typeof entry.text === "string" ? entry.text : "";
+  const time =
+    entry.time instanceof Date
+      ? entry.time.toISOString()
+      : typeof entry.time === "string"
+      ? entry.time
+      : new Date().toISOString();
+  // details is stored as a string per the DB column type (TEXT). Encode
+  // the text in a JSON envelope so future fields can be added without a
+  // schema migration: {"message": "<text>"}.
+  return { action: icon, details: JSON.stringify({ message: text }), time };
+}
+
+/**
+ * Convert a server-side activity entry (shape: {id, issueId, action,
+ * details, time}) back to the client's ActivityEntry shape ({icon, text,
+ * time}). `details` may be a JSON string or an object (the DB stores it
+ * as TEXT, but the server can also re-emit parsed objects via SETSTATE).
+ * Guard against nullish icon (per the typeof check in renderActivity)
+ * since legacy rows may have action="" and the regex would reject it.
+ */
+function _activityFromServer(row: unknown): {
+  icon: string;
+  text: string;
+  time: string;
+} {
+  const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  // Preserve the original action string (PascalCase "PlusCircle", kebab-case
+  // "plus-circle", etc.) — renderActivity() does its own icon-name gatekeeping
+  // via /^[a-z0-9-]+$/. Mangling here would silently change the user's data
+  // and there's no recovery path. Only fall back to "activity" when action
+  // is missing or not a string at all (defensive, never in practice).
+  const action = typeof r.action === "string" ? r.action : "";
+  const icon = action.length > 0 ? action : "activity";
+  let text = "";
+  const details = r.details;
+  if (typeof details === "string") {
+    try {
+      const parsed = JSON.parse(details) as { message?: string; text?: string };
+      text = parsed.message ?? parsed.text ?? details;
+    } catch {
+      text = details; // Not JSON — treat the raw string as the text.
+    }
+  } else if (details && typeof details === "object") {
+    const d = details as { message?: string; text?: string };
+    text = d.message ?? d.text ?? JSON.stringify(details);
+  }
+  const time = typeof r.time === "string" ? r.time : new Date().toISOString();
+  return { icon, text, time };
+}
+
 function _saveToServer(data: Partial<SaveInput>): Promise<unknown> {
   // Save sprints and custom columns separately (they're stored in
   // localStorage in the current app). Build a server-shaped payload.
@@ -222,7 +292,7 @@ function _saveToServer(data: Partial<SaveInput>): Promise<unknown> {
     currentProject: data.currentProject,
     savedFilters: data.filters || [],
     activityLog: data.activity
-      ? data.activity.map((a) => ({ icon: a.icon, text: a.text, time: a.time }))
+      ? data.activity.map(_activityToServer)
       : [],
     issueCounter: data.issueCounter,
     trash: data.trash
