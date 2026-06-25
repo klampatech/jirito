@@ -174,6 +174,11 @@ function _saveToServer(data) {
             : [],
         sprints: data.sprints || {},
         customColumns: Array.isArray(data.customColumns) ? data.customColumns : [],
+        // JIRITO-106: include comments + currentView in the server payload.
+        // JIRITO-104 only added these to the local mirror (PR #61), so
+        // server-mode page loads overwrite them with the empty server defaults.
+        comments: data.comments || {},
+        currentView: data.currentView || "board",
     };
     // Send as 'columns' for server compatibility (server expects 'columns' key).
     if (Array.isArray(data.customColumns) && data.customColumns.length > 0) {
