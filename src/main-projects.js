@@ -47,13 +47,14 @@ export function initProjects() {
         const keyRaw = document.getElementById("project-key")?.value.trim() ?? "";
         const key = keyRaw.toUpperCase();
         const githubUrl = document.getElementById("project-github-url")?.value.trim() ?? "";
+        const path = document.getElementById("project-path")?.value.trim() || undefined;
         if (!name || !key)
             return;
         if (getProjects()[key]) {
             showToast("Project key already exists!", "error");
             return;
         }
-        createProject(name, key, githubUrl || undefined);
+        createProject(name, key, githubUrl || undefined, path);
         const overlay = document.getElementById("project-modal-overlay");
         const form = document.getElementById("project-form");
         if (overlay)

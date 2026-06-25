@@ -1076,7 +1076,7 @@ export function renderActivity(): void {
           : "";
       item.innerHTML = `
       <span class="activity-icon">${iconHtml}</span>
-      <span class="activity-text">${a.text}</span>
+      <span class="activity-text">${a.text ?? ""}</span>
       <span class="activity-time">${ago}</span>
     `;
       feed.appendChild(item);
