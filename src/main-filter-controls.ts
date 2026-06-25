@@ -6,16 +6,21 @@
  * duplicated those listeners (pre-existing redundancy in the legacy
  * code). Removed: that duplicate just stacks two debounced handlers
  * on the same element. The sprint filter is unique to this file.
+ *
+ * JIRITO-123: sprint filter value persists to localStorage (handled
+ * by `currentFilterValues()` / `saveFilters()` in main-filters.ts).
  */
 
 import { applyFilters } from "./events.js";
 import { renderBoard } from "./render.js";
+import { currentFilterValues, saveFilters } from "./main-filters.js";
 
 export function initFilterControls(): void {
   // Sprint filter
   const sprintFilter = document.getElementById("sprint-filter") as HTMLSelectElement | null;
   if (sprintFilter) {
     sprintFilter.addEventListener("change", () => {
+      saveFilters(currentFilterValues());
       applyFilters();
       renderBoard();
     });

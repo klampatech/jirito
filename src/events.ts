@@ -315,9 +315,9 @@ export function openDetailPanel(issueId: Issue["id"]): void {
           <div class="comment">
             <div class="comment-header">
               <span class="comment-author">${escapeHtml(c.author)}</span>
-              <span class="comment-date">${new Date((c as unknown as { date: string }).date).toLocaleString()}</span>
+              <span class="comment-date">${new Date(c.createdAt).toLocaleString()}</span>
             </div>
-            <div class="comment-text markdown-content">${renderMarkdown((c as unknown as { text: string }).text)}</div>
+            <div class="comment-text markdown-content">${renderMarkdown(c.content)}</div>
           </div>
         `
           )
@@ -789,11 +789,22 @@ export function addComment(): void {
   const issueId = currentIssue.id;
   if (!getComments()[issueId]) getComments()[issueId] = [];
   const commentIdx = getComments()[issueId].length;
+  // JIRITO-121: was `{author, text, date}` — wrong field names. The
+  // server's `Comment` shape and DB schema are `{id, issueId, content,
+  // author, createdAt, updatedAt}`. Using `{text, date}` meant UI-comments
+  // saved with the old shape and server comments (from agents) returned
+  // a different shape, so rendering tried to read `c.date`/`c.text` and
+  // got undefined → "Invalid Date" + blank text for agent comments.
+  // Now we use the canonical shape end-to-end; both UI-added and
+  // server-returned comments render correctly.
   getComments()[issueId].push({
+    id: `cmt_local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    issueId,
     author: "You",
-    text,
-    date: new Date().toISOString(),
-  } as unknown as Comment);
+    content: text,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as Comment);
   saveState();
   openDetailPanel(issueId); // Refresh
   renderBoard(); // Update comment count badge
@@ -986,8 +997,20 @@ export function initDragDrop(): void {
       if (!checkbox) return;
       const id = checkbox.dataset.id;
       if (id) {
-        if (checkbox.checked) getSelectedIds().add(id);
-        else getSelectedIds().delete(id);
+        // JIRITO-122 (regression): the per-card `change` handler in
+        // src/render.ts also adds the issue.id to `_selectedIds`. When
+        // both fire on the same event the Set ends up with both forms
+        // (`101` and `"101"`) and `updateBulkBar` reports "2 selected"
+        // for one click. The render.ts path uses `issue.id` (number);
+        // the events.ts path uses `checkbox.dataset.id` (string). They
+        // are not idempotent — pick one. We already capture the most
+        // up-to-date issue by id here, so use it instead of the DOM
+        // dataset string to keep the Set entry shape consistent with
+        // issue.id.
+        const issue = getIssues().find((x) => String(x.id) === id);
+        const canonId = issue ? issue.id : id;
+        if (checkbox.checked) getSelectedIds().add(canonId);
+        else getSelectedIds().delete(canonId);
         updateBulkBar();
       }
     });
@@ -1218,12 +1241,23 @@ export function initDragDrop(): void {
         // Build undo toast message
         const columnName = colDef ? colDef.name : newStatus;
         showUndoToast(`Moved to ${columnName}`, () => {
-          // Undo: restore previous column assignment
+          // Undo: restore previous column assignment.
+          // JIRITO-122 (race): SSE re-syncs (src/sse-client.ts) replace
+          // `_issues` with a fresh array of brand-new Issue objects on
+          // every ticket.updated event. The `issue` reference this
+          // closure captured is stale (no longer in _issues). Re-resolve
+          // by id from the current _issues — otherwise mutating `issue`
+          // here silently no-ops (mutating a detached object) and the
+          // next saveState() persists the server's value, leaving the
+          // card in the moved-to column.
+          const live = getIssues().find((x) => _matchesId(x, id));
           if (isCustomColumn) {
-            issue.customColumnId = oldCustomColumnId;
+            if (live) live.customColumnId = oldCustomColumnId;
           } else {
-            issue.status = oldStatus;
-            issue.customColumnId = oldCustomColumnId;
+            if (live) {
+              live.status = oldStatus;
+              live.customColumnId = oldCustomColumnId;
+            }
           }
           saveState();
           renderBoard();
@@ -1427,6 +1461,29 @@ export function applyFilters(): void {
     });
     // Sort by rank (custom ordering)
     filtered.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+
+    // Custom columns (no status) filter by customColumnId instead of
+    // status. Without this, a custom column would show every issue in
+    // the project because the `colDef.status && i.status !== ...` check
+    // is bypassed when colDef.status is null. (B5 regression — this
+    // broke once SSE-driven board refreshes ran renderBoard() against
+    // a state where customColumnId had been set on two issues; the
+    // status-based filter then admitted all 6 issues to the custom
+    // column because none of them had the column's null status.)
+    if (!colDef.status) {
+      const customFiltered = getIssues().filter(
+        (i) => i.customColumnId === colDef.id,
+      );
+      // Render only customColumnId-matched issues into this column body.
+      // Re-using the `filtered` variable below would be misleading since
+      // the above status/type/etc filters don't apply to custom columns.
+      colBody.innerHTML = "";
+      customFiltered.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+      customFiltered.forEach((issue) =>
+        colBody.appendChild(createCard(issue)),
+      );
+      return;
+    }
 
     if (
       filtered.length === 0 &&
