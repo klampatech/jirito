@@ -12,21 +12,10 @@ import {
   mapRow,
   coerceNumericId,
   normalizeStatus,
+  readMetadata,
 } from "./_shared.js";
 import { emitEvent, isSilentRequest } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
-
-/**
- * Helper: read a single scalar value from the metadata table.
- * Returns `defaultValue` if the key is missing.
- */
-function readMetadata(key: string, defaultValue: string): string {
-  const db = getDb();
-  if (!db) return defaultValue;
-  const result = db.exec("SELECT value FROM metadata WHERE key = ?", [key]);
-  if (result.length === 0) return defaultValue;
-  return String(result[0].values[0][0] ?? defaultValue);
-}
 
 export async function getState(
   _req: IncomingMessage,

@@ -16,6 +16,34 @@ import { getDb } from "../db/index.js";
 type SqlValue = number | string | Uint8Array | null;
 
 /**
+ * Helper: read a single scalar value from the metadata table.
+ * Returns `defaultValue` if the key is missing or the DB is uninitialised.
+ * Exported so any route can read state stored via INSERT OR REPLACE INTO
+ * metadata (currentProject, issueCounter, defaultColumnOverrides, etc.).
+ */
+export function readMetadata(key: string, defaultValue: string): string {
+  const db = getDb();
+  if (!db) return defaultValue;
+  const result = db.exec("SELECT value FROM metadata WHERE key = ?", [key]);
+  if (result.length === 0) return defaultValue;
+  return String(result[0].values[0][0] ?? defaultValue);
+}
+
+/**
+ * Helper: write a scalar value to the metadata table (upsert).
+ * Used by route handlers that need to persist per-user state (currentView,
+ * currentProject overrides, etc.) without taking on a full-state sync.
+ */
+export function writeMetadata(key: string, value: string): void {
+  const db = getDb();
+  if (!db) return;
+  db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [
+    key,
+    value,
+  ]);
+}
+
+/**
  * Canonical issue status enum used by the client's 4-column board.
  * Anything else gets normalized via STATUS_ALIASES (or rejected).
  *
