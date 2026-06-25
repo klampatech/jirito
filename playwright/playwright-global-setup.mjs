@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let staticServer;
 let backendProc;
 const rootDir = resolve(__dirname, '..');
-const LOG_FILE = '/Users/kylelampa/Development/jirito/playwright-test-setup.log';
+const LOG_FILE = process.env.PLAYWRIGHT_SETUP_LOG || '/tmp/jirito-playwright-setup.log';
 
 // Test infrastructure constants. Keep these in sync with tests/helpers.mjs
 // (via playwright-shared.mjs) and any spec files that need to talk to the

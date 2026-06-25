@@ -17,6 +17,7 @@ import { storage } from "./storage.js";
 import { initializeData } from "./state.js";
 import { renderActivity, renderBoard } from "./render.js";
 import { initDragDrop } from "./events.js";
+import { restoreFilterValues } from "./main-filters.js";
 
 let es: EventSource | null = null;
 let reconnectDelay = 1000;
@@ -45,6 +46,12 @@ async function syncAndRender(): Promise<void> {
     // items); renderSidebar() would also rebuild projects/views/filters
     // which is overkill for an event-driven update.
     renderActivity();
+    // JIRITO-123: re-apply persisted filter values. renderBoard()
+    // rebuilds the sprint-filter dropdown, which resets its value
+    // to "all" — wiping the user's selection on every SSE event.
+    // restoreFilterValues() reads from localStorage and re-sets the
+    // DOM to the saved selection. Cheap (5 DOM writes).
+    restoreFilterValues();
     // Re-attach drag-and-drop since renderBoard() rebuilds the DOM.
     // initDragDrop is idempotent — it's fine to call multiple times.
     initDragDrop();

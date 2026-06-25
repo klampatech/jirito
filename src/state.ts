@@ -314,7 +314,25 @@ export async function loadState(): Promise<void> {
   }
   // Restore comments keyed by issue id (JIRITO-104)
   if (data && data.comments) {
-    _comments = data.comments;
+    // JIRITO-121: normalize comment shape. Legacy localStorage entries
+    // (pre-fix) used `{author, text, date}`; the server returns the
+    // canonical shape `{id, issueId, content, author, createdAt,
+    // updatedAt}`. Render code now reads `c.content` / `c.createdAt`,
+    // so we coerce the legacy fields here instead of touching the
+    // renderer with field-name fallbacks.
+    const rawComments = data.comments as unknown as Record<string, Array<Record<string, unknown>>>;
+    const normalized: Record<string, Comment[]> = {};
+    for (const [k, list] of Object.entries(rawComments)) {
+      normalized[k] = (list || []).map((c) => ({
+        id: String(c.id ?? `cmt_legacy_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+        issueId: String(c.issueId ?? k),
+        author: String(c.author ?? "Unknown"),
+        content: String(c.content ?? c.text ?? ""),
+        createdAt: String(c.createdAt ?? c.date ?? new Date().toISOString()),
+        updatedAt: String(c.updatedAt ?? c.date ?? new Date().toISOString()),
+      }));
+    }
+    _comments = normalized;
   }
   // Restore current view mode (JIRITO-104)
   if (data && typeof data === "object" && "currentView" in data) {
@@ -734,8 +752,15 @@ export function initializeData(): void {
     const keys = Object.keys(_projects);
     _currentProject = keys.length > 0 ? keys[0] : "";
   }
-  // 2. Sync global issues with current project (if any)
-  // Only sync if project.issues contains issue objects (not string IDs from server storage)
+  // 2. Sync global issues with current project.
+  // JIRITO-122: was previously gated on `typeof firstItem === "object"`
+  // — but the server stores project.issues as an array of numeric IDs
+  // (`state.ts:83-86` in the getState response), so the type check
+  // ALWAYS fails in server mode and `_issues` stays stale on every
+  // SSE event. Fix: when project.issues is a number list (server mode),
+  // re-derive `_issues` from `storage.getStorageData().issues` filtered
+  // by projectId. The storage layer has the fresh full-issue list
+  // because `storage.initStorage()` ran in syncAndRender before this.
   if (
     _currentProject &&
     _projects[_currentProject]?.issues &&
@@ -743,10 +768,21 @@ export function initializeData(): void {
   ) {
     const firstItem = _projects[_currentProject].issues![0];
     if (typeof firstItem === "object" && firstItem !== null && (firstItem as Issue).id) {
-      // Project has issue objects — sync them
+      // Legacy localStorage shape — project.issues has full Issue objects.
       _issues = _projects[_currentProject].issues as Issue[];
+    } else {
+      // Server shape — project.issues is a numeric ID list. Re-derive
+      // _issues from the full issue list using projectId.
+      // JIRITO-122: also normalize `desc` from `description` so the
+      // search filter (which reads `i.desc`) keeps working after SSE
+      // re-syncs. loadState() does this on first load (state.ts:228)
+      // but initializeData()'s re-derivation skipped it, causing search
+      // by description to silently return 0 results after any SSE event.
+      const allIssues = (storage.getStorageData() as { issues?: Issue[] }).issues || [];
+      _issues = allIssues
+        .filter((i) => (i.projectId || _currentProject) === _currentProject)
+        .map((i) => ({ ...i, desc: i.desc || i.description || "" }));
     }
-    // If firstItem is a string, it's an ID list — keep _issues as-is (already set from storage)
   }
   // 3. Ensure project key exists
   if (_currentProject && _projects[_currentProject] && !_projects[_currentProject].key) {
@@ -779,9 +815,14 @@ try {
     const w = window as unknown as {
       getIssues?: typeof getIssues;
       getCurrentProject?: typeof getCurrentProject;
+      getSelectedIds?: typeof getSelectedIds;
     };
     w.getIssues = getIssues;
     w.getCurrentProject = getCurrentProject;
+    // JIRITO-122 (test ergonomics): expose the selection set so debug
+    // specs can introspect `_selectedIds` without reaching into module
+    // internals. Kept narrow like the other test-only concessions.
+    w.getSelectedIds = getSelectedIds;
   }
 } catch {
   /* ignore — non-browser environment */

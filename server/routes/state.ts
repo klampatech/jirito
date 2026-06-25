@@ -203,8 +203,8 @@ export async function setState(
     if (data.issues) {
       for (const issue of data.issues as Array<Record<string, unknown>>) {
         db.run(
-          `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, prUrl, dueDate, prMerged, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             String(issue.id),
             (issue.title as string) ?? "",
@@ -227,7 +227,14 @@ export async function setState(
             (issue.storyPoints as number) ?? 0,
             (issue.rank as number) ?? 0,
             (issue.parentIssueId as string) ?? null,
+            (issue.prUrl as string) ?? "",
             (issue.dueDate as string) ?? "",
+            // JIRITO-120: prMerged was silently dropped before — column
+            // was missing from this INSERT list. SQLite stores booleans
+            // as 0/1; coerce here so legacy state-saves (which carry a
+            // real boolean) round-trip correctly. mapRow on the read path
+            // converts back to boolean via BOOLEAN_COLUMNS_BY_TABLE.
+            issue.prMerged ? 1 : 0,
             (issue.createdAt as string) ?? new Date().toISOString(),
             (issue.updatedAt as string) ?? new Date().toISOString(),
           ]

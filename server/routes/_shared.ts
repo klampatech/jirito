@@ -89,6 +89,27 @@ const JSON_COLUMNS_BY_TABLE: Readonly<Record<string, ReadonlySet<string>>> = {
   columns: new Set(["query"]),
 };
 
+/**
+ * Which columns on which tables hold SQLite-style booleans (INTEGER 0/1)
+ * that should be exposed to clients as real `boolean`. Without this
+ * auto-conversion, callers would see `prMerged: 1` (number) when the
+ * TypeScript `Issue` interface declares `prMerged?: boolean` (boolean),
+ * causing silent type drift and `Boolean(1) === true` accidents.
+ *
+ * Keys are stored lowercase to match `isBooleanColumn`'s case-insensitive
+ * lookup (the column names from `SELECT *` come back in whatever case the
+ * schema declared — usually the canonical camelCase from init.ts).
+ *
+ * JIRITO-120: added so the detail-panel "PR merged" toggle round-trips
+ * through PUT/GET without client-side coercion. The sprint `active` /
+ * `archived` flags share the same pattern (added earlier per the
+ * migrateTables comment).
+ */
+const BOOLEAN_COLUMNS_BY_TABLE: Readonly<Record<string, ReadonlySet<string>>> = {
+  issues: new Set(["prmerged"]),
+  sprints: new Set(["active", "archived"]),
+};
+
 const FALLBACK_JSON_COLUMNS: ReadonlySet<string> = new Set([
   "labels",
   "query",
@@ -151,9 +172,24 @@ export function mapRow(
   for (let i = 0; i < cols.length; i++) {
     const col = cols[i];
     const value = row[i];
-    obj[col] = isJsonColumn(tableName, col) ? parseJsonColumn(value) : value;
+    if (isJsonColumn(tableName, col)) {
+      obj[col] = parseJsonColumn(value);
+    } else if (isBooleanColumn(tableName, col)) {
+      // Coerce SQLite INTEGER 0/1 → real boolean. `!!value` keeps the
+      // JSON.stringify-compatible shape (no `Boolean` wrapper object)
+      // and rejects null/empty gracefully (becomes false).
+      obj[col] = Boolean(value);
+    } else {
+      obj[col] = value;
+    }
   }
   return obj;
+}
+
+function isBooleanColumn(tableName: string, columnName: string): boolean {
+  const tableSet = BOOLEAN_COLUMNS_BY_TABLE[tableName];
+  if (!tableSet) return false;
+  return tableSet.has(columnName.toLowerCase());
 }
 
 /**

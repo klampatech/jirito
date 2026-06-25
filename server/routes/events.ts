@@ -17,7 +17,6 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { isSilentRequest } from "../webhooks.js";
 
 // In-memory client registry — one entry per open /api/events connection.
 const clients = new Set<ServerResponse>();
@@ -40,14 +39,23 @@ export function broadcastEvent(
   payload: Record<string, unknown>
 ): void {
   if (clients.size === 0) return;
-  // Honor the same silent flag as emitEvent — Playwright's test
-  // fixture writes (resetAndSeed) carry X-Jirito-Silent: 1 to keep
-  // them out of Discord. Suppressing SSE too keeps the test page
-  // from reacting to its own seed.
-  if (isSilentRequest()) return;
+  // NOTE: Unlike emitEvent (Discord webhook), SSE does NOT honor the
+  // X-Jirito-Silent header. The "silent" flag was designed to keep
+  // Playwright fixture writes out of the Discord wiretap; SSE is a
+  // in-process browser feed that has nothing to do with Discord, and
+  // tests that PUT a status change to verify the board updates in
+  // real-time NEED the broadcast to reach the test page. Suppressing
+  // it here would silently re-introduce the JIRITO-122 bug for any
+  // test that uses silent fixtures.
 
   const data = JSON.stringify({ event_type, payload });
-  const message = `data: ${data}\n\n`;
+  // SSE protocol: name the event with the `event:` line so the browser's
+  // `addEventListener("<type>", handler)` fires. The previous format
+  // (`data: { event_type, payload }\n\n`) emitted a generic "message"
+  // event that no named listener ever matched — the board would only
+  // refresh if something listened via `onmessage`. See src/sse-client.ts
+  // which uses `addEventListener("ticket.moved", ...)` etc.
+  const message = `event: ${event_type}\ndata: ${data}\n\n`;
 
   for (const client of clients) {
     try {

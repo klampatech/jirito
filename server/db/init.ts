@@ -14,29 +14,30 @@ export function initTables(): void {
   if (!db) throw new Error("DB not initialised");
 
   // Issues table - core entity
-  db.run(`
-    CREATE TABLE IF NOT EXISTS issues (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL DEFAULT '',
-      description TEXT DEFAULT '',
-      type TEXT DEFAULT 'task',
-      status TEXT DEFAULT 'todo',
-      priority TEXT DEFAULT 'medium',
-      labels TEXT DEFAULT '[]',
-      assignee TEXT DEFAULT '',
-      reporter TEXT DEFAULT '',
-      projectId TEXT,
-      sprintId TEXT,
-      storyPoints INTEGER DEFAULT 0,
-      rank REAL DEFAULT 0,
-      parentIssueId TEXT,
-      prUrl TEXT DEFAULT '',
-      dueDate TEXT DEFAULT '',
-      customColumnId TEXT DEFAULT NULL,
-      createdAt TEXT DEFAULT (datetime('now')),
-      updatedAt TEXT DEFAULT (datetime('now'))
-    )
-  `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS issues (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL DEFAULT '',
+        description TEXT DEFAULT '',
+        type TEXT DEFAULT 'task',
+        status TEXT DEFAULT 'todo',
+        priority TEXT DEFAULT 'medium',
+        labels TEXT DEFAULT '[]',
+        assignee TEXT DEFAULT '',
+        reporter TEXT DEFAULT '',
+        projectId TEXT,
+        sprintId TEXT,
+        storyPoints INTEGER DEFAULT 0,
+        rank REAL DEFAULT 0,
+        parentIssueId TEXT,
+        prUrl TEXT DEFAULT '',
+        dueDate TEXT DEFAULT '',
+        customColumnId TEXT DEFAULT NULL,
+        prMerged INTEGER DEFAULT 0,
+        createdAt TEXT DEFAULT (datetime('now')),
+        updatedAt TEXT DEFAULT (datetime('now'))
+      )
+    `);
 
   // Indexes for issues
   db.run(
@@ -226,6 +227,18 @@ export function migrateTables(): void {
     if (!columns.includes("prUrl")) {
       tryAddColumn(db, "issues", "prUrl", "TEXT", "''");
       console.log("Added prUrl column to issues table");
+    }
+    if (!columns.includes("prMerged")) {
+      // JIRITO-120: prMerged is a UI-driven flag (toggled via the detail
+      // panel "PR merged" checkbox) that controls the icon shown on the
+      // ticket card. Before this migration the field lived only in
+      // client-side state and was silently dropped by every save because
+      // the server's INSERT/UPDATE column list never included it. Result:
+      // every page refresh reset the checkbox. SQLite has no native
+      // boolean — store 0/1 in the column, convert at the API boundary
+      // (server/routes/issues.ts update + getById).
+      tryAddColumn(db, "issues", "prMerged", "INTEGER", "0");
+      console.log("Added prMerged column to issues table");
     }
   }
 

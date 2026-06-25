@@ -208,6 +208,10 @@ const UPDATABLE_FIELDS = [
   "dueDate",
   "customColumnId",
   "prUrl",
+  // JIRITO-120: prMerged was previously dropped silently by every save
+  // because it wasn't in this list. The detail-panel "PR merged" checkbox
+  // toggles this flag; without persistence the icon reverts on refresh.
+  "prMerged",
 ] as const;
 
 export async function update(
@@ -304,6 +308,11 @@ export async function update(
           // 2026-06-20: normalize aliases like "in_progress" → "inprogress"
           // before the UPDATE runs. See normalizeStatus comment above.
           params.push(normalizeStatus(input[field]));
+        } else if (field === "prMerged") {
+          // JIRITO-120: SQLite has no native boolean. The client sends
+          // a real `boolean`; coerce to 0/1 for storage. Anything
+          // truthy (true, 1, "true", "1") → 1; anything else → 0.
+          params.push(input[field] ? 1 : 0);
         } else {
           params.push(input[field]);
         }
@@ -360,6 +369,16 @@ export async function update(
     }
     const issue = mapRow("issues", result[0].columns, result[0].values[0]);
     sendJson(res, 200, coerceNumericId(issue));
+
+    // Emit ticket.updated on every successful PUT. The other event types
+    // (moved, assigned, review) only fire on their respective field
+    // changes — meaning a PUT that touches only `prMerged` (or any other
+    // non-status/non-assignee field) would silently fail to notify
+    // connected SSE clients, leaving them with stale in-memory state.
+    // ticket.updated is the catch-all that keeps the board in sync with
+    // any other-field mutation. The other emits remain gated so we don't
+    // double-fire (moved/assigned/review) when those fields change.
+    broadcastEvent("ticket.updated", { ...issue, id });
 
     // Emit ticket.moved when status actually changes. B2 (2026-06-17)
     // caught the missing-assignee bug: before this, the payload was just
