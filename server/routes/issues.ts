@@ -18,6 +18,7 @@ import {
   normalizeStatus,
   AGENT_CALLERS,
   getCallerFromHeader,
+  readMetadata,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
@@ -108,6 +109,16 @@ export async function create(
     const id = String(issueCounter);
     const now = new Date().toISOString();
 
+    // JIRITO-108: default projectId to the user's currentProject (read from
+    // the metadata table) instead of the hardcoded "default". The client
+    // board filter `i.projectId === currentProject` (src/render.ts:174)
+    // hides any ticket whose projectId doesn't match, so a "default" tag
+    // orphans API-created tickets to a non-existent project (the "default"
+    // project was removed at some point — see fix/jirito-101-default-*).
+    // The UI's create path uses `getCurrentProject()` (src/main-issue-form.ts:83);
+    // the API path now mirrors that behaviour for callers that don't
+    // explicitly set projectId.
+    const fallbackProjectId = readMetadata("currentProject", "default");
     db.run(
       `INSERT INTO issues (id, title, description, type, status, priority, labels, assignee, reporter, projectId, sprintId, storyPoints, rank, parentIssueId, dueDate, customColumnId, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -130,7 +141,7 @@ export async function create(
         JSON.stringify(input.labels ?? []),
         (input.assignee as string) ?? "",
         (input.reporter as string) ?? "",
-        (input.projectId as string) ?? "default",
+        (input.projectId as string) ?? fallbackProjectId,
         (input.sprintId as string) ?? null,
         (input.storyPoints as number) ?? 0,
         (input.rank as number) ?? 0,
@@ -156,7 +167,7 @@ export async function create(
       labels: input.labels ?? [],
       assignee: input.assignee ?? "",
       reporter: input.reporter ?? "",
-      projectId: input.projectId ?? "default",
+      projectId: input.projectId ?? fallbackProjectId,
       sprintId: input.sprintId ?? null,
       storyPoints: input.storyPoints ?? 0,
       parentIssueId: input.parentIssueId ?? null,
