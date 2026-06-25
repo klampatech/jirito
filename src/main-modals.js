@@ -34,7 +34,10 @@ export function initModals() {
     });
     // Add card buttons (delegate to column footer)
     document.querySelectorAll(".btn-add-card").forEach((btn) => {
-        btn.addEventListener("click", () => openModal());
+        btn.addEventListener("click", () => {
+            const status = btn.dataset.status || "todo";
+            openModal(status);
+        });
     });
 }
 //# sourceMappingURL=main-modals.js.map
