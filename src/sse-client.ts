@@ -15,7 +15,7 @@
 
 import { storage } from "./storage.js";
 import { initializeData } from "./state.js";
-import { renderBoard } from "./render.js";
+import { renderActivity, renderBoard } from "./render.js";
 import { initDragDrop } from "./events.js";
 
 let es: EventSource | null = null;
@@ -37,6 +37,14 @@ async function syncAndRender(): Promise<void> {
     initializeData();
     // Re-render the board with the new data.
     renderBoard();
+    // JIRITO-107: also re-render the sidebar activity feed. Without this,
+    // SSE-driven mutations re-fetch /api/state and update the in-memory
+    // _activityLog (via setActivityLog in initializeData()), but the
+    // sidebar DOM is never refreshed — leaving it stale until a full
+    // page reload. renderActivity() is cheap (re-builds at most 15
+    // items); renderSidebar() would also rebuild projects/views/filters
+    // which is overkill for an event-driven update.
+    renderActivity();
     // Re-attach drag-and-drop since renderBoard() rebuilds the DOM.
     // initDragDrop is idempotent — it's fine to call multiple times.
     initDragDrop();
