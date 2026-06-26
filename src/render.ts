@@ -122,6 +122,9 @@ export function renderBoard(): void {
       col.remove();
       return;
     }
+    // Use colDef (already the effective column with overrides applied) to
+    // update the DOM — this ensures default-column color overrides survive
+    // every renderBoard() call.
     // Update column header if name changed
     const titleSpan = col.querySelector(".column-title span:nth-child(2)");
     if (titleSpan && titleSpan.textContent !== colDef.name) {
