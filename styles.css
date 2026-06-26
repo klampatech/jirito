@@ -1133,6 +1133,14 @@ body {
 [data-theme="dark"] .calendar-month-label {
   color: var(--text);
 }
+[data-theme="dark"] .calendar-day .icon,
+[data-theme="dark"] .calendar-day .icon-sm {
+  color: var(--text-muted);
+}
+[data-theme="dark"] .calendar-day.overdue .icon,
+[data-theme="dark"] .calendar-day.overdue .icon-sm {
+  color: var(--danger);
+}
 
 /* ===== Calendar Container (board area) ===== */
 .calendar-container {
