@@ -939,6 +939,7 @@ body {
 [data-theme="dark"] .form-group textarea,
 [data-theme="dark"] .form-group select {
   color: var(--text);
+  color-scheme: dark;
 }
 [data-theme="dark"] .form-group input::placeholder,
 [data-theme="dark"] .form-group textarea::placeholder,
@@ -951,6 +952,7 @@ body {
 [data-theme="dark"] .detail-field input,
 [data-theme="dark"] .detail-field select {
   color: var(--text);
+  color-scheme: dark;
 }
 [data-theme="dark"] .detail-field textarea:not(.markdown-textarea)::placeholder,
 [data-theme="dark"] .detail-field input::placeholder,
