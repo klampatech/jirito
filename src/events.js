@@ -299,6 +299,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Summary restored", "success");
+                addActivity("Pencil", "Summary updated");
             });
         }
         else if (target.id === "detail-desc") {
@@ -312,6 +313,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Description restored", "success");
+                addActivity("FileText", "Description updated");
             });
         }
         else if (target.id === "detail-priority") {
@@ -327,6 +329,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Priority restored", "success");
+                addActivity("Flag", "Priority updated");
             });
         }
         else if (target.id === "detail-assignee") {
@@ -342,6 +345,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Assignee restored", "success");
+                addActivity("User", "Assignee updated");
             });
         }
         else if (target.id === "detail-labels") {
@@ -363,6 +367,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Labels restored", "success");
+                addActivity("Tag", "Labels updated");
             });
         }
         else if (target.id === "detail-due-date") {
@@ -380,6 +385,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Due date restored", "success");
+                addActivity("Calendar", "Due date updated");
             });
         }
         else if (target.id === "detail-story-points") {
@@ -399,6 +405,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Story points restored", "success");
+                addActivity("Target", "Story points updated");
             });
         }
         else if (target.id === "detail-pr-url") {
@@ -416,6 +423,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("PR URL restored", "success");
+                addActivity("GitPullRequest", "PR URL updated");
             });
         }
         else if (target.id === "detail-pr-merged") {
@@ -433,6 +441,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("PR merged restored", "success");
+                addActivity("GitMerge", "PR merge status updated");
             });
         }
         else if (target.id === "detail-sprint") {
@@ -450,6 +459,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Sprint restored", "success");
+                addActivity("Lightning", "Sprint updated");
             });
         }
     };
@@ -510,6 +520,7 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Status restored", "success");
+                addActivity("ArrowRight", "Status updated");
             });
         });
     });
@@ -1102,6 +1113,7 @@ export function initDragDrop() {
                     updateCounts();
                     removeUndoToast();
                     showToast("Reorder undone", "success");
+                    addActivity("ArrowUpDown", "Card reordered");
                 });
             }
             else {
@@ -1168,6 +1180,7 @@ export function initDragDrop() {
                     updateCounts();
                     removeUndoToast();
                     showToast("Move undone", "success");
+                    addActivity("ArrowRight", "Card moved");
                 });
             }
             // Cleanup
@@ -1234,6 +1247,7 @@ export function handleBulkStatusChange(e) {
         updateCounts();
         removeUndoToast();
         showToast("Status restored", "success");
+        addActivity("ArrowRight", "Bulk move");
     });
 }
 export function handleBulkDelete() {

@@ -365,6 +365,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Summary restored", "success");
+      addActivity("Pencil", "Summary updated");
       });
     } else if (target.id === "detail-desc") {
       const oldDesc = issue.desc || "";
@@ -377,6 +378,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Description restored", "success");
+      addActivity("FileText", "Description updated");
       });
     } else if (target.id === "detail-priority") {
       const oldPriority = issue.priority;
@@ -391,6 +393,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Priority restored", "success");
+      addActivity("Flag", "Priority updated");
       });
     } else if (target.id === "detail-assignee") {
       const oldAssignee = issue.assignee || "";
@@ -405,6 +408,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Assignee restored", "success");
+      addActivity("User", "Assignee updated");
       });
     } else if (target.id === "detail-labels") {
       const oldLabels = (issue.labels || []).join(", ");
@@ -425,6 +429,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Labels restored", "success");
+      addActivity("Tag", "Labels updated");
       });
     } else if (target.id === "detail-due-date") {
       const oldDate = issue.dueDate;
@@ -441,6 +446,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Due date restored", "success");
+      addActivity("Calendar", "Due date updated");
       });
     } else if (target.id === "detail-story-points") {
       const oldSP = issue.storyPoints;
@@ -459,6 +465,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Story points restored", "success");
+      addActivity("Target", "Story points updated");
       });
     } else if (target.id === "detail-pr-url") {
       const oldPrUrl = issue.prUrl || "";
@@ -475,6 +482,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("PR URL restored", "success");
+      addActivity("GitPullRequest", "PR URL updated");
       });
     } else if (target.id === "detail-pr-merged") {
       const oldMerged = !!issue.prMerged;
@@ -491,6 +499,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("PR merged restored", "success");
+      addActivity("GitMerge", "PR merge status updated");
       });
     } else if (target.id === "detail-sprint") {
       const oldSprint = issue.sprint;
@@ -507,6 +516,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Sprint restored", "success");
+      addActivity("Lightning", "Sprint updated");
       });
     }
   };
@@ -569,6 +579,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Status restored", "success");
+      addActivity("ArrowRight", "Status updated");
       });
     });
   });
@@ -1197,6 +1208,7 @@ export function initDragDrop(): void {
           updateCounts();
           removeUndoToast();
           showToast("Reorder undone", "success");
+      addActivity("ArrowUpDown", "Card reordered");
         });
       } else {
         // Move to different column — insert at finalIndex position
@@ -1264,6 +1276,7 @@ export function initDragDrop(): void {
           updateCounts();
           removeUndoToast();
           showToast("Move undone", "success");
+      addActivity("ArrowRight", "Card moved");
         });
       }
 
@@ -1330,6 +1343,7 @@ export function handleBulkStatusChange(e: Event): void {
     updateCounts();
     removeUndoToast();
     showToast("Status restored", "success");
+      addActivity("ArrowRight", "Bulk move");
   });
 }
 
