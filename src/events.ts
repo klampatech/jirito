@@ -782,6 +782,7 @@ export function addComment(): void {
   saveState();
   openDetailPanel(issueId); // Refresh
   renderBoard(); // Update comment count badge
+  addActivity("MessageCircle", "Comment added");
   showUndoToast("Comment added", () => {
     getComments()[issueId].splice(commentIdx, 1);
     saveState();
