@@ -1,25 +1,3 @@
-/**
- * src/events.ts — Event handlers, detail panel, drag-and-drop, bulk
- * actions, filter, toast, and sprint-list rendering.
- *
- * Conversion notes (from src/events.js):
- *   - `LJ_CONSTANTS.HISTORY_MAX_ENTRIES` and `DEP_SEARCH_DEBOUNCE_MS` come
- *     from `./constants` instead of the legacy global. We destructure
- *     only the values used here.
- *   - All top-level functions get explicit return types (mostly `void`).
- *   - Cross-module function references are now real `import` statements
- *     (the `attach()` indirection was removed in plan §10.1).
- *   - The `typeIcons` lookup and `undoToast` reference are top-level
- *     `const`/`let` in `state.js`/`render.js`; they pollute the global
- *     scope in classic-script mode. We declare them at the bottom of
- *     this file as ambient globals.
- *   - The original `addEventListener("click", e => { ... if (e.target.id
- *     === 'undo-btn' && currentUndoCallback) ... })` block at the bottom
- *     of the file is preserved verbatim — it relies on the
- *     `currentUndoCallback` module-scope `let`.
- *
- * Behavior is preserved 1:1; only types and exports are added.
- */
 import { CONSTANTS } from "./constants.js";
 import { typeIcons } from "./state.js";
 import { addActivity, addDependency, deleteSprint, getActiveSprint, getComments, getCurrentDetailIssue, getCurrentView, getEffectiveColumns, getIssueCounter, getIssues, getSelectedIds, getSprints, hasCircularDependency, isSelectedIssue, moveToTrash, removeDependency, saveState, setCurrentDetailIssue, setIssueCounter, setIssues, } from "./state.js";
@@ -292,6 +270,7 @@ export function openDetailPanel(issueId) {
             saveState();
             renderBoard();
             document.getElementById("detail-title").textContent = `${key}: ${target.value}`;
+            addActivity("Pencil", "Summary updated");
             showUndoToast("Summary changed", () => {
                 issue.title = oldTitle;
                 saveState();
@@ -299,7 +278,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Summary restored", "success");
-                addActivity("Pencil", "Summary updated");
             });
         }
         else if (target.id === "detail-desc") {
@@ -307,13 +285,13 @@ export function openDetailPanel(issueId) {
             trackHistory(issue, "description", oldDesc, target.value);
             issue.desc = target.value;
             saveState();
+            addActivity("FileText", "Description updated");
             showUndoToast("Description changed", () => {
                 issue.desc = oldDesc;
                 saveState();
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Description restored", "success");
-                addActivity("FileText", "Description updated");
             });
         }
         else if (target.id === "detail-priority") {
@@ -322,6 +300,7 @@ export function openDetailPanel(issueId) {
             issue.priority = target.value;
             saveState();
             renderBoard();
+            addActivity("Flag", "Priority updated");
             showUndoToast("Priority changed", () => {
                 issue.priority = oldPriority;
                 saveState();
@@ -329,7 +308,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Priority restored", "success");
-                addActivity("Flag", "Priority updated");
             });
         }
         else if (target.id === "detail-assignee") {
@@ -338,6 +316,7 @@ export function openDetailPanel(issueId) {
             issue.assignee = target.value;
             saveState();
             renderBoard();
+            addActivity("User", "Assignee updated");
             showUndoToast("Assignee changed", () => {
                 issue.assignee = oldAssignee;
                 saveState();
@@ -345,7 +324,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Assignee restored", "success");
-                addActivity("User", "Assignee updated");
             });
         }
         else if (target.id === "detail-labels") {
@@ -358,6 +336,7 @@ export function openDetailPanel(issueId) {
             issue.labels = labels;
             saveState();
             renderBoard();
+            addActivity("Tag", "Labels updated");
             showUndoToast("Labels changed", () => {
                 issue.labels = oldLabels
                     ? oldLabels.split(",").map((l) => l.trim()).filter(Boolean)
@@ -367,7 +346,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Labels restored", "success");
-                addActivity("Tag", "Labels updated");
             });
         }
         else if (target.id === "detail-due-date") {
@@ -378,6 +356,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
+            addActivity("Calendar", "Due date updated");
             showUndoToast("Due date changed", () => {
                 issue.dueDate = oldDate;
                 saveState();
@@ -385,7 +364,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Due date restored", "success");
-                addActivity("Calendar", "Due date updated");
             });
         }
         else if (target.id === "detail-story-points") {
@@ -398,6 +376,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
+            addActivity("Target", "Story points updated");
             showUndoToast("Story points changed", () => {
                 issue.storyPoints = oldSP;
                 saveState();
@@ -405,7 +384,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Story points restored", "success");
-                addActivity("Target", "Story points updated");
             });
         }
         else if (target.id === "detail-pr-url") {
@@ -416,6 +394,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
+            addActivity("GitPullRequest", "PR URL updated");
             showUndoToast("PR URL changed", () => {
                 issue.prUrl = oldPrUrl || undefined;
                 saveState();
@@ -423,7 +402,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("PR URL restored", "success");
-                addActivity("GitPullRequest", "PR URL updated");
             });
         }
         else if (target.id === "detail-pr-merged") {
@@ -434,6 +412,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
+            addActivity("GitMerge", "PR merge status updated");
             showUndoToast("PR merged changed", () => {
                 issue.prMerged = oldMerged;
                 saveState();
@@ -441,7 +420,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("PR merged restored", "success");
-                addActivity("GitMerge", "PR merge status updated");
             });
         }
         else if (target.id === "detail-sprint") {
@@ -452,6 +430,7 @@ export function openDetailPanel(issueId) {
             }
             saveState();
             renderBoard();
+            addActivity("Lightning", "Sprint updated");
             showUndoToast("Sprint changed", () => {
                 issue.sprint = oldSprint;
                 saveState();
@@ -459,7 +438,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Sprint restored", "success");
-                addActivity("Lightning", "Sprint updated");
             });
         }
     };
@@ -513,6 +491,7 @@ export function openDetailPanel(issueId) {
                 review: "In Review",
                 done: "Done",
             };
+            addActivity("ArrowRight", "Status updated");
             showUndoToast(`Moved to ${statusLabels[newStatus]}`, () => {
                 issue.status = oldStatus;
                 saveState();
@@ -520,7 +499,6 @@ export function openDetailPanel(issueId) {
                 openDetailPanel(issue.id);
                 removeUndoToast();
                 showToast("Status restored", "success");
-                addActivity("ArrowRight", "Status updated");
             });
         });
     });
@@ -755,7 +733,6 @@ export function addComment() {
     saveState();
     openDetailPanel(issueId); // Refresh
     renderBoard(); // Update comment count badge
-    addActivity("MessageCircle", "Comment added");
     showUndoToast("Comment added", () => {
         getComments()[issueId].splice(commentIdx, 1);
         saveState();
@@ -1107,6 +1084,7 @@ export function initDragDrop() {
                 saveState();
                 renderBoard();
                 updateCounts();
+                addActivity("ArrowUpDown", "Card reordered");
                 showUndoToast("Card reordered", () => {
                     issue.rank = beforeIssue?.rank ?? afterIssue?.rank ?? 0;
                     saveState();
@@ -1114,7 +1092,6 @@ export function initDragDrop() {
                     updateCounts();
                     removeUndoToast();
                     showToast("Reorder undone", "success");
-                    addActivity("ArrowUpDown", "Card reordered");
                 });
             }
             else {
@@ -1155,6 +1132,7 @@ export function initDragDrop() {
                 updateCounts();
                 // Build undo toast message
                 const columnName = colDef ? colDef.name : newStatus;
+                addActivity("ArrowRight", "Card moved");
                 showUndoToast(`Moved to ${columnName}`, () => {
                     // Undo: restore previous column assignment.
                     // JIRITO-122 (race): SSE re-syncs (src/sse-client.ts) replace
@@ -1181,7 +1159,6 @@ export function initDragDrop() {
                     updateCounts();
                     removeUndoToast();
                     showToast("Move undone", "success");
-                    addActivity("ArrowRight", "Card moved");
                 });
             }
             // Cleanup
@@ -1235,6 +1212,7 @@ export function handleBulkStatusChange(e) {
     updateCounts();
     updateBulkBar();
     // Wire up undo
+    addActivity("ArrowRight", "Bulk move");
     showUndoToast(`${movedIssues.length} issues moved`, () => {
         movedIssues.forEach((m) => {
             const issue = getIssues().find((i) => _matchesId(i, m.id));
@@ -1248,7 +1226,6 @@ export function handleBulkStatusChange(e) {
         updateCounts();
         removeUndoToast();
         showToast("Status restored", "success");
-        addActivity("ArrowRight", "Bulk move");
     });
 }
 export function handleBulkDelete() {

@@ -20,7 +20,6 @@
  *
  * Behavior is preserved 1:1; only types and exports are added.
  */
-
 import type { Comment, Dependency, Issue } from "./types";
 import { CONSTANTS } from "./constants.js";
 import { typeIcons } from "./state.js";
@@ -65,10 +64,8 @@ import {
   updateCounts,
 } from "./render.js";
 import { renderTrash } from "./main-trash.js";
-
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
-
 // Coerce both sides to string for ID comparison. After the server
 // migration, issue ids are stored as numbers but the DOM (data-id) and
 // URL params are always strings, so a strict === would always fail.
@@ -76,7 +73,6 @@ function _matchesId(issue: Issue | null | undefined, id: Issue["id"] | null | un
   if (issue == null || id == null) return false;
   return String(issue.id) === String(id);
 }
-
 // ===== Drag & Drop State =====
 let draggedId: string | null = null;
 void draggedId;
@@ -85,14 +81,11 @@ void draggedCard;
 let draggedSource: { columnId: string; index: number } | null = null;
 void draggedSource;
 let draggedTarget: { columnId: string; index: number; edge: "top" | "bottom" } | null = null;
-
 // ===== Drag & Drop Helpers =====
-
 function getClosestEdge(mouseY: number, rect: DOMRect): "top" | "bottom" {
   const midpoint = rect.top + rect.height / 2;
   return mouseY < midpoint ? "top" : "bottom";
 }
-
 function insertDropIndicator(
   col: HTMLElement,
   targetCard: HTMLElement | null,
@@ -100,16 +93,13 @@ function insertDropIndicator(
 ): void {
   // Remove existing indicators
   col.querySelectorAll(".drop-indicator").forEach((el) => el.remove());
-
   const indicator = document.createElement("div");
   indicator.className = "drop-indicator";
-
   if (!targetCard) {
     // Empty column or past last card — append
     col.appendChild(indicator);
     return;
   }
-
   if (edge === "top") {
     col.insertBefore(indicator, targetCard);
   } else {
@@ -122,11 +112,9 @@ function insertDropIndicator(
     }
   }
 }
-
 function removeDropIndicators(): void {
   document.querySelectorAll(".drop-indicator").forEach((el) => el.remove());
 }
-
 function getCardPosition(cardEl: HTMLElement): { columnId: string; index: number } {
   const col = cardEl.closest<HTMLElement>(".column-body");
   if (!col) return { columnId: "", index: -1 };
@@ -138,7 +126,6 @@ function getCardPosition(cardEl: HTMLElement): { columnId: string; index: number
     index: cards.findIndex((c) => c === cardEl),
   };
 }
-
 // ===== Detail Panel =====
 let _detailChangeHandler: ((e: Event) => void) | null = null;
 let _detailCommentClickHandler: ((e: Event) => void) | null = null;
@@ -153,22 +140,17 @@ let _detailCommentKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
 // comment handlers below.
 let _detailCloneClickHandler: (() => void) | null = null;
 let _detailDeleteClickHandler: (() => void) | null = null;
-
 export function openDetailPanel(issueId: Issue["id"]): void {
   const issue = getIssues().find((i) => _matchesId(i, issueId));
   if (!issue) return;
   setCurrentDetailIssue(issue);
-
   const panel = document.getElementById("detail-panel");
   const body = document.getElementById("detail-body");
   const statusBar = document.getElementById("detail-status-bar");
   if (!panel || !body || !statusBar) return;
-
   const projectKey = getProjectKey();
   const key = generateIssueKey(projectKey, issue.id);
-
   document.getElementById("detail-title")!.textContent = `${key}: ${issue.title}`;
-
   // Build labels HTML (kept for parity with the original detail-panel
   // template; currently the labels are rendered via `issue.labels` array
   // inside the comments list — see detail-body innerHTML below).
@@ -179,7 +161,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       .map((l) => `<span class="issue-label">${escapeHtml(l)}</span>`)
       .join("")}</div>`;
   }
-
   // Build history HTML
   let historyHtml = "";
   if (issue.history && issue.history.length > 0) {
@@ -199,7 +180,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       )
       .join("");
   }
-
   body.innerHTML = `
     <div class="detail-field">
       <label>Type</label>
@@ -343,7 +323,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       </div>
     </div>
   `;
-
   // Remove previous change handler to prevent duplicates
   if (_detailChangeHandler) {
     body.removeEventListener("change", _detailChangeHandler);
@@ -358,6 +337,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       saveState();
       renderBoard();
       document.getElementById("detail-title")!.textContent = `${key}: ${(target as HTMLInputElement).value}`;
+      addActivity("Pencil", "Summary updated");
       showUndoToast("Summary changed", () => {
         issue.title = oldTitle;
         saveState();
@@ -365,20 +345,19 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Summary restored", "success");
-      addActivity("Pencil", "Summary updated");
       });
     } else if (target.id === "detail-desc") {
       const oldDesc = issue.desc || "";
       trackHistory(issue, "description", oldDesc, (target as HTMLTextAreaElement).value);
       issue.desc = (target as HTMLTextAreaElement).value;
       saveState();
+      addActivity("FileText", "Description updated");
       showUndoToast("Description changed", () => {
         issue.desc = oldDesc;
         saveState();
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Description restored", "success");
-      addActivity("FileText", "Description updated");
       });
     } else if (target.id === "detail-priority") {
       const oldPriority = issue.priority;
@@ -386,6 +365,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       issue.priority = (target as HTMLSelectElement).value as Issue["priority"];
       saveState();
       renderBoard();
+      addActivity("Flag", "Priority updated");
       showUndoToast("Priority changed", () => {
         issue.priority = oldPriority;
         saveState();
@@ -393,7 +373,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Priority restored", "success");
-      addActivity("Flag", "Priority updated");
       });
     } else if (target.id === "detail-assignee") {
       const oldAssignee = issue.assignee || "";
@@ -401,6 +380,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       issue.assignee = (target as HTMLInputElement).value;
       saveState();
       renderBoard();
+      addActivity("User", "Assignee updated");
       showUndoToast("Assignee changed", () => {
         issue.assignee = oldAssignee;
         saveState();
@@ -408,7 +388,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Assignee restored", "success");
-      addActivity("User", "Assignee updated");
       });
     } else if (target.id === "detail-labels") {
       const oldLabels = (issue.labels || []).join(", ");
@@ -420,6 +399,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       issue.labels = labels;
       saveState();
       renderBoard();
+      addActivity("Tag", "Labels updated");
       showUndoToast("Labels changed", () => {
         issue.labels = oldLabels
           ? oldLabels.split(",").map((l) => l.trim()).filter(Boolean)
@@ -429,7 +409,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Labels restored", "success");
-      addActivity("Tag", "Labels updated");
       });
     } else if (target.id === "detail-due-date") {
       const oldDate = issue.dueDate;
@@ -439,6 +418,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
+      addActivity("Calendar", "Due date updated");
       showUndoToast("Due date changed", () => {
         issue.dueDate = oldDate;
         saveState();
@@ -446,7 +426,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Due date restored", "success");
-      addActivity("Calendar", "Due date updated");
       });
     } else if (target.id === "detail-story-points") {
       const oldSP = issue.storyPoints;
@@ -458,6 +437,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
+      addActivity("Target", "Story points updated");
       showUndoToast("Story points changed", () => {
         issue.storyPoints = oldSP;
         saveState();
@@ -465,7 +445,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Story points restored", "success");
-      addActivity("Target", "Story points updated");
       });
     } else if (target.id === "detail-pr-url") {
       const oldPrUrl = issue.prUrl || "";
@@ -475,6 +454,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
+      addActivity("GitPullRequest", "PR URL updated");
       showUndoToast("PR URL changed", () => {
         issue.prUrl = oldPrUrl || undefined;
         saveState();
@@ -482,7 +462,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("PR URL restored", "success");
-      addActivity("GitPullRequest", "PR URL updated");
       });
     } else if (target.id === "detail-pr-merged") {
       const oldMerged = !!issue.prMerged;
@@ -492,6 +471,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
+      addActivity("GitMerge", "PR merge status updated");
       showUndoToast("PR merged changed", () => {
         issue.prMerged = oldMerged;
         saveState();
@@ -499,7 +479,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("PR merged restored", "success");
-      addActivity("GitMerge", "PR merge status updated");
       });
     } else if (target.id === "detail-sprint") {
       const oldSprint = issue.sprint;
@@ -509,6 +488,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
       saveState();
       renderBoard();
+      addActivity("Lightning", "Sprint updated");
       showUndoToast("Sprint changed", () => {
         issue.sprint = oldSprint;
         saveState();
@@ -516,12 +496,10 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Sprint restored", "success");
-      addActivity("Lightning", "Sprint updated");
       });
     }
   };
   body.addEventListener("change", _detailChangeHandler);
-
   // Remove previous comment handlers to prevent duplicates
   const prevCommentSubmit = body.querySelector<HTMLButtonElement>("#comment-submit");
   const prevCommentInput = body.querySelector<HTMLTextAreaElement>("#comment-input");
@@ -542,7 +520,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
   if (prevCommentInput) {
     prevCommentInput.addEventListener("keydown", _detailCommentKeydownHandler);
   }
-
   // Status buttons
   statusBar.innerHTML = ["todo", "inprogress", "review", "done"]
     .map((s) => {
@@ -556,7 +533,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       return `<button class="detail-status-btn ${active}" data-status="${s}">${labels[s]}</button>`;
     })
     .join("");
-
   statusBar.querySelectorAll<HTMLButtonElement>(".detail-status-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const oldStatus = issue.status;
@@ -572,6 +548,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         review: "In Review",
         done: "Done",
       };
+      addActivity("ArrowRight", "Status updated");
       showUndoToast(`Moved to ${statusLabels[newStatus]}`, () => {
         issue.status = oldStatus;
         saveState();
@@ -579,11 +556,9 @@ export function openDetailPanel(issueId: Issue["id"]): void {
         openDetailPanel(issue.id);
         removeUndoToast();
         showToast("Status restored", "success");
-      addActivity("ArrowRight", "Status updated");
       });
     });
   });
-
   // Clone button — remove previous handler before adding the new one so we
   // don't stack listeners on the persistent detail-panel-header button.
   // (The dev comment about "{ once: true }" on delete was correct in spirit
@@ -602,7 +577,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
     _detailCloneClickHandler = () => cloneIssue(issueId);
     cloneBtn.addEventListener("click", _detailCloneClickHandler);
   }
-
   // Delete button — same track-and-remove pattern as clone.
   if (deleteBtn) {
     if (_detailDeleteClickHandler) {
@@ -611,7 +585,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
     _detailDeleteClickHandler = () => deleteIssue(issueId);
     deleteBtn.addEventListener("click", _detailDeleteClickHandler);
   }
-
   // Dependency removal
   const depContainer = document.getElementById("detail-dependencies");
   if (depContainer) {
@@ -628,7 +601,6 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       });
     });
   }
-
   // Dependency search
   const depSearch = document.getElementById("dep-search") as HTMLInputElement | null;
   const depAddBtn = document.getElementById("dep-add-btn");
@@ -710,9 +682,7 @@ export function openDetailPanel(issueId: Issue["id"]): void {
       }
     });
   }
-
   panel.classList.add("open");
-
   // Show backdrop
   const backdrop = document.getElementById("detail-backdrop");
   if (backdrop) {
@@ -721,13 +691,10 @@ export function openDetailPanel(issueId: Issue["id"]): void {
     backdrop.offsetHeight;
     backdrop.classList.add("visible");
   }
-
   // Render Phosphor icons in the detail panel
-
   // Initialize markdown toggles
   initMarkdownToggles();
 }
-
 export function trackHistory(
   issue: Issue,
   field: string,
@@ -748,7 +715,6 @@ export function trackHistory(
   }
   saveState();
 }
-
 export function deleteIssue(issueId: Issue["id"]): void {
   if (!confirm("Delete this issue? You can restore it from Trash.")) return;
   const issues = getIssues();
@@ -776,7 +742,6 @@ export function deleteIssue(issueId: Issue["id"]): void {
     showToast("Issue restored", "success");
   });
 }
-
 export function closeDetailPanel(): void {
   const panel = document.getElementById("detail-panel");
   const backdrop = document.getElementById("detail-backdrop");
@@ -787,14 +752,12 @@ export function closeDetailPanel(): void {
   }
   setCurrentDetailIssue(null);
 }
-
 export function addComment(): void {
   if (!getCurrentDetailIssue()) return;
   const input = document.getElementById("comment-input") as HTMLTextAreaElement | null;
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
-
   const currentIssue = getCurrentDetailIssue();
   if (!currentIssue) return;
   const issueId = currentIssue.id;
@@ -819,7 +782,6 @@ export function addComment(): void {
   saveState();
   openDetailPanel(issueId); // Refresh
   renderBoard(); // Update comment count badge
-  addActivity("MessageCircle", "Comment added");
   showUndoToast("Comment added", () => {
     getComments()[issueId].splice(commentIdx, 1);
     saveState();
@@ -829,7 +791,6 @@ export function addComment(): void {
     showToast("Comment removed", "success");
   });
 }
-
 // ===== Markdown Toggle =====
 export function initMarkdownToggles(): void {
   // Quick format buttons
@@ -871,7 +832,6 @@ export function initMarkdownToggles(): void {
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     });
   });
-
   document.querySelectorAll<HTMLButtonElement>(".btn-markdown-toggle").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -880,7 +840,6 @@ export function initMarkdownToggles(): void {
       const textarea = document.getElementById(targetId) as HTMLTextAreaElement | null;
       const preview = document.getElementById(targetId + "-preview");
       if (!textarea || !preview) return;
-
       if ((preview as HTMLElement).style.display === "none") {
         preview.innerHTML = renderMarkdown(textarea.value);
         (preview as HTMLElement).style.display = "block";
@@ -893,7 +852,6 @@ export function initMarkdownToggles(): void {
       }
     });
   });
-
   // Markdown help tooltip
   document.querySelectorAll<HTMLButtonElement>(".btn-markdown-help").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -932,7 +890,6 @@ export function initMarkdownToggles(): void {
     });
   });
 }
-
 export function cloneIssue(issueId: Issue["id"]): void {
   const issue = getIssues().find((i) => _matchesId(i, issueId));
   if (!issue) return;
@@ -977,8 +934,6 @@ export function cloneIssue(issueId: Issue["id"]): void {
     showToast("Clone deleted", "success");
   });
 }
-
-
 // ===== Drag & Drop =====
 export function initDragDrop(): void {
   // Remove existing listeners by cloning column-bodies
@@ -1033,17 +988,13 @@ export function initDragDrop(): void {
     col.addEventListener("dragstart", (e) => {
       const card = (e.target as HTMLElement).closest<HTMLElement>(".issue-card");
       if (!card) return;
-
       draggedId = card.dataset.id ?? null;
       draggedCard = card;
-
       // Phase 1: Mark as dragging
       card.classList.add("dragging");
-
       // Phase 1: Store source position
       const pos = getCardPosition(card);
       draggedSource = pos;
-
       // Phase 1: Create custom drag image (card preview under cursor)
       const rect = card.getBoundingClientRect();
       if (e.dataTransfer) {
@@ -1052,26 +1003,22 @@ export function initDragDrop(): void {
           e.clientX - rect.left,
           e.clientY - rect.top
         );
-
         // Phase 1: Set drag data
         e.dataTransfer.setData("text/plain", String(card.dataset.id));
         e.dataTransfer.effectAllowed = "move";
       }
     });
-
     // Phase 2: Drag Over
     col.addEventListener("dragover", (e) => {
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
       col.classList.add("drag-over");
-
       // Find which card we're over and where the indicator should go
       const cards = Array.from(
         col.querySelectorAll<HTMLElement>(".issue-card:not(.dragging)")
       );
       let targetCard: HTMLElement | null = null;
       let closestEdge: "top" | "bottom" | null = null;
-
       for (const card of cards) {
         const rect = card.getBoundingClientRect();
         const edge = getClosestEdge(e.clientY, rect);
@@ -1083,7 +1030,6 @@ export function initDragDrop(): void {
           break;
         }
       }
-
       if (targetCard && closestEdge) {
         insertDropIndicator(col, targetCard, closestEdge);
         draggedTarget = {
@@ -1117,7 +1063,6 @@ export function initDragDrop(): void {
         }
       }
     });
-
     col.addEventListener("dragleave", (e) => {
       // Only remove if the mouse actually left the column
       // (not just moving between child elements)
@@ -1132,29 +1077,24 @@ export function initDragDrop(): void {
         removeDropIndicators();
       }
     });
-
     // Phase 3: Drop
     col.addEventListener("drop", (e) => {
       e.preventDefault();
       col.classList.remove("drag-over");
       removeDropIndicators();
-
       const id = e.dataTransfer?.getData("text/plain") ?? "";
       const issue = getIssues().find((i) => String(i.id) === String(id));
       if (!issue) return;
-
       const colId = col.dataset.colId ?? "";
       const colDef = getEffectiveColumns().find((c) => c.id === colId);
       const isCustomColumn = colDef && !colDef.status;
       const newStatus = colDef?.status || col.dataset.status;
       const oldStatus = issue.status;
       const oldCustomColumnId = issue.customColumnId;
-
       // Determine if this is a same-column operation
       const sameColumn = isCustomColumn
         ? issue.customColumnId === colId // Custom column: compare customColumnId
         : (colDef && colDef.status && issue.status === newStatus); // Status column: compare status
-
       // Calculate destination index from the visual indicator position
       const targetCards = Array.from(
         col.querySelectorAll<HTMLElement>(".issue-card:not(.dragging)")
@@ -1173,7 +1113,6 @@ export function initDragDrop(): void {
           finalIndex = draggedTarget.index + 1;
         }
       }
-
       if (sameColumn) {
         // Reorder within same column — use floating-point rank for smooth insertion
         const beforeCards = Array.from(
@@ -1182,7 +1121,6 @@ export function initDragDrop(): void {
         const afterCards = Array.from(
           col.querySelectorAll<HTMLElement>(".issue-card:not(.dragging)")
         ).slice(finalIndex);
-
         const beforeIssue =
           beforeCards.length > 0
             ? getIssues().find((i) =>
@@ -1193,15 +1131,13 @@ export function initDragDrop(): void {
           afterCards.length > 0
             ? getIssues().find((i) => _matchesId(i, afterCards[0].dataset.id))
             : null;
-
         const beforeRank = beforeIssue?.rank ?? -1;
         const afterRank = afterIssue?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
-
         issue.rank = (beforeRank + afterRank) / 2;
-
         saveState();
         renderBoard();
         updateCounts();
+        addActivity("ArrowUpDown", "Card reordered");
         showUndoToast("Card reordered", () => {
           issue.rank = beforeIssue?.rank ?? afterIssue?.rank ?? 0;
           saveState();
@@ -1209,8 +1145,7 @@ export function initDragDrop(): void {
           updateCounts();
           removeUndoToast();
           showToast("Reorder undone", "success");
-      addActivity("ArrowUpDown", "Card reordered");
-      });
+        });
       } else {
         // Move to different column — insert at finalIndex position
         // Determine target issues based on column type
@@ -1218,7 +1153,6 @@ export function initDragDrop(): void {
           ? getIssues().filter((i) => i.customColumnId === colId)
           : getIssues().filter((i) => i.status === newStatus);
         const targetCount = targetIssues.length;
-
         if (finalIndex >= targetCount) {
           // Dropping past the last card — append
           const maxRank =
@@ -1230,12 +1164,10 @@ export function initDragDrop(): void {
           // Insert at the target position using floating-point rank
           const beforeIssue = finalIndex > 0 ? targetIssues[finalIndex - 1] : null;
           const afterIssue = targetIssues[finalIndex] ?? null;
-
           const beforeRank = beforeIssue?.rank ?? -1;
           const afterRank = afterIssue?.rank ?? (beforeRank >= 0 ? beforeRank + 1 : 1);
           issue.rank = (beforeRank + afterRank) / 2;
         }
-
         // Update column assignment based on target column type
         if (isCustomColumn) {
           // Moving to a custom column — set customColumnId, clear status mapping
@@ -1246,13 +1178,12 @@ export function initDragDrop(): void {
           issue.customColumnId = null;
           trackHistory(issue, "status", oldStatus, newStatus ?? issue.status);
         }
-
         saveState();
         renderBoard();
         updateCounts();
-
         // Build undo toast message
         const columnName = colDef ? colDef.name : newStatus;
+        addActivity("ArrowRight", "Card moved");
         showUndoToast(`Moved to ${columnName}`, () => {
           // Undo: restore previous column assignment.
           // JIRITO-122 (race): SSE re-syncs (src/sse-client.ts) replace
@@ -1277,15 +1208,12 @@ export function initDragDrop(): void {
           updateCounts();
           removeUndoToast();
           showToast("Move undone", "success");
-      addActivity("ArrowRight", "Card moved");
         });
       }
-
       // Cleanup
       draggedSource = null;
       draggedTarget = null;
     });
-
     // Cleanup on drag end
     col.addEventListener("dragend", (e) => {
       const card = (e.target as HTMLElement).closest<HTMLElement>(".issue-card");
@@ -1299,7 +1227,6 @@ export function initDragDrop(): void {
     });
   });
 }
-
 // ===== Bulk Actions =====
 export function updateBulkBar(): void {
   const bar = document.getElementById("bulk-bar");
@@ -1313,7 +1240,6 @@ export function updateBulkBar(): void {
   const countEl = document.getElementById("bulk-count");
   if (countEl) countEl.textContent = `${sel.size} selected`;
 }
-
 export function handleBulkStatusChange(e: Event): void {
   const status = (e.target as HTMLSelectElement).value;
   if (!status) return;
@@ -1331,6 +1257,7 @@ export function handleBulkStatusChange(e: Event): void {
   updateCounts();
   updateBulkBar();
   // Wire up undo
+  addActivity("ArrowRight", "Bulk move");
   showUndoToast(`${movedIssues.length} issues moved`, () => {
     movedIssues.forEach((m) => {
       const issue = getIssues().find((i) => _matchesId(i, m.id));
@@ -1344,10 +1271,8 @@ export function handleBulkStatusChange(e: Event): void {
     updateCounts();
     removeUndoToast();
     showToast("Status restored", "success");
-      addActivity("ArrowRight", "Bulk move");
-      });
+  });
 }
-
 export function handleBulkDelete(): void {
   if (!confirm(`Delete ${getSelectedIds().size} issues?`)) return;
   const titles: string[] = [];
@@ -1382,7 +1307,6 @@ export function handleBulkDelete(): void {
     showToast("Issues restored", "success");
   });
 }
-
 export function handleBulkClear(): void {
   getSelectedIds().clear();
   document.querySelectorAll<HTMLInputElement>(".issue-checkbox").forEach((cb) => {
@@ -1390,9 +1314,7 @@ export function handleBulkClear(): void {
   });
   updateBulkBar();
 }
-
 // ===== Filter =====
-
 /**
  * Returns the current set of active filter values from the header bar.
  */
@@ -1416,7 +1338,6 @@ export function getFilterValues(): {
       (document.getElementById("sprint-filter") as HTMLSelectElement | null)?.value || "all",
   };
 }
-
 /**
  * Applies header-bar filters (search, type, priority, assignee, sprint) to
  * a given issue list. Used by board, calendar, and dashboard views so all
@@ -1425,7 +1346,6 @@ export function getFilterValues(): {
 export function filterIssues(issues: Issue[]): Issue[] {
   const { search, typeFilter, priorityFilter, assigneeFilter, sprintFilter } =
     getFilterValues();
-
   return issues.filter((i) => {
     if (typeFilter !== "all" && i.type !== typeFilter) return false;
     if (priorityFilter !== "all" && i.priority !== priorityFilter) return false;
@@ -1440,7 +1360,6 @@ export function filterIssues(issues: Issue[]): Issue[] {
     return true;
   });
 }
-
 export function applyFilters(): void {
   const search =
     (document.getElementById("search-input") as HTMLInputElement | null)?.value.toLowerCase() || "";
@@ -1453,7 +1372,6 @@ export function applyFilters(): void {
   const sprintFilter =
     (document.getElementById("sprint-filter") as HTMLSelectElement | null)?.value || "all";
   const columns = getEffectiveColumns();
-
   columns.forEach((colDef) => {
     const colBody = document.querySelector<HTMLElement>(
       `.column-body[data-col-id="${colDef.id}"]`
@@ -1476,7 +1394,6 @@ export function applyFilters(): void {
     });
     // Sort by rank (custom ordering)
     filtered.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-
     // Custom columns (no status) filter by customColumnId instead of
     // status. Without this, a custom column would show every issue in
     // the project because the `colDef.status && i.status !== ...` check
@@ -1499,7 +1416,6 @@ export function applyFilters(): void {
       );
       return;
     }
-
     if (
       filtered.length === 0 &&
       (search || typeFilter !== "all" || priorityFilter !== "all")
@@ -1509,7 +1425,6 @@ export function applyFilters(): void {
       noResults.textContent = "No matching issues";
       colBody.appendChild(noResults);
     }
-
     filtered.forEach((issue) => colBody.appendChild(createCard(issue)));
   });
   updateCounts();
@@ -1532,13 +1447,11 @@ export function applyFilters(): void {
     });
   }
 }
-
 // ===== Toast Notifications =====
 export function showToast(message: string, type: "info" | "success" | "error" = "info"): void {
   // Remove existing toast
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
-
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
@@ -1556,10 +1469,8 @@ export function showToast(message: string, type: "info" | "success" | "error" = 
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
-
 // ===== Undo Toast =====
 let currentUndoCallback: (() => void) | null = null;
-
 /**
  * Getter for the module-scope undo callback. The classic-script world
  * exposed `currentUndoCallback` as a global `let`; in the module world
@@ -1570,7 +1481,6 @@ export function getCurrentUndoCallback(): (() => void) | null {
   return currentUndoCallback;
 }
 let undoToast: HTMLElement | null = null;
-
 // Event delegation on document.body for undo button to avoid stale listeners
 if (typeof document !== "undefined") {
   document.addEventListener("click", (e) => {
@@ -1580,7 +1490,6 @@ if (typeof document !== "undefined") {
     }
   });
 }
-
 export function showUndoToast(message: string, onUndo: () => void): void {
   if (undoToast) undoToast.remove();
   currentUndoCallback = onUndo;
@@ -1607,7 +1516,6 @@ export function showUndoToast(message: string, onUndo: () => void): void {
     }
   }, 30000);
 }
-
 export function removeUndoToast(): void {
   if (undoToast) {
     undoToast.remove();
@@ -1615,7 +1523,6 @@ export function removeUndoToast(): void {
   }
   currentUndoCallback = null;
 }
-
 // ===== Sprint List Rendering =====
 export function renderSprintList(): void {
   const container = document.getElementById("sprint-list");
@@ -1659,7 +1566,6 @@ export function renderSprintList(): void {
     </div>`;
     })
     .join("");
-
   // Activate buttons
   container.querySelectorAll<HTMLButtonElement>(".sprint-activate-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1687,7 +1593,6 @@ export function renderSprintList(): void {
       showToast("Sprint activated", "success");
     });
   });
-
   // Archive/restore buttons
   container.querySelectorAll<HTMLButtonElement>(".sprint-archive-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1703,7 +1608,6 @@ export function renderSprintList(): void {
       showToast(archived ? "Sprint archived" : "Sprint restored", "success");
     });
   });
-
   // Delete buttons
   container.querySelectorAll<HTMLButtonElement>(".sprint-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
