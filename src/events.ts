@@ -1210,7 +1210,7 @@ export function initDragDrop(): void {
           removeUndoToast();
           showToast("Reorder undone", "success");
       addActivity("ArrowUpDown", "Card reordered");
-        });
+      });
       } else {
         // Move to different column — insert at finalIndex position
         // Determine target issues based on column type
@@ -1345,7 +1345,7 @@ export function handleBulkStatusChange(e: Event): void {
     removeUndoToast();
     showToast("Status restored", "success");
       addActivity("ArrowRight", "Bulk move");
-  });
+      });
 }
 
 export function handleBulkDelete(): void {
