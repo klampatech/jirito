@@ -131,6 +131,9 @@ export function renderBoard(): void {
     const header = col.querySelector(".column-header") as HTMLElement | null;
     if (header && colDef.color) {
       header.style.borderTopColor = colDef.color;
+      // Also update the status-dot circle next to the column label
+      const dot = header.querySelector(".status-dot") as HTMLElement | null;
+      if (dot) dot.style.background = colDef.color;
     }
   });
 
