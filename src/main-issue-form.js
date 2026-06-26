@@ -12,7 +12,7 @@
  *     in server mode the issues are global).
  */
 import { addActivity, findDuplicateIssues, getComments, getCurrentProject, getIssueCounter, getIssues, saveStateImmediate, setIssueCounter, } from "./state.js";
-import { renderBoard, updateCounts } from "./render.js";
+import { renderActivity, renderBoard, updateCounts } from "./render.js";
 import { removeUndoToast, showToast, showUndoToast } from "./events.js";
 import { generateIssueKey, getProjectKey } from "./utils.js";
 import { closeModal, openModal } from "./main-modals.js";
@@ -81,6 +81,7 @@ export function initIssueForm() {
             renderBoard();
             closeModal();
             addActivity("PlusCircle", `Created <strong>${generateIssueKey(getProjectKey(), newIssue.id)}</strong>`);
+            renderActivity();
             showUndoToast(`Created ${generateIssueKey(getProjectKey(), newIssue.id)}`, () => {
                 const idx = getIssues().findIndex((i) => i.id === newIssue.id);
                 if (idx !== -1) {
