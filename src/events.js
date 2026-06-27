@@ -899,6 +899,10 @@ export function initDragDrop() {
     // Re-attach card click handlers via event delegation on column-body
     document.querySelectorAll(".column-body").forEach((col) => {
         col.addEventListener("click", (e) => {
+            // Skip if the click originated on or inside a checkbox — checking the
+            // box should not open the detail panel (JIRITO-109).
+            if (e.target.closest(".issue-checkbox"))
+                return;
             const card = e.target.closest(".issue-card");
             if (!card || card.classList.contains("dragging"))
                 return;
