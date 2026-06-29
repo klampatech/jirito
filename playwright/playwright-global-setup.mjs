@@ -149,6 +149,14 @@ export default async function globalSetup() {
       ...process.env,
       SERVER_PORT: TEST_PORT,
       JIRITO_DB_PATH: TEST_DB_PATH,
+      // JIRITO_INSTANCE_ID=test — see server/webhooks.ts INSTANCE_ID
+      // comment. The test backend tags every emitted event with
+      // instance_id="test"; the prod jirito-event-injector is wired
+      // to listen for "prod" and drops "test" events at the wiretap
+      // gate (action="skipped_other_instance"). Belt-and-suspenders
+      // alongside the X-Jirito-Silent header (which prevents the
+      // outbox row from being written in the first place).
+      JIRITO_INSTANCE_ID: 'test',
     },
   });
   backendProc.stdout.on('data', d => log('[backend] ' + d.toString().trim()));
