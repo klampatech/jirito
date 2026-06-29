@@ -735,13 +735,19 @@ body {
   display: flex; gap: 8px;
 }
 .detail-panel-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: column; gap: 8px;
   padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.detail-header-top {
+  display: flex; justify-content: flex-end; align-items: center;
+}
+.detail-header-main {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .detail-header-actions {
   display: flex; align-items: center; gap: 8px;
 }
-.detail-panel-header h2 { font-size: 16px; font-weight: 600; }
+.detail-panel-header h2 { font-size: 16px; font-weight: 600; margin: 0; }
 .detail-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
 .detail-field { margin-bottom: 20px; }
 .detail-field label {
