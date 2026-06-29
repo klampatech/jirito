@@ -27,6 +27,7 @@ import { CONSTANTS } from "./constants.js";
 import type { SaveInput } from "./storage";
 import { storage } from "./storage.js";
 import { renderActivity, renderBoard, updateCounts } from "./render.js";
+import { createActivity } from "./api.js";
 
 const {
   ACTIVITY_LOG_MAX,
@@ -199,6 +200,9 @@ export function addActivity(icon: string, text: string): void {
   _activityLog.unshift({ icon, text, time: new Date() });
   if (_activityLog.length > ACTIVITY_LOG_MAX) _activityLog.pop();
   renderActivity();
+  // Persist to the dedicated activity endpoint so SSE re-sync from the server
+  // (which reads activityLog from the server) doesn't wipe this entry.
+  void createActivity({ icon, text }).catch((e) => console.warn("activity persist failed:", e));
 }
 
 // ===== State Load / Save =====
