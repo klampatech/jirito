@@ -1074,7 +1074,7 @@ export function renderActivity(): void {
       // and crash on .replace(). The typeof gate is the only reliable
       // way to reject nullish values — see jirito-review §7.3.
       const iconHtml =
-        typeof a.icon === "string" && /^[a-z0-9-]+$/.test(a.icon)
+        typeof a.icon === "string" && /^[a-zA-Z0-9-]+$/.test(a.icon)
           ? lucideIcon(a.icon, { class: "icon-sm" })
           : "";
       item.innerHTML = `
