@@ -32,7 +32,7 @@
  *     save (to avoid clobbering fresher server state from other tabs).
  */
 import { getActiveSprint, getCurrentProject, getProjects, initializeData, loadState, saveStateImmediate, } from "./state.js";
-import { initCalendar, populateAssigneeFilter, renderBoard, renderSidebar } from "./render.js";
+import { initCalendar, populateAssigneeFilter, renderBoard, renderSidebar, switchView } from "./render.js";
 import { initSSE } from "./sse-client.js";
 import { initDragDrop } from "./events.js";
 import { populateSprintSelect, updateSprintBar, updateSprintProgressBar } from "./utils.js";
@@ -89,6 +89,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (boardTitle && projects[getCurrentProject()]) {
         const proj = projects[getCurrentProject()];
         boardTitle.textContent = `${proj.icon ?? ""} ${proj.name} — Board`.trim();
+    }
+    // Make logo clickable — routes to board view
+    const logoHome = document.getElementById("logo-home");
+    if (logoHome) {
+        logoHome.addEventListener("click", (e) => {
+            e.preventDefault();
+            switchView("board");
+        });
     }
     // 3. Initialize all feature modules
     initProjects();
