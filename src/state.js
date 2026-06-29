@@ -158,6 +158,7 @@ export function addActivity(icon, text) {
     if (_activityLog.length > ACTIVITY_LOG_MAX)
         _activityLog.pop();
     renderActivity();
+    saveState(); // persist so SSE re-sync doesn't wipe the new entry
 }
 // ===== State Load / Save =====
 // Uses the storage abstraction layer (localStorage or server API).

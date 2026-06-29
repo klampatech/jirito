@@ -199,6 +199,7 @@ export function addActivity(icon: string, text: string): void {
   _activityLog.unshift({ icon, text, time: new Date() });
   if (_activityLog.length > ACTIVITY_LOG_MAX) _activityLog.pop();
   renderActivity();
+  saveState(); // persist so SSE re-sync doesn't wipe the new entry
 }
 
 // ===== State Load / Save =====
