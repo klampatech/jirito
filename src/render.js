@@ -952,7 +952,7 @@ export function renderActivity() {
         return;
     feed.innerHTML = "";
     getActivityLog()
-        .slice(0, 15)
+        .slice(0, 10)
         .forEach((a) => {
         const item = document.createElement("div");
         item.className = "activity-item";
