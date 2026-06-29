@@ -47,6 +47,7 @@ import { initIssueForm } from "./main-issue-form.js";
 import { initModals } from "./main-modals.js";
 import { initNotifications } from "./main-notifications.js";
 import { initOnboarding } from "./main-onboarding.js";
+import { initProfile } from "./main-profile.js";
 import { initProjects } from "./main-projects.js";
 import { initSaveFilter } from "./main-save-filter.js";
 import { initShortcuts } from "./main-shortcuts.js";
@@ -105,6 +106,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initTheme();
     initModals();
     initNotifications();
+    initProfile();
     initFilters();
     initIssueForm();
     initSidebar();

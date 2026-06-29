@@ -26,7 +26,7 @@
           <div class="notification-dropdown-body" id="notification-dropdown-body" aria-live="polite"></div>
         </div>
       </div>
-      <div class="avatar">K</div>
+      <div class="avatar" id="user-avatar">K</div>
       <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><i class="ph ph-moon icon"></i></button>
     </div>
   </nav>
@@ -300,6 +300,26 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div class="modal-overlay" id="profile-modal-overlay" style="display:none">
+    <div class="modal modal-scrollable" style="width:400px">
+      <div class="modal-header">
+        <h2>Profile</h2>
+        <button class="btn-close" id="profile-modal-close">&times;</button>
+      </div>
+      <form id="profile-form">
+        <div class="form-group">
+          <label for="profile-name">Your Name</label>
+          <input type="text" id="profile-name" required placeholder="Enter your name" maxlength="50">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="profile-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
     </div>
