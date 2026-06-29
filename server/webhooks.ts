@@ -23,6 +23,23 @@ const BRIDGE_URL =
 const ENABLED = process.env.JIRITO_WEBHOOK_ENABLED !== "false";
 
 /**
+ * Every emitted event carries this `instance_id`, so downstream consumers
+ * (e.g., jirito-event-injector) can filter out events from instances they
+ * don't care about. Defaults to "prod" so the live jirito.service
+ * (which doesn't currently set the env var) sends events the prod
+ * injector is wired to listen for. Test/sandbox/staging backends
+ * override via `JIRITO_INSTANCE_ID=test` (or similar) in their spawn
+ * env, and the prod injector will silently drop them — defense in
+ * depth against test-fixture noise leaking into #operations.
+ *
+ * 2026-06-29: added after Playwright e2e tests started creating real
+ * tickets via the browser UI (extraHTTPHeaders had been missing at
+ * the page level), producing "[JIRITO TRIAGE] #107" wakes in Discord
+ * for fixtures the user never asked us to triage.
+ */
+const INSTANCE_ID = process.env.JIRITO_INSTANCE_ID || "prod";
+
+/**
  * Per-request "silent" flag, set when the inbound request carries
  * `X-Jirito-Silent: 1`. Lets the Playwright suite seed fixtures without
  * spamming Discord — `emitEvent` and `broadcastEvent` both early-return
@@ -86,6 +103,11 @@ export async function emitEvent(
     event_type,
     timestamp: new Date().toISOString(),
     source: "jirito",
+    // Identity tag for the jirito process that emitted this event. The
+    // jirito-event-injector plugin reads this and drops events whose
+    // instance_id != its own, so a test backend can't wake #operations
+    // even if it bypasses the X-Jirito-Silent header (defense in depth).
+    instance_id: INSTANCE_ID,
     payload,
   };
   try {
