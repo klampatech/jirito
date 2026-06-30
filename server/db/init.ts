@@ -77,6 +77,14 @@ export function initTables(): void {
       icon TEXT DEFAULT '🚀',
       color TEXT DEFAULT '#0052CC',
       description TEXT DEFAULT '',
+      -- squad/dispatch routing metadata. githubUrl is the agent's PR
+      -- target (default klampatech/jirito when blank); path is the
+      -- local working dir. Both were captured in the Project TS type
+      -- (src/types.ts:77-79) and the create-project UI (index.html)
+      -- but never persisted before JIRITO-125 (2026-06-30). See
+      -- migrateTables() below for the legacy-DB backfill.
+      githubUrl TEXT DEFAULT '',
+      path TEXT DEFAULT '',
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now'))
     )
@@ -261,6 +269,26 @@ export function migrateTables(): void {
     if (!sprintCols.includes("archived")) {
       tryAddColumn(db, "sprints", "archived", "INTEGER", "0");
       console.log("Added archived column to sprints table");
+    }
+  }
+
+  // JIRITO-125 (2026-06-30): the projects table was missing
+  // `githubUrl` and `path` columns even though the TS `Project` type
+  // and the create-project modal both captured them. Before this
+  // migration the server silently dropped those fields on every
+  // INSERT — agents had no way to know which repo a project's PR
+  // should go to, so ORCA-project dispatches defaulted to
+  // klampatech/jirito. Backfill both columns for legacy DBs.
+  const projectInfo = db.exec("PRAGMA table_info(projects)");
+  if (projectInfo.length > 0) {
+    const projectCols = projectInfo[0].values.map((row) => String(row[1]));
+    if (!projectCols.includes("githubUrl")) {
+      tryAddColumn(db, "projects", "githubUrl", "TEXT", "''");
+      console.log("Added githubUrl column to projects table");
+    }
+    if (!projectCols.includes("path")) {
+      tryAddColumn(db, "projects", "path", "TEXT", "''");
+      console.log("Added path column to projects table");
     }
   }
 

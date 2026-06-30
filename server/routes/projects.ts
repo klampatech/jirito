@@ -118,10 +118,20 @@ export async function create(
     const icon = (input.icon as string) || "🚀";
     const color = (input.color as string) || "#0052CC";
     const description = (input.description as string) || "";
+    // JIRITO-125 (2026-06-30): the create-project modal in
+    // index.html:345-350 captured githubUrl (PR target) and path
+    // (local working dir), but the server silently dropped both
+    // before this fix. Surfacing them here is the prerequisite for
+    // handing agents the right repo on dispatch — see
+    // ~/.hermes/plugins/jirito-event-injector/formatting.py and the
+    // PR for squad-integration follow-up.
+    const githubUrl = (input.githubUrl as string) || "";
+    const path = (input.path as string) || "";
 
     db.run(
-      "INSERT INTO projects (id, name, key, icon, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [id, name, key, icon, color, description, now, now]
+      `INSERT INTO projects (id, name, key, icon, color, description, githubUrl, path, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, name, key, icon, color, description, githubUrl, path, now, now]
     );
 
     await saveDb();
@@ -133,6 +143,8 @@ export async function create(
       icon,
       color,
       description,
+      githubUrl,
+      path,
       createdAt: now,
       updatedAt: now,
     });

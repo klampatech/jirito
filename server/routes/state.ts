@@ -80,6 +80,13 @@ export async function getState(
         icon: (proj as { icon?: string }).icon ?? "🚀",
         color: (proj as { color?: string }).color ?? "#0052CC",
         description: (proj as { description?: string }).description ?? "",
+        // JIRITO-125 (2026-06-30): surface githubUrl + path so the
+        // client can hand the agent the right repo on dispatch. The
+        // DB column is always present (see migrateTables) — coerce to
+        // "" to match the legacy localStorage shape the client
+        // already handles.
+        githubUrl: (proj as { githubUrl?: string }).githubUrl ?? "",
+        path: (proj as { path?: string }).path ?? "",
         issues: issues
           .filter((i) => (i as { projectId?: string }).projectId === id)
           .map((i) => (i as { id: unknown }).id),
@@ -180,8 +187,13 @@ export async function setState(
       const projectIds = Object.keys(dataProjects);
       for (const projId of projectIds) {
         const proj = dataProjects[projId];
+        // JIRITO-125 (2026-06-30): persist githubUrl + path through
+        // the bulk setState path. Without these the data the client
+        // captured from the create-project modal would round-trip as
+        // empty strings — fine for legacy projects, broken for the
+        // ORCA workflow that needs them on dispatch.
         db.run(
-          "INSERT INTO projects (id, name, key, icon, color, description) VALUES (?, ?, ?, ?, ?, ?)",
+          `INSERT INTO projects (id, name, key, icon, color, description, githubUrl, path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             projId,
             (proj.name as string) ?? "",
@@ -189,6 +201,8 @@ export async function setState(
             (proj.icon as string) ?? "🚀",
             (proj.color as string) ?? "#0052CC",
             (proj.description as string) ?? "",
+            (proj.githubUrl as string) ?? "",
+            (proj.path as string) ?? "",
           ]
         );
       }
