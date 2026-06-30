@@ -16,7 +16,7 @@
  * Behavior is preserved 1:1; only types and exports are added.
  */
 import { typeIcons } from "./state.js";
-import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssues, removeCustomColumn, setCustomColumns, updateCustomColumn, updateDefaultColumn, } from "./state.js";
+import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssuesForProject, removeCustomColumn, setCustomColumns, updateCustomColumn, updateDefaultColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
 import { applyFilters, filterIssues, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
@@ -983,17 +983,18 @@ export function switchProject(key) {
     if (!getProjects()[key])
         return;
     setCurrentProject(key);
-    // Only adopt the project's issues when they are real issue objects
-    // (the legacy localStorage format). In server mode, projects track an
-    // array of issue ID strings and the global _issues list is the source
-    // of truth — replacing it with strings would wipe the board.
-    const projectIssues = getProjects()[key].issues;
-    if (Array.isArray(projectIssues) && projectIssues.length > 0) {
-        const firstItem = projectIssues[0];
-        if (typeof firstItem === "object" && firstItem !== null && firstItem.id) {
-            setIssues(projectIssues);
-        }
-    }
+    // JIRITO-119-followup (2026-06-30): the previous inline check below
+    // only adopted the project's issues when the project's `issues`
+    // field was a full Issue[] array (legacy localStorage). In server
+    // mode, `projects[key].issues` is a numeric ID list, so the type
+    // gate never fired and `_issues` stayed stale — `renderBoard()`
+    // then filtered the old project's tickets by the new currentProject,
+    // hiding every card from the freshly-switched project. The shared
+    // `setIssuesForProject()` helper (state.ts) handles both shapes;
+    // both this switch path and `initializeData()`'s SSE re-sync path
+    // call it so the two can't drift on what "issues for project X"
+    // means.
+    setIssuesForProject(key);
     renderSidebar();
     renderBoard();
     populateAssigneeFilter();
