@@ -235,16 +235,21 @@ export function createCard(issue) {
 }
 export function updateCounts() {
     const columns = getEffectiveColumns();
+    const currentProject = getCurrentProject();
     columns.forEach((colDef) => {
         const countEl = document.querySelector(`[data-count-for="${colDef.id}"]`);
         if (countEl) {
             const status = colDef.status;
             if (status) {
-                countEl.textContent = String(getIssues().filter((i) => i.status === status).length);
+                countEl.textContent = String(getIssues()
+                    .filter((i) => i.status === status)
+                    .filter((i) => (i.projectId || currentProject) === currentProject).length);
             }
             else {
                 // Custom column: count issues with matching customColumnId
-                countEl.textContent = String(getIssues().filter((i) => i.customColumnId === colDef.id).length);
+                countEl.textContent = String(getIssues()
+                    .filter((i) => i.customColumnId === colDef.id)
+                    .filter((i) => (i.projectId || currentProject) === currentProject).length);
             }
         }
     });
