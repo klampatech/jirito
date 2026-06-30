@@ -38,7 +38,7 @@ import {
   saveState,
   setCurrentProject,
   setCurrentView,
-  setIssues,
+  setIssuesForProject,
   removeCustomColumn,
   setCustomColumns,
   updateCustomColumn,
@@ -1095,17 +1095,15 @@ export function switchProject(key: string): void {
   // Task 2.4: Validate key before use
   if (!getProjects()[key]) return;
   setCurrentProject(key);
-  // Only adopt the project's issues when they are real issue objects
-  // (the legacy localStorage format). In server mode, projects track an
-  // array of issue ID strings and the global _issues list is the source
-  // of truth — replacing it with strings would wipe the board.
-  const projectIssues = getProjects()[key].issues;
-  if (Array.isArray(projectIssues) && projectIssues.length > 0) {
-    const firstItem = projectIssues[0];
-    if (typeof firstItem === "object" && firstItem !== null && firstItem.id) {
-      setIssues(projectIssues as Issue[]);
-    }
-  }
+  // JIRITO-119-followup (2026-06-30): in server mode, project.issues
+  // is a numeric ID list — not full Issue objects — so the old
+  // "is firstItem an object" check never updated `_issues` for the new
+  // project. Result: `_issues` kept whatever the previous project's
+  // SSE re-sync had filtered, and renderBoard()'s projectId filter
+  // then hid every ticket from the freshly switched project. Use the
+  // shared re-derivation helper that initializeData() also calls so
+  // both paths produce the same `_issues` set.
+  setIssuesForProject(key);
   renderSidebar();
   renderBoard();
   populateAssigneeFilter();

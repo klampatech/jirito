@@ -85,6 +85,41 @@ export function getCurrentProject() {
 export function setCurrentProject(v) {
     _currentProject = v;
 }
+/**
+ * Re-derive `_issues` to contain only the issues that belong to the
+ * given project. In server mode, `project.issues` is a numeric ID
+ * list (e.g., `[101, 102, ...]`) — NOT full Issue objects — so we
+ * filter the canonical issue list from the storage layer by
+ * `projectId`. In legacy localStorage mode (rare today), `project.issues`
+ * contains full Issue objects and we adopt them directly.
+ *
+ * Called by:
+ *   - `switchProject()` in render.ts — without this, the project-switch
+ *     path used to silently leave `_issues` populated with whatever the
+ *     previous project contributed, then `renderBoard()`'s projectId
+ *     filter hid every ticket from the freshly switched project
+ *     (regression JIRITO-119-followup, 2026-06-30 — Kyle noticed
+ *     switching back to JIRI showed no Done tickets while ORCA still
+ *     showed its cards).
+ *   - `initializeData()` — the same re-derivation that ran on every
+ *     SSE re-sync under the old code; now a single source of truth.
+ */
+export function setIssuesForProject(projectKey) {
+    const proj = _projects[projectKey];
+    const projectIssues = proj?.issues;
+    if (Array.isArray(projectIssues) &&
+        projectIssues.length > 0 &&
+        typeof projectIssues[0] === "object" &&
+        projectIssues[0] !== null &&
+        projectIssues[0].id !== undefined) {
+        _issues = projectIssues;
+        return;
+    }
+    const allIssues = storage.getStorageData().issues || [];
+    _issues = allIssues
+        .filter((i) => (i.projectId || projectKey) === projectKey)
+        .map((i) => ({ ...i, desc: i.desc || i.description || "" }));
+}
 export function getCurrentView() {
     return _currentView;
 }
@@ -651,37 +686,13 @@ export function initializeData() {
         const keys = Object.keys(_projects);
         _currentProject = keys.length > 0 ? keys[0] : "";
     }
-    // 2. Sync global issues with current project.
-    // JIRITO-122: was previously gated on `typeof firstItem === "object"`
-    // — but the server stores project.issues as an array of numeric IDs
-    // (`state.ts:83-86` in the getState response), so the type check
-    // ALWAYS fails in server mode and `_issues` stays stale on every
-    // SSE event. Fix: when project.issues is a number list (server mode),
-    // re-derive `_issues` from `storage.getStorageData().issues` filtered
-    // by projectId. The storage layer has the fresh full-issue list
-    // because `storage.initStorage()` ran in syncAndRender before this.
-    if (_currentProject &&
-        _projects[_currentProject]?.issues &&
-        _projects[_currentProject].issues.length > 0) {
-        const firstItem = _projects[_currentProject].issues[0];
-        if (typeof firstItem === "object" && firstItem !== null && firstItem.id) {
-            // Legacy localStorage shape — project.issues has full Issue objects.
-            _issues = _projects[_currentProject].issues;
-        }
-        else {
-            // Server shape — project.issues is a numeric ID list. Re-derive
-            // _issues from the full issue list using projectId.
-            // JIRITO-122: also normalize `desc` from `description` so the
-            // search filter (which reads `i.desc`) keeps working after SSE
-            // re-syncs. loadState() does this on first load (state.ts:228)
-            // but initializeData()'s re-derivation skipped it, causing search
-            // by description to silently return 0 results after any SSE event.
-            const allIssues = storage.getStorageData().issues || [];
-            _issues = allIssues
-                .filter((i) => (i.projectId || _currentProject) === _currentProject)
-                .map((i) => ({ ...i, desc: i.desc || i.description || "" }));
-        }
-    }
+    // 2. Sync global issues with current project. Both this path and the
+    // switchProject() path in render.ts go through setIssuesForProject()
+    // so the re-derivation logic is shared (JIRITO-119-followup fix,
+    // 2026-06-30). The previous inline copy here had drifted from
+    // switchProject()'s expectations and made the project switch leave
+    // `_issues` stale in server mode.
+    setIssuesForProject(_currentProject);
     // 3. Ensure project key exists
     if (_currentProject && _projects[_currentProject] && !_projects[_currentProject].key) {
         _projects[_currentProject].key = _currentProject.toUpperCase();
