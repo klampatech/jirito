@@ -15,6 +15,7 @@ import {
   validateCommentAuthor,
   validateVerdictCaller,
   getCallerFromHeader,
+  getProjectKey,
 } from "./_shared.js";
 import { getDb } from "../db/index.js";
 import { emitEvent } from "../webhooks.js";
@@ -121,11 +122,17 @@ export async function create(
         ? mapRow("issues", ticketResult[0].columns, ticketResult[0].values[0])
         : null;
 
+    // JIRITO-124: include `projectKey` so comment wakes render the
+    // correct project prefix (e.g. `ORCA-120` not `JIRITO-120`).
+    const commentedProjectKey = getProjectKey(
+      (ticket as { projectId?: string } | null)?.projectId
+    );
     void emitEvent("ticket.commented", {
       id: ticket ? String(ticket.id) : issueId,
       assignee: (ticket?.assignee as string) ?? "",
       title: (ticket?.title as string) ?? "",
       description: (ticket?.description as string) ?? "",
+      projectKey: commentedProjectKey,
       issueId,
       commentId: id,
       author,

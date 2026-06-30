@@ -13,6 +13,7 @@ import {
   coerceNumericId,
   normalizeStatus,
   readMetadata,
+  getProjectKey,
 } from "./_shared.js";
 import { emitEvent, isSilentRequest } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
@@ -439,6 +440,12 @@ export async function setState(
       for (const issue of newIssues) {
         const id = String(issue.id);
         const old = existingIssues.get(id);
+        // JIRITO-124: every emitted payload carries `projectKey` so
+        // downstream wake/PR text renders the ticket's actual project
+        // prefix (e.g. `ORCA-120`, not `JIRITO-120`).
+        const projectKey = getProjectKey(
+          (issue as { projectId?: string }).projectId ?? null
+        );
         if (!old) {
           void emitEvent("ticket.created", {
             id: Number(id) || id,
@@ -450,6 +457,7 @@ export async function setState(
             labels: issue.labels ?? [],
             assignee: issue.assignee ?? "",
             reporter: issue.reporter ?? "",
+            projectKey,
             createdAt: issue.createdAt,
             updatedAt: issue.updatedAt,
           });
@@ -463,6 +471,7 @@ export async function setState(
             labels: issue.labels ?? [],
             assignee: issue.assignee ?? "",
             reporter: issue.reporter ?? "",
+            projectKey,
             createdAt: issue.createdAt,
             updatedAt: issue.updatedAt,
           });
@@ -479,6 +488,7 @@ export async function setState(
               priority: issue.priority ?? "medium",
               assignee: issue.assignee ?? "",
               reporter: issue.reporter ?? "",
+              projectKey,
               createdAt: issue.createdAt,
               updatedAt: issue.updatedAt,
               previousStatus: old.status,
@@ -493,6 +503,7 @@ export async function setState(
               priority: issue.priority ?? "medium",
               assignee: issue.assignee ?? "",
               reporter: issue.reporter ?? "",
+              projectKey,
               createdAt: issue.createdAt,
               updatedAt: issue.updatedAt,
               previousStatus: old.status,
@@ -504,13 +515,18 @@ export async function setState(
 
       for (const [id, old] of existingIssues) {
         if (!newIds.has(id)) {
+          const deletedProjectKey = getProjectKey(
+            (old as { projectId?: string }).projectId
+          );
           void emitEvent("ticket.deleted", {
             id: Number(id) || id,
             title: old.title,
+            projectKey: deletedProjectKey,
           });
           broadcastEvent("ticket.deleted", {
             id: Number(id) || id,
             title: old.title,
+            projectKey: deletedProjectKey,
           });
         }
       }

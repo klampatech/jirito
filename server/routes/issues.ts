@@ -19,6 +19,7 @@ import {
   AGENT_CALLERS,
   getCallerFromHeader,
   readMetadata,
+  getProjectKey,
 } from "./_shared.js";
 import { emitEvent } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
@@ -183,8 +184,23 @@ export async function create(
     // Otherwise this site would emit `desc` and diverge from the other
     // emit sites (state.ts, import-export.ts) which all emit
     // `description`.
-    void emitEvent("ticket.created", { ...created, createdAt: now, updatedAt: now });
-    broadcastEvent("ticket.created", { ...created, createdAt: now, updatedAt: now });
+    // JIRITO-124 (2026-06-30): include `projectKey` so wake text and
+    // PR body templates render `ORCA-120` (not `JIRITO-120`) for a
+    // ticket created in the ORCA project. Without this the squad
+    // side can't tell which project the ticket belongs to.
+    const projectKey = getProjectKey((input.projectId as string) ?? fallbackProjectId);
+    void emitEvent("ticket.created", {
+      ...created,
+      createdAt: now,
+      updatedAt: now,
+      projectKey,
+    });
+    broadcastEvent("ticket.created", {
+      ...created,
+      createdAt: now,
+      updatedAt: now,
+      projectKey,
+    });
   } catch (error) {
     console.error("create issue error:", error);
     sendJson(res, 500, { error: (error as Error).message });

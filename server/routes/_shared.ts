@@ -44,6 +44,30 @@ export function writeMetadata(key: string, value: string): void {
 }
 
 /**
+ * Look up the `key` column of a project by its `id`. Returns the raw
+ * `key` value if found, otherwise the `id` itself (the conventional
+ * fallback — the column model already does this on the client side).
+ *
+ * 2026-06-30 (JIRITO-124): squad wakes / PR body templates previously
+ * hardcoded `JIRITO-` as the ticket prefix, which made a ticket
+ * created in the ORCA project appear as `JIRITO-120` to the receiving
+ * agent. The agent then named its branch and PR using `jirito-…`
+ * and pushed to the wrong repo. The fix: every ticket.* event payload
+ * carries `projectKey` (computed at emit time from the projects
+ * table) so downstream consumers render the proper
+ * `ORCA-120` / `JIRITO-119` prefix without an extra fetch.
+ */
+export function getProjectKey(projectId: string | null | undefined): string {
+  if (!projectId) return "PROJ";
+  const db = getDb();
+  if (!db) return projectId;
+  const result = db.exec("SELECT key FROM projects WHERE id = ?", [projectId]);
+  if (result.length === 0 || result[0].values.length === 0) return projectId;
+  const key = result[0].values[0][0];
+  return typeof key === "string" && key ? key : projectId;
+}
+
+/**
  * Canonical issue status enum used by the client's 4-column board.
  * Anything else gets normalized via STATUS_ALIASES (or rejected).
  *
