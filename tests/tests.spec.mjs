@@ -1600,15 +1600,17 @@ test('switching projects updates calendar view content', async ({ page }) => {
   // Switch to calendar view while on project B
   await page.locator('#view-list .view-item').nth(2).click();
   await page.waitForSelector('#calendar-container', { state: 'visible', timeout: 3000 });
-  // Verify calendar shows project B's ticket
+  // Calendar renders each due issue as a .calendar-issue-dot with the
+  // title in the `title` (HTML tooltip) attribute — the cell itself
+  // doesn't contain the text. Assert via attribute selector.
   await expect(
-    page.locator('#calendar-container .calendar-day').filter({ hasText: 'Calendar Ticket PC' })
+    page.locator('.calendar-issue-dot[title*="Calendar Ticket PC"]')
   ).toHaveCount(1);
-  // Switch back to Project Alpha
-  await page.locator('.project-item:has-text("Project Alpha")').click();
-  // Calendar must now show Project Alpha's tickets, NOT project B's
+  // Switch back to the default project
+  await page.locator('.project-item').first().click();
+  // Calendar must now show the default project's tickets, NOT project B's
   await expect(
-    page.locator('#calendar-container .calendar-day').filter({ hasText: 'Calendar Ticket PC' })
+    page.locator('.calendar-issue-dot[title*="Calendar Ticket PC"]')
   ).toHaveCount(0);
 });
 
@@ -1625,16 +1627,18 @@ test('switching projects updates dashboard view content', async ({ page }) => {
   // Switch to dashboard view while on project B
   await page.locator('#view-list .view-item').nth(3).click();
   await page.waitForSelector('#dashboard-container', { state: 'visible', timeout: 3000 });
-  // Verify dashboard stat cards reference project B's ticket
+  // Dashboard shows stat CARDS with COUNT NUMBERS, not ticket titles.
+  // On project B with 1 ticket: Total Issues = "1" (the seed has 6 in
+  // the default project, so this proves project-scoping).
   await expect(
-    page.locator('#dashboard-container .dashboard-stat-card').filter({ hasText: 'Dashboard Ticket PD' })
-  ).toHaveCount(1);
-  // Switch back to Project Alpha
-  await page.locator('.project-item:has-text("Project Alpha")').click();
-  // Dashboard must now show Project Alpha's stats, NOT project B's
+    page.locator('.dashboard-stat-card:has-text("Total Issues") .dashboard-stat-value')
+  ).toHaveText('1');
+  // Switch back to the default project
+  await page.locator('.project-item').first().click();
+  // Dashboard must now show the default project's count (6 from the seed)
   await expect(
-    page.locator('#dashboard-container .dashboard-stat-card').filter({ hasText: 'Dashboard Ticket PD' })
-  ).toHaveCount(0);
+    page.locator('.dashboard-stat-card:has-text("Total Issues") .dashboard-stat-value')
+  ).toHaveText('6');
 });
 
 test('deleting a project switches to remaining project', async ({ page }) => {
