@@ -16,6 +16,7 @@ import {
 } from "./_shared.js";
 import { emitEvent, isSilentRequest } from "../webhooks.js";
 import { broadcastEvent } from "./events.js";
+import { captureSnapshot } from "../snapshots.js";
 
 export async function getState(
   _req: IncomingMessage,
@@ -157,6 +158,13 @@ export async function setState(
       return;
     }
     const data = rawData as Record<string, unknown>;
+
+    // JIRITO-120 + 2026-07-01 incident: capture a snapshot BEFORE any
+    // destructive DELETE. A bad PUT (e.g. {} payload that wipes the DB)
+    // is recoverable via POST /api/state/restore/:id. captureSnapshot
+    // never throws — a snapshot failure must never block the caller's
+    // PUT.
+    captureSnapshot("pre-setState");
 
     // Capture existing issues BEFORE the DELETE so we can diff and emit
     // per-ticket events. Without this, every state sync (which the UI does
