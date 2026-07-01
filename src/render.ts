@@ -1109,6 +1109,7 @@ export function switchProject(key: string): void {
   setIssuesForProject(key);
   renderSidebar();
   renderBoard();
+  renderViews();
   populateAssigneeFilter();
   const boardTitle = document.getElementById("board-title");
   if (boardTitle) {

@@ -997,6 +997,7 @@ export function switchProject(key) {
     setIssuesForProject(key);
     renderSidebar();
     renderBoard();
+    renderViews();
     populateAssigneeFilter();
     const boardTitle = document.getElementById("board-title");
     if (boardTitle) {
