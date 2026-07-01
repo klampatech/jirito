@@ -60,7 +60,7 @@ import {
 } from "./utils.js";
 import {
   applyFilters,
-  filterIssues,
+  filterIssuesForCurrentProject,
   initDragDrop,
   openDetailPanel,
   removeUndoToast,
@@ -712,7 +712,7 @@ export function renderCalendarView(): void {
     day.addEventListener("click", () => {
       const date = day.dataset.date;
       if (!date) return;
-      const filtered = filterIssues(getIssues()).filter((i) => i.dueDate === date);
+      const filtered = filterIssuesForCurrentProject(getIssues()).filter((i) => i.dueDate === date);
       if (filtered.length > 0) {
         const lines = filtered
           .map((i) => {
@@ -822,7 +822,7 @@ export function renderDashboardView(): void {
   if (!container) return;
 
   // Apply active header-bar filters so dashboard stats reflect the user's scope
-  const filtered = filterIssues(getIssues());
+  const filtered = filterIssuesForCurrentProject(getIssues());
 
   const total = filtered.length;
   const byStatus: Record<string, number> = { todo: 0, inprogress: 0, review: 0, done: 0 };
@@ -1217,7 +1217,13 @@ export function renderListView(): void {
   const priorityFilter = (document.getElementById("filter-priority") as HTMLSelectElement | null)?.value || "all";
   const assigneeFilter = (document.getElementById("filter-assignee") as HTMLSelectElement | null)?.value || "all";
   const sprintFilter = (document.getElementById("sprint-filter") as HTMLSelectElement | null)?.value || "all";
-  const filtered = getIssues().filter((i) => {
+  // JIRITO-120: scope to current project so switching projects
+  // doesn't leak other projects' tickets into the list. Legacy
+  // issues without projectId fall back to currentProject.
+  const currentProject = getCurrentProject();
+  const filtered = getIssues()
+    .filter((i) => (i.projectId || currentProject) === currentProject)
+    .filter((i) => {
     if (typeFilter !== "all" && i.type !== typeFilter) return false;
     if (priorityFilter !== "all" && i.priority !== priorityFilter) return false;
     if (assigneeFilter !== "all" && i.assignee !== assigneeFilter) return false;

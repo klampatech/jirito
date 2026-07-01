@@ -3,6 +3,7 @@ import { typeIcons } from "./state.js";
 import { addActivity, addDependency, deleteSprint, getActiveSprint, getComments, getCurrentDetailIssue, getCurrentView, getEffectiveColumns, getIssueCounter, getIssues, getSelectedIds, getSprints, hasCircularDependency, isSelectedIssue, moveToTrash, removeDependency, saveState, setCurrentDetailIssue, setIssueCounter, setIssues, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getProjectKey, lucideIcon, populateSprintFilter, populateSprintSelect, renderMarkdown, updateSprintBar, updateSprintProgressBar, } from "./utils.js";
 import { createCard, renderBoard, renderListView, updateCounts, } from "./render.js";
+import { getCurrentProject } from "./state.js";
 import { renderTrash } from "./main-trash.js";
 const HISTORY_MAX_ENTRIES = CONSTANTS.HISTORY_MAX_ENTRIES;
 const DEP_SEARCH_DEBOUNCE_MS = CONSTANTS.DEP_SEARCH_DEBOUNCE_MS;
@@ -1308,6 +1309,19 @@ export function filterIssues(issues) {
             return false;
         return true;
     });
+}
+/**
+ * Like `filterIssues` but ALSO scopes to the current project. Calendar and
+ * Dashboard views use this — without the project scope, switching projects
+ * left those views showing every project's tickets (JIRITO-120, 2026-07-01).
+ *
+ * Legacy issues without a `projectId` (pre-migration fixtures, legacy
+ * localStorage data) fall back to `currentProject` so they continue to
+ * show up, matching `renderBoard`'s existing behavior.
+ */
+export function filterIssuesForCurrentProject(issues) {
+    const currentProject = getCurrentProject();
+    return filterIssues(issues).filter((i) => (i.projectId || currentProject) === currentProject);
 }
 export function applyFilters() {
     const search = document.getElementById("search-input")?.value.toLowerCase() || "";
