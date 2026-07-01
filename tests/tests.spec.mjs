@@ -1555,6 +1555,9 @@ test('switching between projects updates the board', async ({ page }) => {
 });
 
 // JIRITO-120: project switch must update List/Calendar/Dashboard views, not just Board
+// Use filter({ hasText })+toHaveCount pattern: the multi-element locators
+// (.list-row, .calendar-day, .dashboard-stat-card) match many rows, and
+// Playwright strict mode rejects toContainText on a multi-element locator.
 test('switching projects updates list view content', async ({ page }) => {
   // Create project B
   await page.locator('#add-project-btn').click();
@@ -1567,13 +1570,16 @@ test('switching projects updates list view content', async ({ page }) => {
   await page.locator('#issue-form').evaluate(form => form.requestSubmit());
   // Switch to list view while on project B
   await page.locator('#view-list .view-item').nth(1).click();
-  // Verify list shows project B's ticket
-  const listRows = page.locator('.list-row');
-  await expect(listRows).toContainText('Ticket in Project Bravo PB');
+  // Verify list shows project B's ticket (exactly one matching row)
+  await expect(
+    page.locator('.list-row').filter({ hasText: 'Ticket in Project Bravo PB' })
+  ).toHaveCount(1);
   // Switch back to Project Alpha (default)
   await page.locator('.project-item:has-text("Project Alpha")').click();
   // List must now show Project Alpha's tickets, NOT project B's
-  await expect(listRows).not.toContainText('Ticket in Project Bravo PB');
+  await expect(
+    page.locator('.list-row').filter({ hasText: 'Ticket in Project Bravo PB' })
+  ).toHaveCount(0);
 });
 
 test('switching projects updates calendar view content', async ({ page }) => {
@@ -1595,12 +1601,15 @@ test('switching projects updates calendar view content', async ({ page }) => {
   await page.locator('#view-list .view-item').nth(2).click();
   await page.waitForSelector('#calendar-container', { state: 'visible', timeout: 3000 });
   // Verify calendar shows project B's ticket
-  const calDays = page.locator('#calendar-container .calendar-day');
-  await expect(calDays).toContainText('Calendar Ticket PC');
+  await expect(
+    page.locator('#calendar-container .calendar-day').filter({ hasText: 'Calendar Ticket PC' })
+  ).toHaveCount(1);
   // Switch back to Project Alpha
   await page.locator('.project-item:has-text("Project Alpha")').click();
   // Calendar must now show Project Alpha's tickets, NOT project B's
-  await expect(calDays).not.toContainText('Calendar Ticket PC');
+  await expect(
+    page.locator('#calendar-container .calendar-day').filter({ hasText: 'Calendar Ticket PC' })
+  ).toHaveCount(0);
 });
 
 test('switching projects updates dashboard view content', async ({ page }) => {
@@ -1617,12 +1626,15 @@ test('switching projects updates dashboard view content', async ({ page }) => {
   await page.locator('#view-list .view-item').nth(3).click();
   await page.waitForSelector('#dashboard-container', { state: 'visible', timeout: 3000 });
   // Verify dashboard stat cards reference project B's ticket
-  const statCards = page.locator('#dashboard-container .dashboard-stat-card');
-  await expect(statCards).toContainText('Dashboard Ticket PD');
+  await expect(
+    page.locator('#dashboard-container .dashboard-stat-card').filter({ hasText: 'Dashboard Ticket PD' })
+  ).toHaveCount(1);
   // Switch back to Project Alpha
   await page.locator('.project-item:has-text("Project Alpha")').click();
   // Dashboard must now show Project Alpha's stats, NOT project B's
-  await expect(statCards).not.toContainText('Dashboard Ticket PD');
+  await expect(
+    page.locator('#dashboard-container .dashboard-stat-card').filter({ hasText: 'Dashboard Ticket PD' })
+  ).toHaveCount(0);
 });
 
 test('deleting a project switches to remaining project', async ({ page }) => {
