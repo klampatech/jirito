@@ -61,6 +61,72 @@ export function getIssues() {
 export function setIssues(v) {
     _issues = v;
 }
+/**
+ * Re-derive `_issues` to the set belonging to `projectKey`.
+ *
+ * Called from both `initializeData()` (after every SSE re-sync) and
+ * `switchProject()` (when the user clicks a project in the sidebar),
+ * so the two code paths can never drift on what "issues for project X"
+ * means.
+ *
+ * Two shapes are supported for `_projects[projectKey].issues`:
+ *
+ *   - Legacy localStorage: array of full `Issue` objects. Adopt as-is.
+ *   - Server (post-migration): array of numeric ID strings. Re-derive
+ *     `_issues` by filtering `storage.getStorageData().issues` (the
+ *     full row list the server emitted) by `projectId === projectKey`.
+ *
+ * Without this, `switchProject()` left `_issues` stale across a
+ * project switch in server mode: `renderBoard()` then filtered the
+ * old project's tickets by the new `currentProject`, hiding every
+ * card from the freshly-switched project (the JIRITO-119-followup
+ * bug observed on 2026-06-30).
+ */
+export function setIssuesForProject(projectKey) {
+    if (!projectKey)
+        return;
+    const proj = _projects[projectKey];
+    const projectIssues = proj?.issues;
+    if (Array.isArray(projectIssues) &&
+        projectIssues.length > 0 &&
+        typeof projectIssues[0] === "object" &&
+        projectIssues[0] !== null &&
+        projectIssues[0].id !== undefined) {
+        // Legacy localStorage shape — `project.issues` holds full Issue[].
+        // Adopt it as the universal issue set; renderBoard() will filter to
+        // the current project at render time.
+        _issues = projectIssues.map((i) => ({
+            ...i,
+            desc: i.desc || i.description || "",
+        }));
+        return;
+    }
+    // Server shape — `project.issues` is a numeric ID list; the global
+    // `_state.issues` (loaded by loadState / SSE re-sync) is the source of
+    // truth. We re-derive `_issues` to the **full set** (every project),
+    // never per-project: renderBoard() filters by `currentProject` at
+    // render time, and confining `_issues` to one project would silently
+    // drop optimistic form pushes (ticket created → `_issues.push()`
+    // → switch projects → SSE hasn't refetched yet → form ticket gone)
+    // and any tickets from other projects that the user hadn't loaded yet.
+    //
+    // JIRITO-119-followup (2026-06-30): the original inline shape check
+    // in switchProject() / initializeData() only updated `_issues` in
+    // legacy localStorage mode; in server mode it silently fell through,
+    // leaving `_issues` showing the previous project's tickets under the
+    // new `currentProject` filter (empty board after switching).
+    const allIssues = storage.getStorageData().issues || [];
+    const seen = new Set();
+    const reaped = allIssues.map((i) => {
+        seen.add(i.id);
+        return { ...i, desc: i.desc || i.description || "" };
+    });
+    // Union in any optimistic `_issues` entries not yet in storage —
+    // form handlers push to `_issues` directly, and SSE may not have
+    // refetched yet. Dedupe by id; storage wins when both have an entry.
+    const optimistic = _issues.filter((i) => !seen.has(i.id));
+    _issues = [...reaped, ...optimistic];
+}
 export function getIssueCounter() {
     return _issueCounter;
 }
@@ -651,37 +717,13 @@ export function initializeData() {
         const keys = Object.keys(_projects);
         _currentProject = keys.length > 0 ? keys[0] : "";
     }
-    // 2. Sync global issues with current project.
-    // JIRITO-122: was previously gated on `typeof firstItem === "object"`
-    // — but the server stores project.issues as an array of numeric IDs
-    // (`state.ts:83-86` in the getState response), so the type check
-    // ALWAYS fails in server mode and `_issues` stays stale on every
-    // SSE event. Fix: when project.issues is a number list (server mode),
-    // re-derive `_issues` from `storage.getStorageData().issues` filtered
-    // by projectId. The storage layer has the fresh full-issue list
-    // because `storage.initStorage()` ran in syncAndRender before this.
-    if (_currentProject &&
-        _projects[_currentProject]?.issues &&
-        _projects[_currentProject].issues.length > 0) {
-        const firstItem = _projects[_currentProject].issues[0];
-        if (typeof firstItem === "object" && firstItem !== null && firstItem.id) {
-            // Legacy localStorage shape — project.issues has full Issue objects.
-            _issues = _projects[_currentProject].issues;
-        }
-        else {
-            // Server shape — project.issues is a numeric ID list. Re-derive
-            // _issues from the full issue list using projectId.
-            // JIRITO-122: also normalize `desc` from `description` so the
-            // search filter (which reads `i.desc`) keeps working after SSE
-            // re-syncs. loadState() does this on first load (state.ts:228)
-            // but initializeData()'s re-derivation skipped it, causing search
-            // by description to silently return 0 results after any SSE event.
-            const allIssues = storage.getStorageData().issues || [];
-            _issues = allIssues
-                .filter((i) => (i.projectId || _currentProject) === _currentProject)
-                .map((i) => ({ ...i, desc: i.desc || i.description || "" }));
-        }
-    }
+    // 2. Sync global issues with current project via the shared helper.
+    // JIRITO-119-followup (2026-06-30): the inline object-vs-number-list
+    // fork here had drifted from the one in switchProject() (render.ts),
+    // which left `_issues` stale across project switches in server mode.
+    // Centralize the re-derivation so the two paths can't diverge again.
+    // See setIssuesForProject() in this file for the full logic.
+    setIssuesForProject(_currentProject);
     // 3. Ensure project key exists
     if (_currentProject && _projects[_currentProject] && !_projects[_currentProject].key) {
         _projects[_currentProject].key = _currentProject.toUpperCase();

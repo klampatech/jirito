@@ -30,6 +30,33 @@ export function readMetadata(key: string, defaultValue: string): string {
 }
 
 /**
+ * Look up the `key` column of a project by its `id`. Returns the
+ * project's `key` if found, otherwise the `id` itself (the conventional
+ * fallback for legacy rows that predate the `key` column).
+ *
+ * JIRITO-124 (2026-06-30): squad wakes / PR body templates previously
+ * hardcoded `JIRITO-` as the ticket prefix. An ORCA-project ticket
+ * arrived at the agent as `JIRITO-120`, the agent named its branch
+ * and PR using `jirito-…`, and pushed to the wrong repo. Every
+ * ticket.* event now carries `projectKey` computed at emit time
+ * via this helper, so downstream consumers render `ORCA-120` /
+ * `JIRITO-119` correctly without an extra fetch.
+ */
+export function getProjectKey(projectId: string): string {
+  if (!projectId) return "";
+  const db = getDb();
+  if (!db) return projectId;
+  try {
+    const result = db.exec("SELECT key FROM projects WHERE id = ?", [projectId]);
+    if (result.length === 0 || result[0].values.length === 0) return projectId;
+    const key = result[0].values[0][0];
+    return typeof key === "string" && key.trim() ? key : projectId;
+  } catch {
+    return projectId;
+  }
+}
+
+/**
  * Helper: write a scalar value to the metadata table (upsert).
  * Used by route handlers that need to persist per-user state (currentView,
  * currentProject overrides, etc.) without taking on a full-state sync.

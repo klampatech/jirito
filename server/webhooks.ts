@@ -17,6 +17,7 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getDb, saveDb } from "./db/index.js";
+import { decorateTicketPayload } from "./routes/events.js";
 
 const BRIDGE_URL =
   process.env.JIRITO_WEBHOOK_BRIDGE_URL || "http://localhost:3030";
@@ -98,6 +99,7 @@ export async function emitEvent(
   const db = getDb();
   if (!db) return;
   const event_id = randomUUID();
+  const enrichedPayload = decorateTicketPayload(event_type, payload);
   const envelope = {
     event_id,
     event_type,
@@ -108,7 +110,7 @@ export async function emitEvent(
     // instance_id != its own, so a test backend can't wake #operations
     // even if it bypasses the X-Jirito-Silent header (defense in depth).
     instance_id: INSTANCE_ID,
-    payload,
+    payload: enrichedPayload,
   };
   try {
     db.run(
