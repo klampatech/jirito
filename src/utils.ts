@@ -114,7 +114,17 @@ export function getCalendarDays(year: number, month: number): CalendarDay[] {
   // Current month
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const dueIssues = getIssues().filter((i) => i.dueDate === dateStr && i.status !== "done");
+    // JIRITO-120 (2026-07-01): scope to the current project so
+    // switching projects hides other projects' due dates on the
+    // calendar. Legacy issues without `projectId` fall back to
+    // `currentProject` to match `renderBoard`'s existing behavior.
+    const currentProject = getCurrentProject();
+    const dueIssues = getIssues().filter(
+      (i) =>
+        i.dueDate === dateStr &&
+        i.status !== "done" &&
+        (i.projectId || currentProject) === currentProject
+    );
     days.push({ date: new Date(year, month, d), isCurrentMonth: true, dateStr, dueIssues });
   }
   // Next month padding
