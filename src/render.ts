@@ -1109,7 +1109,11 @@ export function switchProject(key: string): void {
   setIssuesForProject(key);
   renderSidebar();
   renderBoard();
-  renderViews();
+  // JIRITO-120: re-render the active view so List/Calendar/Dashboard
+  // pick up the new project's tickets. _issues was updated by
+  // setIssuesForProject() above, but the view DOM is stale until
+  // its renderer runs.
+  switchView(getCurrentView());
   populateAssigneeFilter();
   const boardTitle = document.getElementById("board-title");
   if (boardTitle) {
