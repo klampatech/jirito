@@ -109,7 +109,12 @@ export async function getActivity() {
     return Array.isArray(data) ? data : [];
 }
 export async function createActivity(activityData) {
-    return apiRequest("/api/activity", { method: "POST", body: JSON.stringify(activityData) });
+    // Server expects {action, details} — map from client-side {icon, text}.
+    const payload = {
+        action: activityData.icon ?? "",
+        details: activityData.text ?? "",
+    };
+    return apiRequest("/api/activity", { method: "POST", body: JSON.stringify(payload) });
 }
 // ===== Filters API =====
 export async function getFilters() {
