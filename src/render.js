@@ -18,7 +18,7 @@
 import { typeIcons } from "./state.js";
 import { addActivity, getActiveSprint, getActivityLog, getComments, getCurrentProject, getCurrentView, getCustomColumns, getDefaultColumns, getDependents, getDependencies, getEffectiveColumns, getIssues, getProjects, getSavedFilters, getSelectedIds, getSprints, saveState, setCurrentProject, setCurrentView, setIssuesForProject, removeCustomColumn, setCustomColumns, updateCustomColumn, updateDefaultColumn, } from "./state.js";
 import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays, getMonthName, getProjectKey, isOverdue, lucideIcon, timeAgo, truncateDesc, updateSprintProgress, } from "./utils.js";
-import { applyFilters, filterIssues, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
+import { applyFilters, filterIssuesForCurrentProject, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
 // ===== Rendering =====
 export function renderBoard() {
@@ -633,7 +633,7 @@ export function renderCalendarView() {
             const date = day.dataset.date;
             if (!date)
                 return;
-            const filtered = filterIssues(getIssues()).filter((i) => i.dueDate === date);
+            const filtered = filterIssuesForCurrentProject(getIssues()).filter((i) => i.dueDate === date);
             if (filtered.length > 0) {
                 const lines = filtered
                     .map((i) => {
@@ -734,7 +734,7 @@ export function renderDashboardView() {
     if (!container)
         return;
     // Apply active header-bar filters so dashboard stats reflect the user's scope
-    const filtered = filterIssues(getIssues());
+    const filtered = filterIssuesForCurrentProject(getIssues());
     const total = filtered.length;
     const byStatus = { todo: 0, inprogress: 0, review: 0, done: 0 };
     filtered.forEach((i) => {
@@ -997,6 +997,11 @@ export function switchProject(key) {
     setIssuesForProject(key);
     renderSidebar();
     renderBoard();
+    // JIRITO-120: re-render the active view so List/Calendar/Dashboard
+    // pick up the new project's tickets. _issues was updated by
+    // setIssuesForProject() above, but the view DOM is stale until
+    // its renderer runs.
+    switchView(getCurrentView());
     populateAssigneeFilter();
     const boardTitle = document.getElementById("board-title");
     if (boardTitle) {
@@ -1112,7 +1117,13 @@ export function renderListView() {
     const priorityFilter = document.getElementById("filter-priority")?.value || "all";
     const assigneeFilter = document.getElementById("filter-assignee")?.value || "all";
     const sprintFilter = document.getElementById("sprint-filter")?.value || "all";
-    const filtered = getIssues().filter((i) => {
+    // JIRITO-120: scope to current project so switching projects
+    // doesn't leak other projects' tickets into the list. Legacy
+    // issues without projectId fall back to currentProject.
+    const currentProject = getCurrentProject();
+    const filtered = getIssues()
+        .filter((i) => (i.projectId || currentProject) === currentProject)
+        .filter((i) => {
         if (typeFilter !== "all" && i.type !== typeFilter)
             return false;
         if (priorityFilter !== "all" && i.priority !== priorityFilter)

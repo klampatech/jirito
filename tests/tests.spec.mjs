@@ -1554,6 +1554,93 @@ test('switching between projects updates the board', async ({ page }) => {
   await expect(page.locator('#board-title')).toContainText('Second Project');
 });
 
+// JIRITO-120: project switch must update List/Calendar/Dashboard views, not just Board
+// Use filter({ hasText })+toHaveCount pattern: the multi-element locators
+// (.list-row, .calendar-day, .dashboard-stat-card) match many rows, and
+// Playwright strict mode rejects toContainText on a multi-element locator.
+test('switching projects updates list view content', async ({ page }) => {
+  // Create project B
+  await page.locator('#add-project-btn').click();
+  await page.locator('#project-name').fill('Project Bravo');
+  await page.locator('#project-key').fill('PB');
+  await page.locator('#project-form').evaluate(form => form.requestSubmit());
+  // Create a ticket in project B with a distinctive title
+  await page.locator('#add-issue-btn').click();
+  await page.locator('#issue-title').fill('Ticket in Project Bravo PB');
+  await page.locator('#issue-form').evaluate(form => form.requestSubmit());
+  // Switch to list view while on project B
+  await page.locator('#view-list .view-item').nth(1).click();
+  // Verify list shows project B's ticket (exactly one matching row)
+  await expect(
+    page.locator('.list-row').filter({ hasText: 'Ticket in Project Bravo PB' })
+  ).toHaveCount(1);
+  // Switch back to Project Alpha (default)
+  await page.locator('.project-item:has-text("Project Alpha")').click();
+  // List must now show Project Alpha's tickets, NOT project B's
+  await expect(
+    page.locator('.list-row').filter({ hasText: 'Ticket in Project Bravo PB' })
+  ).toHaveCount(0);
+});
+
+test('switching projects updates calendar view content', async ({ page }) => {
+  // Create project B
+  await page.locator('#add-project-btn').click();
+  await page.locator('#project-name').fill('Project Charlie');
+  await page.locator('#project-key').fill('PC');
+  await page.locator('#project-form').evaluate(form => form.requestSubmit());
+  // Create a ticket in project B with a distinctive title and due date
+  await page.locator('#add-issue-btn').click();
+  await page.locator('#issue-title').fill('Calendar Ticket PC');
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  await page.locator('#issue-due-date').fill(`${yyyy}-${mm}-${dd}`);
+  await page.locator('#issue-form').evaluate(form => form.requestSubmit());
+  // Switch to calendar view while on project B
+  await page.locator('#view-list .view-item').nth(2).click();
+  await page.waitForSelector('#calendar-container', { state: 'visible', timeout: 3000 });
+  // Calendar renders each due issue as a .calendar-issue-dot with the
+  // title in the `title` (HTML tooltip) attribute — the cell itself
+  // doesn't contain the text. Assert via attribute selector.
+  await expect(
+    page.locator('.calendar-issue-dot[title*="Calendar Ticket PC"]')
+  ).toHaveCount(1);
+  // Switch back to the default project
+  await page.locator('.project-item').first().click();
+  // Calendar must now show the default project's tickets, NOT project B's
+  await expect(
+    page.locator('.calendar-issue-dot[title*="Calendar Ticket PC"]')
+  ).toHaveCount(0);
+});
+
+test('switching projects updates dashboard view content', async ({ page }) => {
+  // Create project B
+  await page.locator('#add-project-btn').click();
+  await page.locator('#project-name').fill('Project Delta');
+  await page.locator('#project-key').fill('PD');
+  await page.locator('#project-form').evaluate(form => form.requestSubmit());
+  // Create a ticket in project B with a distinctive title
+  await page.locator('#add-issue-btn').click();
+  await page.locator('#issue-title').fill('Dashboard Ticket PD');
+  await page.locator('#issue-form').evaluate(form => form.requestSubmit());
+  // Switch to dashboard view while on project B
+  await page.locator('#view-list .view-item').nth(3).click();
+  await page.waitForSelector('#dashboard-container', { state: 'visible', timeout: 3000 });
+  // Dashboard shows stat CARDS with COUNT NUMBERS, not ticket titles.
+  // On project B with 1 ticket: Total Issues = "1" (the seed has 6 in
+  // the default project, so this proves project-scoping).
+  await expect(
+    page.locator('.dashboard-stat-card:has-text("Total Issues") .dashboard-stat-value')
+  ).toHaveText('1');
+  // Switch back to the default project
+  await page.locator('.project-item').first().click();
+  // Dashboard must now show the default project's count (6 from the seed)
+  await expect(
+    page.locator('.dashboard-stat-card:has-text("Total Issues") .dashboard-stat-value')
+  ).toHaveText('6');
+});
+
 test('deleting a project switches to remaining project', async ({ page }) => {
   // Create a second project
   await page.locator('#add-project-btn').click();

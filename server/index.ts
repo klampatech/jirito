@@ -23,6 +23,10 @@ import commentsRouter from "./routes/comments.js";
 import { getState, setState } from "./routes/state.js";
 import { handleSSE } from "./routes/events.js";
 import { importData, exportData } from "./routes/import-export.js";
+import {
+  listSnapshotsHandler,
+  restoreSnapshotHandler,
+} from "./snapshots.js";
 import { serveStaticFile } from "./static.js";
 import { parseBody, sendJson } from "./routes/_shared.js";
 
@@ -263,6 +267,21 @@ async function dispatch(
   }
   if (pathname === "/api/state" && method === "PUT") {
     await setState(req, res, await parseBody(req));
+    return true;
+  }
+
+  // State snapshots — auto-captured before every PUT /api/state.
+  // Operator picks an id from the list and restores. See server/snapshots.ts.
+  if (pathname === "/api/state/snapshots" && method === "GET") {
+    listSnapshotsHandler(req, res);
+    return true;
+  }
+  const restoreId = matchId(
+    pathname,
+    /^\/api\/state\/restore\/([^/]+)$/
+  );
+  if (restoreId && method === "POST") {
+    await restoreSnapshotHandler(req, res, Number(restoreId));
     return true;
   }
 
