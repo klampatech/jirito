@@ -145,7 +145,12 @@ export async function getActivity(): Promise<ActivityEntry[]> {
 }
 
 export async function createActivity(activityData: Partial<ActivityEntry>): Promise<ActivityEntry> {
-  return apiRequest<ActivityEntry>("/api/activity", { method: "POST", body: JSON.stringify(activityData) });
+  // Server expects {action, details} — map from client-side {icon, text}.
+  const payload = {
+    action: activityData.icon ?? "",
+    details: activityData.text ?? "",
+  };
+  return apiRequest<ActivityEntry>("/api/activity", { method: "POST", body: JSON.stringify(payload) });
 }
 
 // ===== Filters API =====
