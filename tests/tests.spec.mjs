@@ -820,6 +820,20 @@ test('column menu has add card option', async ({ page }) => {
   await expect(page.locator('.column-menu-item').nth(1)).toContainText('Add card');
 });
 
+test('add card button in column footer opens modal with correct status', async ({ page }) => {
+  // Click the + Add card button in the "In Progress" column footer
+  const addCardBtn = page.locator('[data-status="inprogress"] .btn-add-card');
+  await addCardBtn.click();
+  // Modal should open
+  await expect(page.locator('#modal-overlay')).toBeVisible();
+  // Status dropdown should be pre-set to inprogress
+  const statusSelect = page.locator('#issue-status');
+  await expect(statusSelect).toHaveValue('inprogress');
+  // Close modal
+  await page.locator('#modal-cancel').click();
+  await expect(page.locator('#modal-overlay')).not.toBeVisible();
+});
+
 test('column menu has clear all cards option', async ({ page }) => {
   const menuBtn = page.locator('[data-status="todo"] .column-header .btn-icon');
   await menuBtn.click();

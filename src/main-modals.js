@@ -32,12 +32,17 @@ export function initModals() {
         if (!e.target.closest(".modal"))
             closeModal();
     });
-    // Add card buttons (delegate to column footer)
-    document.querySelectorAll(".btn-add-card").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const status = btn.dataset.status || "todo";
-            openModal(status);
-        });
+    // Add card buttons — use event delegation on #board since the column
+    // buttons are created by renderBoard() which runs after initModals()
+    // during startup, and renderBoard() is also called on project/view
+    // switches, so any static querySelectorAll would miss dynamically
+    // created .btn-add-card buttons.
+    document.getElementById("board")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".btn-add-card");
+        if (!btn)
+            return;
+        const status = btn.dataset.status || "todo";
+        openModal(status);
     });
 }
 //# sourceMappingURL=main-modals.js.map
