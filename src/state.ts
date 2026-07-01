@@ -119,19 +119,41 @@ export function setIssuesForProject(projectKey: string): void {
     projectIssues[0] !== null &&
     (projectIssues[0] as Partial<Issue>).id !== undefined
   ) {
-    // Legacy localStorage shape — adopt the embedded Issue[] as-is.
-    _issues = projectIssues as Issue[];
+    // Legacy localStorage shape — `project.issues` holds full Issue[].
+    // Adopt it as the universal issue set; renderBoard() will filter to
+    // the current project at render time.
+    _issues = (projectIssues as Issue[]).map((i) => ({
+      ...i,
+      desc: i.desc || i.description || "",
+    }));
     return;
   }
-  // Server shape — `project.issues` is a numeric ID list. Re-derive
-  // from the full issue list using `projectId`. Normalize `desc` from
-  // `description` so the search filter (which reads `i.desc`) keeps
-  // working after a switch.
+  // Server shape — `project.issues` is a numeric ID list; the global
+  // `_state.issues` (loaded by loadState / SSE re-sync) is the source of
+  // truth. We re-derive `_issues` to the **full set** (every project),
+  // never per-project: renderBoard() filters by `currentProject` at
+  // render time, and confining `_issues` to one project would silently
+  // drop optimistic form pushes (ticket created → `_issues.push()`
+  // → switch projects → SSE hasn't refetched yet → form ticket gone)
+  // and any tickets from other projects that the user hadn't loaded yet.
+  //
+  // JIRITO-119-followup (2026-06-30): the original inline shape check
+  // in switchProject() / initializeData() only updated `_issues` in
+  // legacy localStorage mode; in server mode it silently fell through,
+  // leaving `_issues` showing the previous project's tickets under the
+  // new `currentProject` filter (empty board after switching).
   const allIssues =
     (storage.getStorageData() as { issues?: Issue[] }).issues || [];
-  _issues = allIssues
-    .filter((i) => (i.projectId || projectKey) === projectKey)
-    .map((i) => ({ ...i, desc: i.desc || i.description || "" }));
+  const seen = new Set<string | number>();
+  const reaped = allIssues.map((i) => {
+    seen.add(i.id);
+    return { ...i, desc: i.desc || i.description || "" };
+  });
+  // Union in any optimistic `_issues` entries not yet in storage —
+  // form handlers push to `_issues` directly, and SSE may not have
+  // refetched yet. Dedupe by id; storage wins when both have an entry.
+  const optimistic = _issues.filter((i) => !seen.has(i.id));
+  _issues = [...reaped, ...optimistic];
 }
 
 export function getIssueCounter(): number {
