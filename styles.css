@@ -845,6 +845,25 @@ body {
   border-top: 1px solid var(--border); margin-top: 8px;
 }
 
+/* ===== Icon Picker Modal ===== */
+.icon-search {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 14px; font-family: inherit;
+  background: var(--bg-page); margin-bottom: 12px; box-sizing: border-box;
+}
+.icon-search:focus { outline: none; border-color: var(--primary); background: var(--bg-card); }
+.icon-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+  max-height: 280px; overflow-y: auto;
+}
+.icon-grid-item {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; padding: 6px 4px; border-radius: 6px;
+  cursor: pointer; transition: background 0.1s; border: 2px solid transparent;
+}
+.icon-grid-item:hover { background: var(--border-light); border-color: var(--primary); }
+.icon-grid-item.selected { background: var(--active-bg); border-color: var(--primary); }
+
 /* ===== List View ===== */
 .list-view {
   padding: 16px 24px; flex: 1; overflow-x: auto;

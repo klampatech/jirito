@@ -43,6 +43,7 @@ import {
   setCustomColumns,
   updateCustomColumn,
   updateDefaultColumn,
+  setProjects,
 } from "./state.js";
 import {
   escapeHtml,
@@ -439,11 +440,20 @@ export function renderProjects(): void {
     item.className = `project-item${key === getCurrentProject() ? " active" : ""}`;
     item.dataset.key = key;
     item.innerHTML = `
-      <span class="project-icon">${proj.icon}</span>
+      <span class="project-icon" data-key="${key}" title="Click to change icon">${proj.icon}</span>
       <span class="project-key">${proj.key ? proj.key.toUpperCase() : key.toUpperCase()}</span>
       <span class="project-name" title="Click to rename">${escapeHtml(proj.name)}</span>
       <button class="project-delete" data-key="${key}" title="Delete project">✕</button>
     `;
+    // Icon click → open icon picker
+    const iconEl = item.querySelector(".project-icon") as HTMLElement;
+    if (iconEl) {
+      iconEl.style.cursor = "pointer";
+      iconEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openIconPicker(key, iconEl);
+      });
+    }
     item.addEventListener("click", (e) => {
       // Don't switch project when clicking the delete button
       if ((e.target as HTMLElement).closest(".project-delete")) return;
@@ -1373,7 +1383,400 @@ export function populateAssigneeFilter(): void {
 }
 
 
-// ===== Test contract =====
+// ===== Icon Picker =====
+const ICON_EMOJIS = [
+  "🚀","🎯","⚡","🔥","💡","🌟","🎨","🔧","📦","🎮","🛠️","💎","🌈","🏆","🎁","🎊",
+  "✨","💫","🌸","🌺","🌻","🍀","🌹","🌴","🌳","🌲","🍇","🍓","🍎","🍕","🎂","🍰",
+  "🎈","🎉","🎪","🎭","🎬","🎤","🎧","🎵","🎶","🎹","🎸","🎺","🎻","🥁",
+  "⚽","🏀","🏈","⚾","🎾","🏐","🏓","🏸","🥊","⛳","🏊","🚴","🚵","🤸","🏅",
+  "🚗","🚕","🚙","🚌","🚎","🏎️","🚓","🚑","🚒","🚐","🛻","🚚","🚛","🚜","🛴",
+  "✈️","🛸","🚁","🛶","⛵","🚤","🛥️","🛳️","⛴️","🚢","⚓","🗽","🗼","🏰","🏯",
+  "🏟️","🎡","🎢","🎠","⛱️","🏖️","🏝️","🏜️","🌋","⛰️","🏔️","🗻","🌅",
+  "🌠","🌌","🌉","🌁","🏞️","🎑","💰","💵","💴","💶","💷","💸","💳","🧿","💎","🔮",
+  "🧲","🔧","🔨","⚒️","🛠️","⛏️","🔩","⚙️","🧱","⛓️","📱","💻","🖥️","🖨️","⌨️",
+  "🖱️","🖲️","💽","💾","💿","📀","📼","📷","📸","📹","🎥","📞","☎️","📟","📠",
+  "📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🔌",
+  "💡","🔦","🕯️","🧯","🛢️","💰","💳","⚖️","🧮",
+  "🔣","🔤","🔡","🔠","🆎","🆑","🅰️","🅱️","🆔","🆕","🆓","0️⃣","1️⃣","2️⃣","3️⃣","4️⃣",
+  "5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟","🔢","▶️","⏸️","⏯️","⏹️","⏺️","⏭️","⏮️","⏩","⏪",
+  "🔃","🔄","🔅","🔆","🔇","🔈","🔉","🔊","📣","📢","🔔","🔕","🗨️","💬","💭",
+  "🗯️","✅","❌","⭕","❗","❓","❔","❕","‼️","⁉️","💯","🔞","🔠","🔡","🔢","🔣",
+  "🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚","🕛","🕜","🕝","🕞","🕟",
+  "🕠","🕡","🕢","🕣","🕤","🕥","🕦","🕧","🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘",
+  "🧠","🫀","🫁","🦷","🦴","👁️","👂","👃","🫒","🧑","👨","👩","🧒","👦","👧","🧑‍🦱",
+  "👱","🧑‍🦰","👨‍🦳","👩‍🦳","🧑‍🦲","👼","🤴","👸","🤵","👰","🧙","🧚","🧛","🧜","🧝",
+  "🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐻‍❄️","🐨","🐯","🦁","🐮","🐷","🐽","🐸",
+  "🐵","🙈","🙉","🙊","🐒","🐔","🐧","🐦","🐤","🐣","🐥","🦆","🦅","🦉","🦇","🐺",
+  "🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪰","🪲","🪳","🦟","🦗","🕷️",
+  "🕸️","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬",
+  "🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦛","🦏","🐪","🐫","🦒",
+];
+
+let _iconPickerKey = "";
+export function openIconPicker(projectKey: string, iconEl: HTMLElement): void {
+  _iconPickerKey = projectKey;
+  void iconEl;  // satisfy TS6133
+  const overlay = document.getElementById("icon-picker-overlay") as HTMLElement | null;
+  const searchInput = document.getElementById("icon-search") as HTMLInputElement | null;
+  const grid = document.getElementById("icon-grid") as HTMLElement | null;
+  if (!overlay || !searchInput || !grid) return;
+
+  searchInput.value = "";
+  renderIconGrid(grid, "");
+  overlay.style.display = "flex";
+  searchInput.focus();
+}
+
+export function closeIconPicker(): void {
+  const overlay = document.getElementById("icon-picker-overlay") as HTMLElement | null;
+  if (overlay) overlay.style.display = "none";
+  _iconPickerKey = "";
+}
+
+function renderIconGrid(grid: HTMLElement, filter: string): void {
+  grid.innerHTML = "";
+  const lower = filter.toLowerCase();
+  // Filter by matching emoji characters (emoji is its own label)
+  const matches = ICON_EMOJIS.filter((emoji) => !filter || matchesEmojiKeyword(emoji, lower));
+  const currentProject = getProjects()[_iconPickerKey];
+  const currentIcon = currentProject?.icon || "";
+
+  matches.forEach((emoji) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "icon-grid-item";
+    if (emoji === currentIcon) btn.classList.add("selected");
+    btn.textContent = emoji;
+    btn.title = emoji;
+    btn.addEventListener("click", () => {
+      selectIcon(emoji);
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function matchesEmojiKeyword(emoji: string, filter: string): boolean {
+  // Simple keyword matching — emoji descriptions are used as a fallback
+  // For Unicode emoji that match the filter string (no-op since emojis don't have names in this list)
+  // We do substring matching against a hardcoded keyword map for common emojis
+  const keywordMap: Record<string, string[]> = {
+    "🚀": ["rocket","space","launch","fast"],
+    "🎯": ["target","goal","aim","direct"],
+    "⚡": ["lightning","power","electric","fast","zap"],
+    "🔥": ["fire","hot","flame","trending","popular"],
+    "💡": ["idea","light","bulb","inspiration","new"],
+    "🌟": ["star","favorite","gold","sparkle"],
+    "🎨": ["art","palette","paint","creative","design"],
+    "🔧": ["wrench","tool","fix","build"],
+    "📦": ["box","package","delivery","shipping","new"],
+    "🎮": ["game","gaming","play","controller"],
+    "💎": ["gem","diamond","jewel","precious","crystal"],
+    "🌈": ["rainbow","color","pride","gradient"],
+    "🏆": ["trophy","winner","award","champion","gold"],
+    "🎁": ["gift","present","wrapped","birthday"],
+    "🎊": ["confetti","celebration","party","popper"],
+    "✨": ["sparkle","shine","sparkles","flash"],
+    "💫": ["star","dizzy","sparkle","shooting"],
+    "🌸": ["flower","cherry","blossom","spring","japanese"],
+    "🌺": ["flower","hibiscus","tropical","hawaii"],
+    "🌻": ["flower","sunflower","yellow","summer"],
+    "🍀": ["clover","luck","four-leaf","shamrock"],
+    "🌹": ["rose","flower","love","romance","red"],
+    "🌴": ["palm","tree","tropical","coconut","vacation"],
+    "🌳": ["tree","nature","forest","green","oak"],
+    "🌲": ["tree","pine","nature","forest","christmas"],
+    "🍇": ["grape","wine","fruit","purple","vine"],
+    "🍓": ["strawberry","fruit","berry","red","food"],
+    "🍎": ["apple","fruit","red","food","mac"],
+    "🍕": ["pizza","food","slice","italian"],
+    "🎂": ["cake","birthday","dessert","celebration","candle"],
+    "🎈": ["balloon","party","birthday","celebration"],
+    "🎉": ["party","confetti","celebration","tada"],
+    "🎪": ["circus","tent","festival","carnival"],
+    "🎭": ["theater","drama","mask","stage","art"],
+    "🎬": ["movie","film","clapperboard","cinema","director"],
+    "🎤": ["mic","microphone","music","sing","podcast"],
+    "🎧": ["headphone","music","audio","sound","listen"],
+    "🎵": ["music","note","sound","旋律"],
+    "🎶": ["music","notes","song","sound","melody"],
+    "🎹": ["piano","keyboard","music","instrument"],
+    "🎸": ["guitar","music","rock","instrument","band"],
+    "🎺": ["trumpet","music","brass","jazz","instrument"],
+    "🎻": ["violin","music","classical","instrument","string"],
+    "🥁": ["drum","music","percussion","beat","drummer"],
+    "⚽": ["soccer","football","ball","sport","goal"],
+    "🏀": ["basketball","ball","sport","hoop"],
+    "🏈": ["football","american","sport","nfl"],
+    "⚾": ["baseball","ball","sport","mlb"],
+    "🎾": ["tennis","ball","sport","court"],
+    "🏐": ["volleyball","ball","sport","beach"],
+    "🏓": ["ping","pong","table","tennis","sport","ball"],
+    "🏸": ["badminton","shuttlecock","sport","racket"],
+    "🥊": ["boxing","glove","fight","punch","sport"],
+    "⛳": ["golf","hole","flag","sport","course"],
+    "🏊": ["swim","swimming","pool","sport","water"],
+    "🚴": ["bike","bicycle","cycling","sport","cycle"],
+    "🚵": ["bike","mountain","bicycle","sport","trail"],
+    "🤸": ["gymnast","cartwheel","sport","flip"],
+    "🏅": ["medal","award","olympics","winner","sport"],
+    "🚗": ["car","automobile","vehicle","drive","red"],
+    "🚕": ["taxi","car","uber","ride","vehicle"],
+    "🚙": ["suv","car","vehicle","drive","family"],
+    "🚌": ["bus","vehicle","transport","public"],
+    "🚎": ["trolley","tram","vehicle","electric"],
+    "🏎️": ["race","car","formula","racing","fast"],
+    "🚓": ["police","car","emergency","law"],
+    "🚑": ["ambulance","emergency","medical","health"],
+    "🚒": ["fire","truck","emergency","firefighter"],
+    "🚐": ["van","vehicle","transport","minibus"],
+    "🚚": ["truck","delivery","shipping","vehicle"],
+    "🚛": ["truck","lorry","big","cargo","vehicle"],
+    "🚜": ["tractor","farm","vehicle"," agriculture"],
+    "🛴": ["scooter","kick","vehicle","transport"],
+    "✈️": ["airplane","plane","flight","travel","fly"],
+    "🛸": ["ufo","alien","spaceship","flying","saucer"],
+    "🚁": ["helicopter","helicopter","flight","chopper"],
+    "⛵": ["sailboat","boat","sailing","sea","water"],
+    "🚤": ["speedboat","boat","water","fast","race"],
+    "🛥️": ["motorboat","boat","water","engine"],
+    "🛳️": ["cruise","ship","boat","vacation","travel"],
+    "⛴️": ["ferry","boat","ship","transport","sea"],
+    "🚢": ["ship","boat","cruise","sail","vessel"],
+    "⚓": ["anchor","ship","boat","sailing","navy"],
+    "🗽": ["statue","liberty","nyc","newyork","monument"],
+    "🗼": ["tower","tokyo","japan","landmark","senso-ji"],
+    "🏰": ["castle","fortress","europe","palace","disney"],
+    "🏯": ["castle","japanese","pagoda","fortress","japan"],
+    "🏟️": ["stadium","arena","sports","football","concerts"],
+    "🎡": ["ferris","wheel","carnival","fair","park"],
+    "🎢": ["roller","coaster","ride","amusement","park"],
+    "🎠": ["carousel","horse","merry","round","ferris"],
+    "⛱️": ["beach","umbrella","summer","vacation","parasol"],
+    "🏖️": ["beach","umbrella","vacation","summer","holiday"],
+    "🏝️": ["island","deserted","tropical","vacation","palm"],
+    "🏜️": ["desert","cactus","dry","hot","sahara"],
+    "🌋": ["volcano","mountain","lava","eruption","fire"],
+    "⛰️": ["mountain","nature","climb","hiking","peak"],
+    "🏔️": ["mountain","snow","peak","alpine","snowy"],
+    "🗻": ["fuji","mountain","japan"," Mt ","volcano"],
+    "🌄": ["sunrise","mountain","morning","landscape","view"],
+    "🌅": ["sunrise","morning","sun","beach","day"],
+    "🌠": ["shooting","star","meteor","wish","night","sky"],
+    "🌌": ["milky","way","galaxy","stars","space","night","sky"],
+    "🌉": ["bridge","night","sanfrancisco","golden","gate"],
+    "🌁": ["foggy","mountain","mist","cloud","landscape"],
+    "🏞️": ["park","valley","nature","landscape","hiking"],
+    "🎑": ["moon","ceremony","viewing","japanese","tsukimi"],
+    "💰": ["money","bag","cash","rich","dollar"],
+    "💵": ["dollar","money","cash","bill","usd"],
+    "💴": ["yen","money","japanese","currency","jpy"],
+    "💶": ["euro","money","currency","eu","eur"],
+    "💷": ["pound","money","currency","uk","gbp"],
+    "💸": ["money","fly","wing","paid","expense"],
+    "💳": ["credit","card","bank","payment","money"],
+    "🧿": ["nazar","amulet","turkish","blue","eye"],
+    "🔮": ["crystal","ball","magic","wizard","fortune","teller"],
+    "🧲": ["magnet","horseshoe","magnetic","attract"],
+    "🔨": ["hammer","tool","build","nail","construction"],
+    "⚒️": ["hammer","pick","tool","mining","construction"],
+    "🛠️": ["hammer","wrench","tool","mechanic","fix"],
+    "⛏️": ["pick","pickaxe","tool","mining","dig"],
+    "🔩": ["nut","bolt","hardware","screw","mechanic"],
+    "⚙️": ["gear","settings","cog","mechanical","config"],
+    "🧱": ["brick","wall","construction","blocks","lego"],
+    "⛓️": ["chain","link","chainlink","bind"],
+    "📱": ["iphone","phone","mobile","smartphone","apple"],
+    "💻": ["laptop","computer","mac","apple","notebook"],
+    "🖥️": ["desktop","computer","monitor","screen","pc"],
+    "🖨️": ["printer","print","paper","office"],
+    "⌨️": ["keyboard","type","computer","input","typing"],
+    "🖱️": ["mouse","computer","click","cursor","wireless"],
+    "🖲️": ["trackball","mouse","computer","ball"],
+    "💽": ["minidisk","disc","computer","data","storage"],
+    "💾": ["floppy","disk","computer","retro","save"],
+    "💿": ["cd","disc","dvd","optical","disc"],
+    "📀": ["dvd","disc","bluray","movie","video"],
+    "📼": ["vhs","tape","video","retro","cassette"],
+    "📷": ["camera","photo","photography","dslr","picture"],
+    "📸": ["camera","flash","photo","photography","picture"],
+    "📹": ["video","camcorder","record","film"],
+    "🎥": ["movie","camera","cinema","film","director"],
+    "📞": ["phone","telephone","receiver","call"],
+    "☎️": ["phone","telephone","rotary","classic"],
+    "📟": ["pager","beeper","90s","communication","retro"],
+    "📠": ["fax","machine","office","communication"],
+    "📺": ["tv","television","screen","monitor","show"],
+    "📻": ["radio","broadcast","listen","music","fm"],
+    "🎙️": ["podcast","studio","mic","radio","broadcast"],
+    "🎚️": ["slider","mixing","console","audio","music"],
+    "🎛️": ["knobs","dial","control","audio","settings"],
+    "🧭": ["compass","navigation","direction","map","travel"],
+    "⏱️": ["stopwatch","timer","clock","seconds","sport"],
+    "⏲️": ["timer","clock","kitchen","cooking","countdown"],
+    "⏰": ["alarm","clock","morning","wake","time"],
+    "🕰️": ["clock","mantel","retro","time","antique"],
+    "⌛": ["hourglass","time","wait","sand","loading"],
+    "⏳": ["hourglass","time","wait","sand","loading","done"],
+    "📡": ["satellite","signal","antenna","communication","space"],
+    "🔋": ["battery","power","charge","energy","battery","full"],
+    "🔌": ["plug","electric","power","outlet","plug-in"],
+    "🔦": ["flashlight","light","torch","dark","beam"],
+    "🕯️": ["candle","light","flame","mood","romantic","wax"],
+    "🧯": ["fire","extinguisher","firefighter","safety","flame"],
+    "🛢️": ["oil","drum","barrel","petroleum","fuel"],
+    "⚖️": ["scales","justice","balance","law","weight","court"],
+    "🧮": ["abacus","calculator","math","count","beads"],
+    "0️⃣": ["zero","number","digit","key"],
+    "1️⃣": ["one","1","number","digit","key","first"],
+    "2️⃣": ["two","2","number","digit","key"],
+    "3️⃣": ["three","3","number","digit","key"],
+    "4️⃣": ["four","4","number","digit","key","quad"],
+    "5️⃣": ["five","5","number","digit","key"],
+    "6️⃣": ["six","6","number","digit","key"],
+    "7️⃣": ["seven","7","number","digit","key"],
+    "8️⃣": ["eight","8","number","digit","key"],
+    "9️⃣": ["nine","9","number","digit","key"],
+    "🔟": ["ten","10","number","digit","key"],
+    "✅": ["check","checklist","done","complete","ok","pass","yes"],
+    "❌": ["cross","wrong","fail","error","no","x","delete"],
+    "⭕": ["circle","empty","zero","hole","ring"],
+    "❗": ["exclamation","warning","alert","important","danger"],
+    "❓": ["question","what","who","why","how","query","help"],
+    "❔": ["question","white","mark","doubt","confused"],
+    "❕": ["thought","balloon","speech","hmm","confused","question"],
+    "‼️": ["double","exclamation","alert","warning","important"],
+    "⁉️": ["exclamation","question","wtf","confused","mix"],
+    "💯": ["hundred","100","perfect","score","complete"],
+    "🔞": ["under","18","age","restricted","no","prohibited"],
+    "🐶": ["dog","puppy","pet","cute","canine","woof"],
+    "🐱": ["cat","kitty","pet","cute","feline","meow"],
+    "🐭": ["mouse","small","pet","cute","rodent","cheese"],
+    "🐹": ["hamster","pet","cute","rodent","small","fluffy"],
+    "🐰": ["rabbit","bunny","pet","cute","fluffy","hop"],
+    "🦊": ["fox","animal","clever","wild","orange"],
+    "🐻": ["bear","animal","teddy","brown","wild","zoo"],
+    "🐼": ["panda","bear","china","bamboo","cute","black","white"],
+    "🐨": ["koala","bear","australia","tree","cute","eucalyptus"],
+    "🐯": ["tiger","cat","big","wild","stripe","orange","animal"],
+    "🦁": ["lion","king","animal","big","cat","wild","zoo"],
+    "🐮": ["cow","animal","farm","milk","moo","bovine"],
+    "🐷": ["pig","animal","farm","oink","pink","swine"],
+    "🐽": ["pig","nose","animal","farm","snout","pink"],
+    "🐸": ["frog","animal","toad","green","amphibian","pond"],
+    "🐵": ["monkey","animal"," primate","banana","zoo"],
+    "🙈": ["see","no","evil","monkey","gesture","forbidden"],
+    "🙉": ["hear","no","evil","monkey","gesture","forbidden"],
+    "🙊": ["speak","no","evil","monkey","gesture","forbidden","whistle"],
+    "🐒": ["monkey","animal","primate","banana","zoo","brown"],
+    "🐔": ["chicken","bird","farm","hen","rooster","cluck"],
+    "🐧": ["penguin","bird","cold","arctic","zoo","black","white"],
+    "🐦": ["bird","animal","fly","tweet","chirp","twitter"],
+    "🐤": ["chick","baby","bird","chicken","cute","hatch"],
+    "🐣": ["bird","chick","hatching","baby","chicken","egg"],
+    "🐥": ["bird","chick","chicken","baby","cute","front"],
+    "🦆": ["duck","bird","water","mallard","rubber","quack"],
+    "🦅": ["eagle","bird","fly","predator","freedom","bald"],
+    "🦉": ["owl","bird","night","wise","hoot","predator"],
+    "🦇": ["bat","animal","night","flying","vampire","blind"],
+    "🐺": ["wolf","animal","wild","howl","predator","grey"],
+    "🐗": ["boar","pig","wild","animal","pig","swine"],
+    "🐴": ["horse","animal","pony","ride","brown","mare","stallion"],
+    "🦄": ["unicorn","horse","magic","fantasy","rainbow","sparkle"],
+    "🐝": ["bee","honey","insect","bug","buzz","pollinator","honeybee"],
+    "🪱": ["worm","earthworm","soil","dig","garden","fishing"],
+    "🐛": ["caterpillar","worm","insect","bug","butterfly","larva"],
+    "🦋": ["butterfly","insect","bug","beautiful","colorful","flutter"],
+    "🐌": ["snail","mollusk","slow","shell","garden","slug"],
+    "🐞": ["beetle","ladybug","insect","bug","spot","red","ladybird"],
+    "🐜": ["ant","insect","bug","worker","colony","formicidae"],
+    "🪰": ["fly","insect","bug","buzz","trash","germs"],
+    "🪲": ["beetle","insect","bug","scarab","dung"],
+    "🪳": ["cockroach","roach","insect","bug","pest","germs"],
+    "🦟": ["mosquito","insect","bug","malaria","blood","bite"],
+    "🦗": ["cricket","insect","bug","chirp","grasshopper","orthoptera"],
+    "🕷️": ["spider","arachnid","web","bug","eight","creepy"],
+    "🕸️": ["spider","web","cobweb","network","halloween","spiderweb"],
+    "🦂": ["scorpion","arachnid","sting","tail","desert","dangerous"],
+    "🐢": ["turtle","reptile","slow","shell","sea","ocean","tortoise"],
+    "🐍": ["snake","reptile","serpent","hiss","venom","cobra","reptile"],
+    "🦎": ["lizard","reptile","gecko","wall","lizard","reptile"],
+    "🦖": ["dinosaur","t-rex","rex","extinct","tyrannosaurus","Jurassic"],
+    "🦕": ["dinosaur","sauropod","brachiosaurus","extinct","long","neck"],
+    "🐙": ["octopus","ocean","sea","creature","tentacle","eight","arms"],
+    "🦑": ["squid","ocean","sea","creature","tentacle","cephalopod","blue"],
+    "🦐": ["shrimp","prawn","seafood","ocean","shell","crustacean","pink"],
+    "🦞": ["lobster","seafood","ocean","shell","crustacean","red","claw"],
+    "🦀": ["crab","seafood","ocean","shell","beach","crustacean","red","claw"],
+    "🐡": ["blowfish","fish","ocean","puffer","balloon","poisonous"],
+    "🐠": ["fish","aquarium","tropical","ocean","colorful","reef"],
+    "🐟": ["fish","food","aquarium","sea","ocean","swim","fishing"],
+    "🐬": ["dolphin","ocean","sea","mammal","smart","swim","flipper"],
+    "🐳": ["whale","ocean","sea","big","huge","spout","swim"],
+    "🐋": ["whale","ocean","sea","big","huge","swim","fin"],
+    "🦈": ["shark","fish","ocean","teeth","predator","fin","jaws","dangerous"],
+    "🐊": ["crocodile","reptile","water","dangerous","teeth","delta"],
+    "🐅": ["tiger","big","cat","wild","stripe","predator","orange","animal"],
+    "🐆": ["leopard","big","cat","wild","spot","predator","cheetah"],
+    "🦓": ["zebra","animal","stripe","africa","safari","horse"],
+    "🦍": ["gorilla","ape","primate","wild","strong","africa","big"],
+    "🦧": ["orangutan","ape","primate","red","hair","borneo","big"],
+    "🦣": ["mammoth","elephant","woolly","extinct","ice","tusk","cold"],
+    "🐘": ["elephant","animal","big","trunk","grey","wild","africa"],
+    "🦛": ["hippo","hippopotamus","animal","big","river","africa","heavy"],
+    "🦏": ["rhino","rhinoceros","animal","big","horn","africa","grey"],
+    "🐪": ["camel","animal","desert","hot","hump","dromedary","bactrian"],
+    "🐫": ["camel","animal","desert","bactrian","two","hump","hot"],
+    "🦒": ["giraffe","animal","tall","long","neck","africa","spot","yellow"],
+  };
+
+  const keywords = keywordMap[emoji] || [];
+  return keywords.some((kw) => kw.includes(filter));
+}
+
+function selectIcon(emoji: string): void {
+  const projects = getProjects();
+  const proj = projects[_iconPickerKey];
+  if (!proj) return;
+  const oldIcon = proj.icon || "";
+  if (emoji === oldIcon) {
+    closeIconPicker();
+    return;
+  }
+  proj.icon = emoji;
+  setProjects({ ...projects });
+  saveState();
+  renderProjects();
+  // Re-wire click on the new icon element
+  const newItem = document.querySelector(`.project-item[data-key="${CSS.escape(_iconPickerKey)}"]`);
+  const newIconEl = newItem?.querySelector(".project-icon") as HTMLElement | null;
+  if (newIconEl) {
+    newIconEl.style.cursor = "pointer";
+    newIconEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openIconPicker(_iconPickerKey, newIconEl);
+    });
+  }
+  addActivity("Palette", `Changed project icon to <strong>${emoji}</strong>`);
+  closeIconPicker();
+  showToast("Icon updated", "success");
+}
+
+export function initIconPicker(): void {
+  document.getElementById("icon-picker-close")?.addEventListener("click", closeIconPicker);
+  document.getElementById("icon-picker-overlay")?.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest(".modal")) closeIconPicker();
+  });
+  const searchInput = document.getElementById("icon-search") as HTMLInputElement | null;
+  const grid = document.getElementById("icon-grid") as HTMLElement | null;
+  if (searchInput && grid) {
+    searchInput.addEventListener("input", () => {
+      renderIconGrid(grid, searchInput.value);
+    });
+  }
+}
+
+
+
 //
 // `tests/tests.spec.mjs` calls `switchProject('nonexistent-key')` from
 // inside a `page.evaluate()` callback (the `switchProject with invalid
