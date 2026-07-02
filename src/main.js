@@ -32,7 +32,7 @@
  *     save (to avoid clobbering fresher server state from other tabs).
  */
 import { getActiveSprint, getCurrentProject, getProjects, initializeData, loadState, saveStateImmediate, } from "./state.js";
-import { initCalendar, populateAssigneeFilter, renderBoard, renderSidebar, switchView } from "./render.js";
+import { initCalendar, initIconPicker, populateAssigneeFilter, renderBoard, renderSidebar, switchView } from "./render.js";
 import { initSSE } from "./sse-client.js";
 import { initDragDrop } from "./events.js";
 import { populateSprintSelect, updateSprintBar, updateSprintProgressBar } from "./utils.js";
@@ -105,6 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initShortcuts();
     initTheme();
     initModals();
+    initIconPicker();
     initNotifications();
     initProfile();
     initFilters();

@@ -116,6 +116,21 @@
         <div class="project-list" id="project-list"></div>
         <button class="btn btn-secondary btn-sm btn-full" id="add-project-btn">+ New Project</button>
       </div>
+
+      <!-- Icon Picker Modal -->
+      <div class="modal-overlay" id="icon-picker-overlay" style="display:none">
+        <div class="modal modal-scrollable" style="width:380px">
+          <div class="modal-header">
+            <h2>Choose Icon</h2>
+            <button class="btn-close" id="icon-picker-close">&times;</button>
+          </div>
+          <div style="padding:16px 20px">
+            <input type="text" id="icon-search" class="icon-search" placeholder="Search emojis...">
+            <div class="icon-grid" id="icon-grid"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="sidebar-section">
         <h3 class="sidebar-title">Views</h3>
         <div class="view-list" id="view-list"></div>
