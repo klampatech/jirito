@@ -960,6 +960,10 @@ export function renderSavedFilters() {
         list.appendChild(item);
     });
 }
+export function refreshActivity() {
+    console.log("refreshActivity() called");
+    renderActivity();
+}
 export function renderActivity() {
     const feed = document.getElementById("activity-feed");
     if (!feed)

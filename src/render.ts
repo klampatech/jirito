@@ -1073,6 +1073,11 @@ export function renderSavedFilters(): void {
   });
 }
 
+export function refreshActivity(): void {
+  console.log("refreshActivity() called");
+  renderActivity();
+}
+
 export function renderActivity(): void {
   const feed = document.getElementById("activity-feed");
   if (!feed) return;
