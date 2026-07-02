@@ -72,6 +72,11 @@ import { deleteProject } from "./data.js";
 
 // ===== Rendering =====
 
+export function renderCards(): void {
+  console.log("renderCards() called");
+  renderBoard();
+}
+
 export function renderBoard(): void {
   const board = document.getElementById("board");
   if (!board) return;

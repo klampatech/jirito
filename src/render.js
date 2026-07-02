@@ -21,6 +21,10 @@ import { escapeHtml, formatDate, generateIssueKey, getAllLabels, getCalendarDays
 import { applyFilters, filterIssuesForCurrentProject, initDragDrop, openDetailPanel, removeUndoToast, showToast, updateBulkBar, } from "./events.js";
 import { deleteProject } from "./data.js";
 // ===== Rendering =====
+export function renderCards() {
+    console.log("renderCards() called");
+    renderBoard();
+}
 export function renderBoard() {
     const board = document.getElementById("board");
     if (!board)
