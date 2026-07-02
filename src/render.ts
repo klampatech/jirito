@@ -331,6 +331,13 @@ export function updateCounts(): void {
   updateNotifications();
 }
 
+export function updateColumn(column: { id: string }): void {
+  console.log(`updateColumn() called for column ${column.id}`);
+  setTimeout(() => {
+    console.log(`updateColumn() log removed for column ${column.id}`);
+  }, 5000);
+}
+
 // ===== Notifications =====
 export function updateNotifications(): void {
   const bell = document.getElementById("notification-bell");

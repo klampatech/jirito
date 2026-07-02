@@ -255,6 +255,12 @@ export function updateCounts() {
     });
     updateNotifications();
 }
+export function updateColumn(column) {
+    console.log(`updateColumn() called for column ${column.id}`);
+    setTimeout(() => {
+        console.log(`updateColumn() log removed for column ${column.id}`);
+    }, 5000);
+}
 // ===== Notifications =====
 export function updateNotifications() {
     const bell = document.getElementById("notification-bell");
