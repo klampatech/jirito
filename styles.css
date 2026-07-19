@@ -631,6 +631,7 @@ body {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
   padding: 8px 12px; margin-bottom: 8px; cursor: grab;
   box-shadow: 0 1px 2px var(--shadow);
+  width: 100%; overflow-wrap: break-word;
   max-width: 280px;
   transition: box-shadow 0.15s, transform 0.15s, background 0.3s, border-color 0.3s;
 }
