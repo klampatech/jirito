@@ -567,7 +567,7 @@ body {
   flex: 1;
 }
 .column {
-  background: var(--bg-page); border-radius: 8px; flex: 0 0 auto; min-width: 240px;
+  background: var(--bg-page); border-radius: 8px; flex: 0 0 240px; width: 240px;
   display: flex; flex-direction: column; max-height: calc(100vh - 180px);
   transition: background 0.3s ease;
 }
