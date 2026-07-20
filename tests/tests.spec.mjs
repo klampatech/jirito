@@ -2263,10 +2263,28 @@ test('filtering by sprint shows only that sprint\'s issues', async ({ page }) =>
 // ===== Sprint Progress =====
 test('sprint progress bar is visible', async ({ page }) => {
   // Create a sprint first
+  // Sprint dates must include "now" because updateSprintBar only shows
+  // the bar when getActiveSprint() returns the sprint (which requires
+  // now >= startDate && now <= endDate). Previous hardcoded dates
+  // 2026-06-01 → 2026-07-15 worked when added on 2026-06-01 but expired
+  // by mid-July. Use dynamic dates (today-7d, today+30d) so the test
+  // is never time-bombed. See the same fix in JIRITO-120/121/122/123
+  // test fixture and the related "sprint filter" / "filtering by
+  // sprint" tests above (which use the same hardcoded dates but
+  // happen to pass because they only check the filter dropdown, not
+  // the bar; they should also be migrated to dynamic dates for
+  // forward compatibility — out of scope here).
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 7);
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + 30);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+
   await page.locator('#manage-sprints-btn').click();
   await page.locator('#sprint-name').fill('Progress Sprint');
-  await page.locator('#sprint-start').fill('2026-06-01');
-  await page.locator('#sprint-end').fill('2026-07-15');
+  await page.locator('#sprint-start').fill(fmt(startDate));
+  await page.locator('#sprint-end').fill(fmt(endDate));
   await page.locator('#sprint-form button[type="submit"]').click();
   await page.locator('#sprint-modal-close').click();
 
